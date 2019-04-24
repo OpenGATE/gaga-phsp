@@ -1,0 +1,87 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+import click
+import json
+import time
+import socket
+import phsp
+import gaga
+import copy
+from colorama import init
+from colorama import Fore, Style
+
+CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
+@click.command(context_settings=CONTEXT_SETTINGS)
+@click.argument('phsp_filename')
+@click.argument('json_filename')
+@click.argument('output_filename')
+@click.option('--progress-bar/--no-progress-bar', default=True)
+@click.option('--plot/--no-plot', default=False)
+@click.option('--plot-every-epoch', default=1000)
+def pgg_gan_train(phsp_filename,
+                  json_filename,
+                  output_filename,
+                  progress_bar,
+                  plot,
+                  plot_every_epoch):
+    '''
+    \b
+    Train GAN to learn a PHSP (Phase Space File)
+
+    \b
+    <PHSP_FILENAME>   : input PHSP file (.npy)
+    <JSON_FILENAME>   : input json file with all GAN parameters
+    <OUTPUT_FILENAME> : output GAN as pth file
+    '''
+
+    # term color
+    init()
+
+    # read parameters
+    param_file = open(json_filename).read()
+    params = json.loads(param_file)
+    params['progress_bar'] = progress_bar
+    params['plot'] = plot
+    params['plot_every_epoch'] = plot_every_epoch
+    params['training_filename'] = phsp_filename
+    start = time.strftime("%c")
+    params['start date'] = start
+    params['hostname'] = socket.gethostname()
+    
+    # read input training dataset
+    print(Fore.CYAN +"Loading training dataset ... "+phsp_filename+Style.RESET_ALL)
+    x, keys, m = phsp.load(phsp_filename)
+    params['training_size'] = len(x)
+    params['keys'] = keys
+    params['x_dim'] = len(keys)
+    
+    # print parameters
+    for e in params:
+        if (e[0] != '#'):
+            print('   {:20s} {}'.format(e, str(params[e])))
+
+    # train
+    print(Fore.CYAN +'Building the GAN model ...'+Style.RESET_ALL)
+    gan = gaga.Gan(params,x)
+    print(Fore.CYAN +'Start training ...'+Style.RESET_ALL)
+    model = gan.train()
+
+    # save 
+    now = time.strftime("%c")
+    params['end date'] = now
+    output = dict()
+    output['params'] = params
+    output['model'] = model
+    state = copy.deepcopy(gan.G.state_dict())
+    output['g_model_state'] = state
+    state = copy.deepcopy(gan.D.state_dict())
+    output['d_model_state'] = state
+
+    torch.save(output, output_filename)
+
+
+# --------------------------------------------------------------------------
+if __name__ == '__main__':
+    pgg_gan_train()
+
