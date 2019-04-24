@@ -10,6 +10,7 @@ import gaga
 import copy
 from colorama import init
 from colorama import Fore, Style
+import torch
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 @click.command(context_settings=CONTEXT_SETTINGS)
@@ -18,7 +19,7 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 @click.argument('output_filename')
 @click.option('--progress-bar/--no-progress-bar', default=True)
 @click.option('--plot/--no-plot', default=False)
-@click.option('--plot-every-epoch', default=1000)
+@click.option('--plot-every-epoch', default=100)
 def pgg_gan_train(phsp_filename,
                   json_filename,
                   output_filename,

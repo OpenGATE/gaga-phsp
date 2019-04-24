@@ -2,16 +2,20 @@ import numpy as np
 import torch
 import torch.nn as nn
 from gaga_helpers import *
-# import torch.nn.functional as F
-# from torch.autograd import Variable
-# from torch.utils.data import TensorDataset, DataLoader
+from torch.autograd import Variable
+import torch.nn.functional as F
+from torch.utils.data import TensorDataset, DataLoader
+import time
+import copy
+from tqdm import tqdm
+import random
+import phsp
+from matplotlib import pyplot as plt
+
 # from torch.utils.data.sampler import Sampler
 # from matplotlib import pyplot as plt
 # import helpers
-# import time
-# import copy
 # from scipy.stats import entropy   ## this is the KL divergence
-from tqdm import tqdm
 
 #  Initial code from :
 #  https://github.com/znxlwm/pytorch-generative-model-collections.git
@@ -84,11 +88,11 @@ class Generator(nn.Module):
         self.map3 = nn.Linear(g_hidden_dim, x_dim)
 
         # FIXME --> initialisation
-        # for p in self.parameters():
-        #     if p.ndimension()>1:
-        #         #nn.init.kaiming_normal_(p)
-        #         #nn.init.xavier_normal_(p)
-        #         nn.init.kaiming_uniform_(p, nonlinearity='sigmoid')
+        for p in self.parameters():
+            if p.ndimension()>1:
+                #nn.init.kaiming_normal_(p)
+                nn.init.xavier_normal_(p)
+                #nn.init.kaiming_uniform_(p, nonlinearity='sigmoid')
 
     def forward(self, x):
         x = F.relu(self.map1(x))
@@ -107,6 +111,9 @@ Main GAN object
 ---------------------------------------------------------------------------- '''
 class Gan(object):
     def __init__(self, params, x):
+        '''
+        Create a Gan object from params and samples x
+        '''
 
         # parameters from the dataset
         self.params = params
@@ -124,8 +131,8 @@ class Gan(object):
         z_dim = params['z_dim']
         g_layers = params['g_layers']
         d_layers = params['d_layers']
-        wasserstein = (params['type'] == 'wasserstein')
-        self.D = Discriminator(x_dim, d_dim, d_layers, wasserstein)
+        self.wasserstein_mode = (params['type'] == 'wasserstein')
+        self.D = Discriminator(x_dim, d_dim, d_layers, self.wasserstein_mode)
         self.G = Generator(z_dim, x_dim, g_dim, g_layers)
 
         # init optimizer
@@ -136,21 +143,21 @@ class Gan(object):
             d_weight_decay = float(params["d_weight_decay"])
             print('Optimizer regularisation L2 G weight:', g_weight_decay)
             print('Optimizer regularisation L2 D weight:', d_weight_decay)
-            self.D_optimizer = torch.optim.Adam(self.D.parameters(),
+            self.d_optimizer = torch.optim.Adam(self.D.parameters(),
                                                 weight_decay=dweight_decay,
                                                 lr=d_learning_rate)
-            self.G_optimizer = torch.optim.Adam(self.G.parameters(),
+            self.g_optimizer = torch.optim.Adam(self.G.parameters(),
                                                 weight_decay=g_weight_decay,
                                                 lr=g_learning_rate)
             
         if (params['optimiser'] == 'RMSprop'):
-            self.D_optimizer = torch.optim.RMSprop(self.D.parameters(), lr=d_learning_rate)
-            self.G_optimizer = torch.optim.RMSprop(self.G.parameters(), lr=g_learning_rate)
+            self.d_optimizer = torch.optim.RMSprop(self.D.parameters(), lr=d_learning_rate)
+            self.g_optimizer = torch.optim.RMSprop(self.G.parameters(), lr=g_learning_rate)
 
         # auto decreasing learning_rate
-        # self.G_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.G_optimizer,
+        # self.g_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.g_optimizer,
         #                                                          'min', verbose=True, patience=200)
-        # self.D_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.D_optimizer,
+        # self.d_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.d_optimizer,
         #                                                          'min', verbose=True, patience=200)
 
         # criterion init
@@ -171,57 +178,39 @@ class Gan(object):
 
 
     def train(self):
+        '''
+        Train the GAN
+        '''
 
-        # normalize
-
-        # FIXME
+        # get mean/std of input data for normalisation
         self.x_mean = np.mean(self.x, 0, keepdims=True)
         self.x_std = np.std(self.x, 0, keepdims=True)
-        print('Normalization ', self.x_mean, self.x_std)
-        self.x_mean = Variable(torch.from_numpy(self.x_mean)).type(self.dtypef)
-        self.x_std = Variable(torch.from_numpy(self.x_std)).type(self.dtypef)
         self.params['x_mean'] = self.x_mean
         self.params['x_std'] = self.x_std
-
-        # print
-        print(self.params['encoding_policy'])
-        policy = self.params['encoding_policy']
-
-        # angles index for clip FIXME removed
-        self.angles_index = []
-        # if (policy["psi"] == "sincos"):
-        #     if (policy['E'] != 'ignore'):
-        #         self.angles_index.append(1)
-        #         self.angles_index.append(2)
-        #     else:
-        #         self.angles_index.append(0)
-        #         self.angles_index.append(1)
-        print('angles_index', self.angles_index)
+        self.x = (self.x-self.x_mean)/self.x_std
 
         # save optim epoch values
         optim = {}
-        optim['G_loss'] = []
-        optim['D_loss_real'] = []
-        optim['D_loss_fake'] = []
-        #optim['D_loss_equi'] = []
-        optim['E_D_x'] = []
-        optim['E_D_G_z'] = []
-        optim['G_model_state'] = []
+        optim['g_loss'] = []
+        optim['d_loss_real'] = []
+        optim['d_loss_fake'] = []
+        optim['g_model_state'] = []
         optim['current_epoch'] = []
         si = 0 # nb of stored epoch
 
         # Real/Fake labels (1/0)
-        real_labels = Variable(torch.ones(self.batch_size, 1)).type(self.dtypef)
-        fake_labels = Variable(torch.zeros(self.batch_size, 1)).type(self.dtypef)
-
+        batch_size = self.params['batch_size']
+        real_labels = Variable(torch.ones(batch_size, 1)).type(self.dtypef)
+        fake_labels = Variable(torch.zeros(batch_size, 1)).type(self.dtypef)
+        # One-sided label smoothing
+        if ('label_smoothing' in self.params):
+            s = self.params['label_smoothing']
+            real_labels = Variable((1.0-s)+s*torch.rand(batch_size, 1)).type(self.dtypef)
+            fake_labels = Variable(s*torch.rand(batch_size, 1)).type(self.dtypef)
+            
         # Sampler
-        #batch_sampler = torch.utils.data.sampler.BatchSampler(sampler, self.batch_size, False)
-        # Pytorch Dataset encapsulation
-        #train_data = TensorDataset(torch.from_numpy(x_train).type(dtypef))
-        #sampler = Sampler(self.x, 1, batch_size)
-        #train_loader = DataLoader(train_data, batch_sampler=sampler)
         loader = DataLoader(self.x,
-                            batch_size=self.batch_size,
+                            batch_size=batch_size,
                             num_workers=1,
                             # pin_memory=True,
                             # https://discuss.pytorch.org/t/what-is-the-disadvantage-of-using-pin-memory/1702/4
@@ -232,53 +221,23 @@ class Gan(object):
         # Start training
         epoch = 0
         start = time.strftime("%c")
-        pbar = tqdm(total=self.epoch, disable=not self.params['progress_bar'])
-        while (epoch < self.epoch):
-        #for epoch in range(0,self.epoch):
-            #print(epoch)
+        pbar = tqdm(total=self.params['epoch'], disable=not self.params['progress_bar'])
+        z_dim = self.params['z_dim']
+        while (epoch < self.params['epoch']):
             for batch_idx, data in enumerate(loader):
-                #print('batch_idx', batch_idx)
-
-                # Clamp if wasserstein mode
-                clamp_lower = self.params['clamp_lower']
-                clamp_upper = self.params['clamp_upper']
+                
+                # Clamp D if wasserstein mode
                 if (self.wasserstein_mode):
+                    clamp_lower = self.params['clamp_lower']
+                    clamp_upper = self.params['clamp_upper']
                     for p in self.D.parameters():
-                        #print('param before',p.data)
                         p.data.clamp_(clamp_lower, clamp_upper)
-                        #print('param after',p.data)
 
-                # FIXME: no clamp for G ?
-
-                # One-sided label smoothing
-                if ('label_smoothing' in self.params):
-                    s = self.params['label_smoothing']
-                    real_labels = Variable((1.0-s)+s*torch.rand(self.batch_size, 1)).type(self.dtypef)
-                    fake_labels = Variable(s*torch.rand(self.batch_size, 1)).type(self.dtypef)
-
-                # DD(real_labels)
-                # DD(fake_labels)
-
-                #============= PART (1): Train the discriminator =============#
-                if 'D_nb_loop' in self.params:
-                    n_D = self.params['D_nb_loop']
-                else:
-                    n_D = 1
-                # if (self.wasserstein_mode):
-                #     n_D = 5
-
-                for _ in range(n_D):
+                # PART 1 : D
+                for _ in range(self.params['d_nb_update']):
                     # the input data
                     x = Variable(data).type(self.dtypef)
-                    # ----> WARNING
-                    x = (x-self.x_mean)/self.x_std
-
-                    # print('x sh', x.shape, x.size)
-                    # #x = x.view(self.x_dim, self.batch_size)
-                    if (self.x_dim == 1):
-                        x = x.view(self.batch_size, self.x_dim)
-                    # print('x sh', x.shape, x.size)
-
+                    
                     # get decision from the discriminator
                     d_real_decision = self.D(x)
 
@@ -288,10 +247,8 @@ class Gan(object):
                     else:
                         d_real_loss = self.criterion(d_real_decision, real_labels)
 
-                    # E_D_x = torch.mean(d_real_decision)
-
                     # generate z noise (latent)
-                    z = Variable(torch.randn(self.batch_size, self.z_dim)).type(self.dtypef)
+                    z = Variable(torch.randn(batch_size, z_dim)).type(self.dtypef)
 
                     # generate fake data
                     # (detach to avoid training G on these labels (?))
@@ -299,52 +256,28 @@ class Gan(object):
 
                     # get the fake decision on the fake data
                     d_fake_decision = self.D(d_fake_data)
-
-                    # E_D_G_z = torch.mean(d_fake_decision)
-
+                    
                     # compute loss between fake decision and vector of zeros
                     if (self.wasserstein_mode):
                         d_fake_loss = torch.mean(d_fake_decision)
                     else:
                         d_fake_loss = self.criterion(d_fake_decision, fake_labels)
 
-
                     # FIXME NOT OK for non-saturating version ? -> BCE is negative
-
-
-                    #d_equi_loss = torch.abs(torch.mean(d_real_decision)-0.5) + torch.abs(torch.mean(d_fake_decision)-0.5)
 
                     # sum of loss
                     d_loss = d_real_loss + d_fake_loss
-                    #+ d_equi_loss
 
-                    # regularization FIXME
-                    # reg = 1e-6
-                    # W = self.G.weight
-                    # for name, param in self.G.named_parameters():
-                    #     print(name)
-                    #     if 'bias' not in name:
-                    #         d_loss = d_loss + (0.5 * reg * torch.sum(torch.pow(W, 2)))
-
-
-                    # Backprop + Optimize
+                    # backprop + optimize
                     self.D.zero_grad()
                     d_loss.backward()
-                    self.D_optimizer.step()
+                    self.d_optimizer.step()
 
-                #============= PART (2): Train the generator =============#
-
-                if 'G_nb_loop' in self.params:
-                    n_G = self.params['G_nb_loop']
-                else:
-                    n_G = 1
-                # if (self.wasserstein_mode):
-                #     n_D = 5
-
-                for _ in range(n_G):
+                # PART 2 : G
+                for _ in range(self.params['g_nb_update']):
 
                     # generate z noise (latent)
-                    z = Variable(torch.randn(self.batch_size, self.z_dim)).type(self.dtypef)
+                    z = Variable(torch.randn(batch_size, z_dim)).type(self.dtypef)
 
                     # generate the fake data
                     g_fake_data = self.G(z)#.detach()
@@ -364,73 +297,121 @@ class Gan(object):
 
                     # Backprop + Optimize
                     g_loss.backward()
-                    self.G_optimizer.step()
+                    self.g_optimizer.step()
 
                 # Housekeeping
                 self.D.zero_grad()
                 self.G.zero_grad()
 
-                if (epoch+1) % 100 == 0:
-                    tqdm.write('Epoch %d, d_loss: %.4f, d_real_loss: %.4f, d_fake_loss: %.4f, g_loss: %.4f, D(x): %.2f, D(G(z)): %.2f'
-                          %(epoch,
-                            d_loss.data.item(),
-                            d_real_loss.data.item(),
-                            d_fake_loss.data.item(),
-                            g_loss.data.item(),
-                            d_real_decision.data.mean(),
-                            d_fake_decision.data.mean()))
+                # print info sometimes
+                if (epoch) % 100 == 0:
+                    tqdm.write('Epoch %d d_loss: %.5f   g_loss: %.5f     d_real_loss: %.5f  d_fake_loss: %.5f'
+                               %(epoch,
+                                 d_loss.data.item(),
+                                 g_loss.data.item(),
+                                 d_real_loss.data.item(),
+                                 d_fake_loss.data.item()))
 
-                # slow !!
+                # plot sometimes
                 if (self.params['plot']):
-                    if (epoch+1) % self.params['plot_every_epoch'] == 0:
-                        # tqdm.write('Epoch %d, plot in aa.png and bb.png'%(epoch))
-                        self.plot_decoded_fig(data,
-                                              self.params['param_names'],
-                                              self.params['param_encoded_index'], epoch)
-                        self.plot_encoded_fig(data, self.params['param_encoded_index'], epoch)
+                    if (epoch) % int(self.params['plot_every_epoch']) == 0:
+                        self.plot_epoch(self.params['keys'], epoch)
 
+                    
                 # update loop
                 pbar.update(1)
                 epoch += 1
 
-                # scheduler for learning rate
-                # self.G_scheduler.step(g_loss.data.item())
-                # self.D_scheduler.step(d_loss.data.item())
-
-                # for loss_name, loss in return_dict['losses'].items():
-                #     return_dict['losses'][loss_name] = loss.unsqueeze(0)
-                # return_dict['metrics']['accuracy_cls'] = return_dict['metrics']['accuracy_cls'].unsqueeze(0)
-                # print('dic', self.G.state_dict().keys)
-
                 # save loss value 
-                optim['D_loss_real'].append(d_real_loss.data.item())
-                optim['D_loss_fake'].append(d_fake_loss.data.item())
-                #optim['D_loss_equi'].append(d_equi_loss.data.item())
-                # optim['E_D_x'].append(E_D_x.data.item())
-                # optim['E_D_G_z'].append(E_D_G_z.data.item())
-                optim['G_loss'].append(g_loss.data.item())
+                optim['d_loss_real'].append(d_real_loss.data.item())
+                optim['d_loss_fake'].append(d_fake_loss.data.item())
+                optim['g_loss'].append(g_loss.data.item())
                 
                 # save values
-                # optim['D_loss'].append(d_loss.data.item())
                 if (epoch>self.params['dump_epoch_start']):
-                    # if (si<self.params['dump_epoch_nb']):
                     should_dump1 = (epoch-self.params['dump_epoch_start']) % self.params['dump_epoch_every']
                     should_dump1 = (should_dump1 == 0)
-                    should_dump2 = self.epoch-epoch < self.params['dump_last_n_epoch']
+                    should_dump2 = self.params['epoch']-epoch < self.params['dump_last_n_epoch']
                     if should_dump1 or should_dump2:
-                        #if (epoch+1) % self.params['dump_every_epoch'] == 0:
-                        # print('store ', epoch)
                         state = copy.deepcopy(self.G.state_dict())
-                        optim['G_model_state'].append(state)
+                        optim['g_model_state'].append(state)
                         optim['current_epoch'].append(epoch)
                         si = si+1
 
-                # optim['loss'].append(g_loss.data.item())
-
-                if (epoch > self.epoch):
+                if (epoch > self.params['epoch']):
                     break
 
         pbar.close()
         now = time.strftime("%c")
         print('end epoch start/stop ', start, now)
         return optim
+
+
+    def plot_epoch(self, keys, epoch):
+        '''
+        Plot data during training (slow)
+        '''
+
+        n = int(1e5)
+        nb_bins = 200
+        
+        # create fig
+        nrow, ncol = phsp.fig_get_nb_row_col(len(keys))
+        f, ax = plt.subplots(nrow, ncol, figsize=(25,10))
+
+        # get random true data ; un-normalize
+        x = self.x
+        start = random.randint(0,len(x)-n)
+        real = x[start:start+n,:]
+        real = (real*self.x_std)+self.x_mean
+        
+        # generate z noise (latent) and fake real
+        z = Variable(torch.randn(n, self.params['z_dim'])).type(self.dtypef)
+        fake = self.G(z)
+        fake = fake.cpu().data.numpy()
+        fake = (fake*self.x_std)+self.x_mean       
+        
+        # plot all keys for real data
+        i = 0
+        for k in keys:
+            a = phsp.fig_get_sub_fig(ax,i)
+            index = keys.index(k)
+            x = real[:,index]
+            label = ' {} $\mu$={:.2f} $\sigma$={:.2f}'.format(k, np.mean(x), np.std(x))
+            a.hist(x, nb_bins,
+                   # density=True,
+                   histtype='stepfilled',
+                   facecolor='g',
+                   alpha=0.9,
+                   label=label)
+            a.set_ylabel('Counts')
+            a.legend()
+            i = i+1
+
+        # plot all keys for fake data
+        i = 0
+        for k in keys:
+            a = phsp.fig_get_sub_fig(ax,i)
+            index = keys.index(k)
+            x = fake[:,index]
+            label = ' {} $\mu$={:.2f} $\sigma$={:.2f}'.format(k, np.mean(x), np.std(x))
+            a.hist(x, nb_bins,
+                   # density=True,
+                   histtype='stepfilled',
+                   facecolor='r',
+                   alpha=0.9,
+                   label=label)
+            a.set_ylabel('Counts')
+            a.legend()
+            i = i+1
+            
+        # remove empty plot
+        phsp.fig_rm_empty_plot(len(keys), ax)
+        #plt.show()
+        output_filename = 'aa.png'
+        plt.suptitle('Epoch '+str(epoch))
+        plt.tight_layout()
+        plt.subplots_adjust(top=0.9)
+        plt.savefig(output_filename)
+        plt.close()
+        
