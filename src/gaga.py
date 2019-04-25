@@ -5,7 +5,7 @@ from gaga_helpers import *
 from torch.autograd import Variable
 import torch.nn.functional as F
 from torch.utils.data import TensorDataset, DataLoader
-import time
+import datetime
 import copy
 from tqdm import tqdm
 import random
@@ -23,17 +23,19 @@ from matplotlib import pyplot as plt
 #  All mistakes and bullshits are mine
 
 
-''' ----------------------------------------------------------------------------
-Discriminator: D(x, θD) -> probability that x is real data
-or with Wasserstein GAN : Discriminator is the Critic D(x, θD) -> Wasserstein distance
-
-The discriminator takes in both real and fake input data and returns
-probabilities, a number between 0 and 1, with 1 representing a prediction
-of authenticity and 0 representing fake.
-
-At Nash equilibrium, half of input will be real, half fake: D(x) = 1/2
----------------------------------------------------------------------------- '''
+''' ---------------------------------------------------------------------------------- '''
 class Discriminator(nn.Module):
+    '''
+    Discriminator: D(x, θD) -> probability that x is real data
+    or with Wasserstein GAN :
+    Discriminator is the Critic D(x, θD) -> Wasserstein distance
+    
+    The discriminator takes in both real and fake input data and returns
+    probabilities, a number between 0 and 1, with 1 representing a prediction
+    of authenticity and 0 representing fake.
+    
+    At Nash equilibrium, half of input will be real, half fake: D(x) = 1/2
+    '''
 
     def __init__(self, x_dim,
                  d_hidden_dim,
@@ -69,13 +71,14 @@ class Discriminator(nn.Module):
 
 
 
-''' ----------------------------------------------------------------------------
-Generator: G(z, θG) -> x fake samples
-
-Create samples that are intended to come from the same distrib than the
-training dataset. May have several z input at different layers.
----------------------------------------------------------------------------- '''
+''' --------------------------------------------------------------------------------- '''
 class Generator(nn.Module):
+    '''
+    Generator: G(z, θG) -> x fake samples
+    
+    Create samples that are intended to come from the same distrib than the
+    training dataset. May have several z input at different layers.
+    '''
     
     def __init__(self, z_dim, x_dim, g_hidden_dim, g_layers):
         super(Generator, self).__init__()
@@ -106,10 +109,14 @@ class Generator(nn.Module):
 
 
 
-''' ----------------------------------------------------------------------------
-Main GAN object
----------------------------------------------------------------------------- '''
+''' --------------------------------------------------------------------------------- '''
 class Gan(object):
+    '''
+    Main GAN object
+    - Input params = dict with all parameters
+    - Input x      = input dataset
+
+    '''
     def __init__(self, params, x):
         '''
         Create a Gan object from params and samples x
@@ -177,6 +184,7 @@ class Gan(object):
         print('Number of parameters for G :', params['g_nb_weights'])
 
 
+    ''' ----------------------------------------------------------------------------- '''
     def train(self):
         '''
         Train the GAN
@@ -220,7 +228,7 @@ class Gan(object):
 
         # Start training
         epoch = 0
-        start = time.strftime("%c")
+        start = datetime.datetime.now()
         pbar = tqdm(total=self.params['epoch'], disable=not self.params['progress_bar'])
         z_dim = self.params['z_dim']
         while (epoch < self.params['epoch']):
@@ -316,18 +324,13 @@ class Gan(object):
                 if (self.params['plot']):
                     if (epoch) % int(self.params['plot_every_epoch']) == 0:
                         self.plot_epoch(self.params['keys'], epoch)
-
                     
-                # update loop
-                pbar.update(1)
-                epoch += 1
-
                 # save loss value 
                 optim['d_loss_real'].append(d_real_loss.data.item())
                 optim['d_loss_fake'].append(d_fake_loss.data.item())
                 optim['g_loss'].append(g_loss.data.item())
                 
-                # save values
+                # dump sometimes
                 if (epoch>self.params['dump_epoch_start']):
                     should_dump1 = (epoch-self.params['dump_epoch_start']) % self.params['dump_epoch_every']
                     should_dump1 = (should_dump1 == 0)
@@ -338,15 +341,25 @@ class Gan(object):
                         optim['current_epoch'].append(epoch)
                         si = si+1
 
+                # update loop
+                pbar.update(1)
+                epoch += 1
+
+                # should we stop ?
                 if (epoch > self.params['epoch']):
                     break
 
+        # end of training
         pbar.close()
-        now = time.strftime("%c")
-        print('end epoch start/stop ', start, now)
+        stop = datetime.datetime.now()
+        print('Training completed epoch = ', epoch)
+        print('Start time    = ', start.strftime(gaga.date_format))
+        print('End time      = ', stop.strftime(gaga.date_format))
+        print('Duration time = ', (stop-start))
         return optim
+    
 
-
+    ''' ----------------------------------------------------------------------------- '''
     def plot_epoch(self, keys, epoch):
         '''
         Plot data during training (slow)

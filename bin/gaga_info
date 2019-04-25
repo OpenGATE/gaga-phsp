@@ -1,0 +1,28 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+import click
+import gaga
+
+CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
+@click.command(context_settings=CONTEXT_SETTINGS)
+@click.argument('phsp_filename', nargs=-1)
+@click.option('--plot/--no-plot', default=False)
+def gaga_info(phsp_filename, plot):
+    '''
+    \b
+    Print info about a trained GAN-PHSP (Phase Space File)
+
+    \b
+    <PHSP_FILENAME>   : input PHSP file (.npy)
+    '''
+
+    for f in phsp_filename:
+        params, G, optim = gaga.load(f)
+        gaga.print_info(params, optim)
+
+
+# --------------------------------------------------------------------------
+if __name__ == '__main__':
+    gaga_info()
+
