@@ -88,14 +88,16 @@ class Generator(nn.Module):
     '''
     
     #def __init__(self, z_dim, x_dim, g_hidden_dim, g_layers):
-    def __init__(self, params):
+    def __init__(self, params, cmin, cmax):
         super(Generator, self).__init__()
 
         self.params = params
         z_dim = self.params['z_dim']
-        x_dim = self.params['x_dim']
+        self.x_dim = self.params['x_dim']
         g_dim = self.params['g_dim']
         self.g_layers = self.params['g_layers']
+        self.cmin = cmin
+        self.cmax = cmax
         
         self.map1 = nn.Linear(z_dim, g_dim)
         self.maps = nn.ModuleList()
@@ -103,14 +105,14 @@ class Generator(nn.Module):
         for i in range(self.g_layers):
             self.maps.append(nn.Linear(g_dim, g_dim))
             
-        self.map3 = nn.Linear(g_dim, x_dim)
+        self.map3 = nn.Linear(g_dim, self.x_dim)
 
         # FIXME --> initialisation
         for p in self.parameters():
             if p.ndimension()>1:
                 #nn.init.kaiming_normal_(p)
-                nn.init.xavier_normal_(p)
-                #nn.init.kaiming_uniform_(p, nonlinearity='sigmoid')
+                #nn.init.xavier_normal_(p)
+                nn.init.kaiming_uniform_(p, nonlinearity='sigmoid')
 
     def forward(self, x):
         x = F.relu(self.map1(x))
@@ -121,7 +123,9 @@ class Generator(nn.Module):
         x = torch.sigmoid(x) # to output probability within [0-1]
         x = self.map3(x)
 
-        #        x = torch.clamp(x)
+        # clamp values
+        x = torch.max(x, self.cmin)
+        x = torch.min(x, self.cmax)
         
         return x
 
@@ -149,16 +153,42 @@ class Gan(object):
         # main dataset
         self.x = x;
 
-        # init G and D
+        # init G and D parameters
         x_dim = params['x_dim']
         g_dim = params['g_dim']
         d_dim = params['d_dim']
         z_dim = params['z_dim']
         g_layers = params['g_layers']
         d_layers = params['d_layers']
+        x_std = params['x_std']
+        x_mean = params['x_mean']
         self.wasserstein_mode = (params['type'] == 'wasserstein')
+
+        # clamp take normalisation into account
+        keys = self.params['keys']
+        ckeys = self.params['constraints']
+        cmin = np.ones((1, x_dim)) * -999 # FIXME min value
+        cmax = np.ones((1, x_dim)) *  999 # FIXME max value
+        for k,v in ckeys.items():
+            try:
+                index = keys.index(k)
+                cmin[0,index] = v[0]
+                cmax[0,index] = v[1]
+            except:
+                continue
+
+        print(cmin)
+        cmin = (cmin-x_mean)/x_std
+        cmin = torch.from_numpy(cmin).type(self.dtypef)
+        print(cmin)            
+
+        cmax = (cmax-x_mean)/x_std
+        cmax = torch.from_numpy(cmax).type(self.dtypef)
+        print(cmax)            
+
+        # init G and D        
         self.D = Discriminator(params)
-        self.G = Generator(params)
+        self.G = Generator(params, cmin, cmax)
 
         # init optimizer
         d_learning_rate = params['d_learning_rate']
