@@ -135,5 +135,46 @@ def load(filename):
     return params, G, optim
 
 
+''' ---------------------------------------------------------------------------------- '''
+def plot_epoch(ax, optim, filename):
+
+    x1 = np.asarray(optim['d_loss_real'])
+    x2 = np.asarray(optim['d_loss_fake'])
+    x = np.add(x1,x2)
+
+    a = ax[0]
+    l = filename
+    a.plot(x, '-', label='D_loss '+l)
+    z = np.zeros_like(x)
+    a.set_xlabel('epoch')
+    a.plot(z, '--')
+    a.legend()
+
+    a = ax[1]
+    n = int(len(x)*0.2) # first 20%
+    xc = x[0:n]
+    a.plot(xc, '-', label='D_loss '+l)
+    z = np.zeros_like(xc)
+    a.set_xlabel('epoch')
+    a.set_xlim((0,n))
+    ymin = np.amin(xc)
+    ymax = np.amax(xc)
+    a.set_ylim((ymin,ymax))
+    a.plot(z, '--')
+    a.legend()
+    
+    a = ax[2]
+    n = max(10, int(len(x)*0.01)) # last 1%
+    xc = x
+    a.plot(xc, '.-', label='D_loss '+l)
+    z = np.zeros_like(xc)
+    a.set_xlabel('epoch')
+    a.set_xlim((len(xc)-n,len(xc)))
+    xc = x[len(x)-n:len(x)]
+    ymin = np.amin(xc)
+    ymax = np.amax(xc)
+    a.set_ylim((ymin,ymax))
+    a.plot(z, '--')
+    a.legend()
 
     
