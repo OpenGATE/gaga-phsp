@@ -379,43 +379,22 @@ class Gan(object):
         real = (real*self.x_std)+self.x_mean
         
         # generate z noise (latent) and fake real
-        z = Variable(torch.randn(n, self.params['z_dim'])).type(self.dtypef)
-        fake = self.G(z)
-        fake = fake.cpu().data.numpy()
-        fake = (fake*self.x_std)+self.x_mean       
+        # z = Variable(torch.randn(n, self.params['z_dim'])).type(self.dtypef)
+        # fake = self.G(z)
+        # fake = fake.cpu().data.numpy()
+        # fake = (fake*self.x_std)+self.x_mean
+        fake = generate_samples(self.params, self.G, self.dtypef, n)
         
         # plot all keys for real data
         i = 0
         for k in keys:
-            a = phsp.fig_get_sub_fig(ax,i)
-            index = keys.index(k)
-            x = real[:,index]
-            label = ' {} $\mu$={:.2f} $\sigma$={:.2f}'.format(k, np.mean(x), np.std(x))
-            a.hist(x, nb_bins,
-                   # density=True,
-                   histtype='stepfilled',
-                   facecolor='g',
-                   alpha=0.9,
-                   label=label)
-            a.set_ylabel('Counts')
-            a.legend()
+            gaga.fig_plot_marginal(real, k, keys, ax, i, nb_bins, 'g')
             i = i+1
 
         # plot all keys for fake data
         i = 0
         for k in keys:
-            a = phsp.fig_get_sub_fig(ax,i)
-            index = keys.index(k)
-            x = fake[:,index]
-            label = ' {} $\mu$={:.2f} $\sigma$={:.2f}'.format(k, np.mean(x), np.std(x))
-            a.hist(x, nb_bins,
-                   # density=True,
-                   histtype='stepfilled',
-                   facecolor='r',
-                   alpha=0.9,
-                   label=label)
-            a.set_ylabel('Counts')
-            a.legend()
+            gaga.fig_plot_marginal(fake, k, keys, ax, i, nb_bins, 'r')
             i = i+1
             
         # remove empty plot

@@ -28,5 +28,6 @@ setuptools.setup(
     scripts=[
         'bin/gaga_train',
         'bin/gaga_info',
+        'bin/gaga_plot',
     ]
 )

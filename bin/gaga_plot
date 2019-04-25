@@ -1,0 +1,103 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+import click
+import gaga
+import phsp
+import torch
+import numpy as np
+from torch.autograd import Variable
+from matplotlib import pyplot as plt
+
+CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
+@click.command(context_settings=CONTEXT_SETTINGS)
+@click.argument('phsp_filename')
+@click.argument('pth_filename')
+@click.option('--n', '-n',
+              default=1e4,
+              help='Number of samples to generate')
+@click.option('--nb_bins', '-b',
+              default=int(200),
+              help='Number of bins')
+def gaga_plot(phsp_filename, pth_filename, n, nb_bins):
+    '''
+    \b
+    Plot marginal distribution from a GAN-PHSP
+
+    \b
+    <PHSP_FILENAME>   : input phase space file PHSP file (.npy)
+    <PTH_FILENAME>    : input GAN PTH file (.pth)
+    '''
+
+    # 1) marginal
+    # 2) 2D
+
+    n = int(n)
+
+    keys_2d = [
+        ['Ekine', 'X'],
+        ['Ekine', 'Y'],
+        ['Ekine', 'Z'],
+        ['X', 'Y'],
+        ['Z', 'Y'],
+        ['dZ', 'Z'],
+    ]
+
+    # load phsp
+    real, keys, m = phsp.load(phsp_filename, n)
+    print(keys)
+
+    # load pth
+    params, G, optim, dtypef= gaga.load(pth_filename)
+
+    # fig panel
+    nb_fig = len(keys)+len(keys_2d)
+    print(nb_fig)
+    nrow, ncol = phsp.fig_get_nb_row_col(nb_fig)
+    f, ax = plt.subplots(nrow, ncol, figsize=(25,10))
+
+    # generate samples
+    fake = gaga.generate_samples(params, G, dtypef, n)
+    print(len(fake))
+
+    # plot all keys for real data
+    i = 0
+    for k in keys:
+        gaga.fig_plot_marginal(real, k, keys, ax, i, nb_bins, 'g')
+        i = i+1
+
+    # plot all keys for fake data
+    i = 0
+    for k in keys:
+        gaga.fig_plot_marginal(fake, k, keys, ax, i, nb_bins, 'r')
+        i = i+1
+
+
+    # plot 2D distribution
+    starti = i
+    for kk in keys_2d:
+        gaga.fig_plot_marginal_2d(real, kk[0], kk[1], keys, ax, i, nb_bins, 'g')
+        i = i+1
+        
+    # plot 2D distribution
+    i = starti
+    for kk in keys_2d:
+        gaga.fig_plot_marginal_2d(fake, kk[0], kk[1], keys, ax, i, nb_bins, 'r')
+        i = i+1
+     
+    # remove empty plot
+    phsp.fig_rm_empty_plot(nb_fig, ax)
+    
+    #plt.suptitle('Epoch '+str(epoch))
+    plt.tight_layout()
+    plt.subplots_adjust(top=0.9)
+    plt.show()
+
+    #output_filename = 'aa.png'
+    #plt.savefig(output_filename)
+    #plt.close()
+
+# --------------------------------------------------------------------------
+if __name__ == '__main__':
+    gaga_plot()
+

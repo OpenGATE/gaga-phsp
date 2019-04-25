@@ -7,22 +7,24 @@ from matplotlib import pyplot as plt
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 @click.command(context_settings=CONTEXT_SETTINGS)
-@click.argument('phsp_filename', nargs=-1)
+@click.argument('pth_filename', nargs=-1)
 @click.option('--plot/--no-plot', default=False)
-def gaga_info(phsp_filename, plot):
+def gaga_info(pth_filename, plot):
     '''
     \b
-    Print info about a trained GAN-PHSP (Phase Space File)
+    Print info about a trained GAN-PTH (Phase Space File)
+
+    If plot option: plot the loss wrt epoch
 
     \b
-    <PHSP_FILENAME>   : input PHSP file (.npy)
+    <PTH_FILENAME> : input PTH file (.pth)
     '''
 
     if plot:
         fig, ax = plt.subplots(1, 3, figsize=(16,5))
     
-    for f in phsp_filename:
-        params, G, optim = gaga.load(f)
+    for f in pth_filename:
+        params, G, optim, dtypef = gaga.load(f)
         gaga.print_info(params, optim)
         if plot:
             gaga.plot_epoch(ax, optim, f)

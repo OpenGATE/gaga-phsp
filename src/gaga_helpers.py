@@ -1,8 +1,13 @@
 import numpy as np
 import torch
+from torch.autograd import Variable
 import gaga
 import datetime
 import os
+import phsp
+from scipy.stats import kde
+from matplotlib import pyplot as plt
+import seaborn as sns
 
 ''' ---------------------------------------------------------------------------------- '''
 '''
@@ -132,11 +137,15 @@ def load(filename):
         G.cuda()
     G.load_state_dict(G_state)
 
-    return params, G, optim
+    return params, G, optim, dtypef
 
 
 ''' ---------------------------------------------------------------------------------- '''
 def plot_epoch(ax, optim, filename):
+    '''
+    Plot D loss wrt to epoch
+    3 panels : all epoch / first 20% / last 1% 
+    '''
 
     x1 = np.asarray(optim['d_loss_real'])
     x2 = np.asarray(optim['d_loss_fake'])
@@ -176,5 +185,77 @@ def plot_epoch(ax, optim, filename):
     a.set_ylim((ymin,ymax))
     a.plot(z, '--')
     a.legend()
+
+    
+''' ---------------------------------------------------------------------------------- '''
+def generate_samples(params, G, dtypef, n):
+
+    z_dim = params['z_dim']
+    x_mean = params['x_mean']
+    x_std = params['x_std']
+    z = Variable(torch.randn(n, z_dim)).type(dtypef)
+    fake = G(z)
+    fake = fake.cpu().data.numpy()
+    fake = (fake*x_std)+x_mean
+
+    return fake
+
+
+''' ---------------------------------------------------------------------------------- '''
+def fig_plot_marginal(x, k, keys, ax, i, nb_bins, color):
+    a = phsp.fig_get_sub_fig(ax,i)
+    index = keys.index(k)
+    d = x[:,index]
+    label = ' {} $\mu$={:.2f} $\sigma$={:.2f}'.format(k, np.mean(d), np.std(d))
+    a.hist(d, nb_bins,
+           # density=True,
+           histtype='stepfilled',
+           facecolor=color,
+           alpha=0.5,
+           label=label)
+    a.set_ylabel('Counts')
+    a.legend()
+
+
+''' ---------------------------------------------------------------------------------- '''
+def fig_plot_marginal_2d(x, k1, k2, keys, ax, i, nbins, color):
+    a = phsp.fig_get_sub_fig(ax,i)
+    index1 = keys.index(k1)
+    d1 = x[:,index1]
+    index2 = keys.index(k2)
+    d2 = x[:,index2]
+    label = '{} {}'.format(k1, k2)
+
+    ptype = 'scatter'
+    
+    if ptype == 'scatter':
+        a.scatter(d1, d2, color=color,
+                  alpha=0.25,
+                  edgecolor='none',
+                  s=1)
+        
+        
+    if ptype == 'hist':
+        cmap = plt.cm.Greens
+        if color == 'r':
+            cmap = plt.cm.Reds
+        a.hist2d(d1, d2,
+                 bins=(nbins, nbins), 
+                 alpha=0.5,
+                 cmap=cmap)
+
+    if ptype == 'density':
+        x = d1
+        y = d2
+        print('kde')
+        k = kde.gaussian_kde([x,y])
+        xi, yi = np.mgrid[x.min():x.max():nbins*1j, y.min():y.max():nbins*1j]
+        zi = k(np.vstack([xi.flatten(), yi.flatten()]))
+        a.pcolormesh(xi, yi, zi.reshape(xi.shape))
+
+        
+        
+    a.set_xlabel(k1)
+    a.set_ylabel(k2)
 
     
