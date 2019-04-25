@@ -37,19 +37,26 @@ class Discriminator(nn.Module):
     At Nash equilibrium, half of input will be real, half fake: D(x) = 1/2
     '''
 
-    def __init__(self, x_dim,
-                 d_hidden_dim,
-                 d_layers,
-                 wasserstein=False):
+    # def __init__(self, x_dim,
+    #              d_hidden_dim,
+    #              d_layers,
+    #              wasserstein=False):
+    def __init__(self, params):
         super(Discriminator, self).__init__()
-        self.map1 = nn.Linear(x_dim, d_hidden_dim)
+
+        self.params = params
+        x_dim = params['x_dim']
+        d_dim = params['d_dim']
+        self.d_layers = params['d_layers']
+        self.wasserstein = (params['type'] == 'wasserstein')  
+        
+        self.map1 = nn.Linear(x_dim, d_dim)
         self.maps = nn.ModuleList()
-        self.d_layers = d_layers
-        self.wasserstein = wasserstein
-        for i in range(d_layers):
-            self.maps.append(nn.Linear(d_hidden_dim,d_hidden_dim))
+
+        for i in range(self.d_layers):
+            self.maps.append(nn.Linear(d_dim,d_dim))
             
-        self.map3 = nn.Linear(d_hidden_dim, 1)
+        self.map3 = nn.Linear(d_dim, 1)
 
         # FIXME --> initialisation
         # for p in self.parameters():
@@ -80,15 +87,23 @@ class Generator(nn.Module):
     training dataset. May have several z input at different layers.
     '''
     
-    def __init__(self, z_dim, x_dim, g_hidden_dim, g_layers):
+    #def __init__(self, z_dim, x_dim, g_hidden_dim, g_layers):
+    def __init__(self, params):
         super(Generator, self).__init__()
-        self.map1 = nn.Linear(z_dim, g_hidden_dim)
+
+        self.params = params
+        z_dim = self.params['z_dim']
+        x_dim = self.params['x_dim']
+        g_dim = self.params['g_dim']
+        self.g_layers = self.params['g_layers']
+        
+        self.map1 = nn.Linear(z_dim, g_dim)
         self.maps = nn.ModuleList()
-        self.g_layers = g_layers
-        for i in range(g_layers):
-            self.maps.append(nn.Linear(g_hidden_dim, g_hidden_dim))
+
+        for i in range(self.g_layers):
+            self.maps.append(nn.Linear(g_dim, g_dim))
             
-        self.map3 = nn.Linear(g_hidden_dim, x_dim)
+        self.map3 = nn.Linear(g_dim, x_dim)
 
         # FIXME --> initialisation
         for p in self.parameters():
@@ -105,6 +120,9 @@ class Generator(nn.Module):
         x = self.maps[self.g_layers-1](x)  # last one
         x = torch.sigmoid(x) # to output probability within [0-1]
         x = self.map3(x)
+
+        #        x = torch.clamp(x)
+        
         return x
 
 
@@ -139,8 +157,8 @@ class Gan(object):
         g_layers = params['g_layers']
         d_layers = params['d_layers']
         self.wasserstein_mode = (params['type'] == 'wasserstein')
-        self.D = Discriminator(x_dim, d_dim, d_layers, self.wasserstein_mode)
-        self.G = Generator(z_dim, x_dim, g_dim, g_layers)
+        self.D = Discriminator(params)
+        self.G = Generator(params)
 
         # init optimizer
         d_learning_rate = params['d_learning_rate']
@@ -191,11 +209,13 @@ class Gan(object):
         '''
 
         # get mean/std of input data for normalisation
-        self.x_mean = np.mean(self.x, 0, keepdims=True)
-        self.x_std = np.std(self.x, 0, keepdims=True)
-        self.params['x_mean'] = self.x_mean
-        self.params['x_std'] = self.x_std
-        self.x = (self.x-self.x_mean)/self.x_std
+        # self.x_mean = np.mean(self.x, 0, keepdims=True)
+        # self.x_std = np.std(self.x, 0, keepdims=True)
+        # self.params['x_mean'] = self.x_mean
+        # self.params['x_std'] = self.x_std
+        # self.x = (self.x-self.x_mean)/self.x_std
+        self.x_mean = self.params['x_mean']
+        self.x_std = self.params['x_std']
 
         # save optim epoch values
         optim = {}
@@ -406,4 +426,3 @@ class Gan(object):
         plt.subplots_adjust(top=0.9)
         plt.savefig(output_filename)
         plt.close()
-        

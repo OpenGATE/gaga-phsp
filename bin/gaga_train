@@ -8,6 +8,7 @@ import socket
 import phsp
 import gaga
 import copy
+import numpy as np
 from colorama import init
 from colorama import Fore, Style
 import torch
@@ -20,7 +21,7 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 @click.argument('output_filename')
 @click.option('--progress-bar/--no-progress-bar', default=True)
 @click.option('--plot/--no-plot', default=False)
-@click.option('--plot-every-epoch', default=100)
+@click.option('--plot-every-epoch', default=200)
 def gaga_train(phsp_filename,
                   json_filename,
                   output_filename,
@@ -58,6 +59,13 @@ def gaga_train(phsp_filename,
     params['training_size'] = len(x)
     params['keys'] = keys
     params['x_dim'] = len(keys)
+
+    # normalisation
+    x_mean = np.mean(x, 0, keepdims=True)
+    x_std = np.std(x, 0, keepdims=True)
+    params['x_mean'] = x_mean
+    params['x_std'] = x_std
+    x = (x-x_mean)/x_std
     
     # print parameters
     for e in params:
