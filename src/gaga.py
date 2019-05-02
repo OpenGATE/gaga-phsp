@@ -165,26 +165,9 @@ class Gan(object):
         self.wasserstein_mode = (params['type'] == 'wasserstein')
 
         # clamp take normalisation into account
-        keys = self.params['keys']
-        ckeys = self.params['constraints']
-        cmin = np.ones((1, x_dim)) * -999 # FIXME min value
-        cmax = np.ones((1, x_dim)) *  999 # FIXME max value
-        for k,v in ckeys.items():
-            try:
-                index = keys.index(k)
-                cmin[0,index] = v[0]
-                cmax[0,index] = v[1]
-            except:
-                continue
-
-        print(cmin)
-        cmin = (cmin-x_mean)/x_std
+        cmin, cmax = gaga.get_min_max_constraints(params)
         cmin = torch.from_numpy(cmin).type(self.dtypef)
-        print(cmin)            
-
-        cmax = (cmax-x_mean)/x_std
         cmax = torch.from_numpy(cmax).type(self.dtypef)
-        print(cmax)            
 
         # init G and D        
         self.D = Discriminator(params)

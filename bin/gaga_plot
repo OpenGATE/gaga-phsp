@@ -35,12 +35,15 @@ def gaga_plot(phsp_filename, pth_filename, n, nb_bins):
     n = int(n)
 
     keys_2d = [
-        ['Ekine', 'X'],
-        ['Ekine', 'Y'],
-        ['Ekine', 'Z'],
+        ['X', 'Ekine'],
+        ['Y', 'Ekine'],
+        ['Z', 'Ekine'],
         ['X', 'Y'],
         ['Z', 'Y'],
+        ['Z', 'X'],
         ['dZ', 'Z'],
+        ['dY', 'Y'],
+        ['dX', 'X']
     ]
 
     # load phsp
@@ -74,6 +77,9 @@ def gaga_plot(phsp_filename, pth_filename, n, nb_bins):
 
 
     # plot 2D distribution
+    # n = int(n/10)
+    # real = real[0:n]
+    # fake = fake[0:n]
     starti = i
     for kk in keys_2d:
         gaga.fig_plot_marginal_2d(real, kk[0], kk[1], keys, ax, i, nb_bins, 'g')

@@ -21,7 +21,7 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 @click.argument('output_filename')
 @click.option('--progress-bar/--no-progress-bar', default=True)
 @click.option('--plot/--no-plot', default=False)
-@click.option('--plot-every-epoch', default=200)
+@click.option('--plot-every-epoch', default=400)
 def gaga_train(phsp_filename,
                   json_filename,
                   output_filename,

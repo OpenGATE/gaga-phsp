@@ -127,18 +127,46 @@ def load(filename):
     G_state = nn['g_model_state']
 
     # create the Generator
-    z_dim = params['z_dim']
-    x_dim = params['x_dim']
-    g_dim = params['g_dim']
-    g_layers = params['g_layers']
-
-    G = gaga.Generator(z_dim, x_dim, g_dim, g_layers)
+    print(params)
+    cmin, cmax = gaga.get_min_max_constraints(params)
+    cmin = torch.from_numpy(cmin).type(dtypef)
+    cmax = torch.from_numpy(cmax).type(dtypef)
+    G = gaga.Generator(params, cmin, cmax)
+    
     if (str(device) != 'cpu'):
         G.cuda()
     G.load_state_dict(G_state)
 
     return params, G, optim, dtypef
 
+''' ---------------------------------------------------------------------------------- '''
+def get_min_max_constraints(params):
+    '''
+    Compute the min/max values per dimension according to params['keys'] and params['constraints']
+    '''
+    
+    # clamp take normalisation into account
+    x_dim = params['x_dim']
+    keys = params['keys']
+    ckeys = params['constraints']
+    cmin = np.ones((1, x_dim)) * -9999 # FIXME min value
+    cmax = np.ones((1, x_dim)) *  9999 # FIXME max value
+    for k,v in ckeys.items():
+        try:
+            index = keys.index(k)
+            cmin[0,index] = v[0]
+            cmax[0,index] = v[1]
+        except:
+            continue
+        
+    x_std = params['x_std']
+    x_mean = params['x_mean']
+    
+    cmin = (cmin-x_mean)/x_std
+    cmax = (cmax-x_mean)/x_std
+
+    return cmin, cmax
+    
 
 ''' ---------------------------------------------------------------------------------- '''
 def plot_epoch(ax, optim, filename):
@@ -227,13 +255,13 @@ def fig_plot_marginal_2d(x, k1, k2, keys, ax, i, nbins, color):
     label = '{} {}'.format(k1, k2)
 
     ptype = 'scatter'
+    # ptype = 'density'
     
     if ptype == 'scatter':
         a.scatter(d1, d2, color=color,
                   alpha=0.25,
                   edgecolor='none',
-                  s=1)
-        
+                  s=1)        
         
     if ptype == 'hist':
         cmap = plt.cm.Greens
@@ -251,7 +279,9 @@ def fig_plot_marginal_2d(x, k1, k2, keys, ax, i, nbins, color):
         k = kde.gaussian_kde([x,y])
         xi, yi = np.mgrid[x.min():x.max():nbins*1j, y.min():y.max():nbins*1j]
         zi = k(np.vstack([xi.flatten(), yi.flatten()]))
-        a.pcolormesh(xi, yi, zi.reshape(xi.shape))
+        a.pcolormesh(xi, yi,
+                     zi.reshape(xi.shape), 
+                     alpha=0.5)
 
         
         
