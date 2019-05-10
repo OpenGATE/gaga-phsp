@@ -2,7 +2,9 @@ import numpy as np
 import torch
 import torch.nn as nn
 from gaga_helpers import *
+from sinkhorn import *
 from torch.autograd import Variable
+from torch.autograd import grad as torch_grad
 import torch.nn.functional as F
 from torch.utils.data import TensorDataset, DataLoader
 import datetime
@@ -48,7 +50,7 @@ class Discriminator(nn.Module):
         x_dim = params['x_dim']
         d_dim = params['d_dim']
         self.d_layers = params['d_layers']
-        self.wasserstein = (params['type'] == 'wasserstein')  
+        self.wasserstein = (params['type'] == 'wasserstein') or (params['type'] == 'gradient_penalty') 
         
         self.map1 = nn.Linear(x_dim, d_dim)
         self.maps = nn.ModuleList()
@@ -162,7 +164,7 @@ class Gan(object):
         d_layers = params['d_layers']
         x_std = params['x_std']
         x_mean = params['x_mean']
-        self.wasserstein_mode = (params['type'] == 'wasserstein')
+        self.wasserstein_loss = (params['type'] == 'wasserstein') or (params['type'] == 'gradient_penalty')
 
         # clamp take normalisation into account
         cmin, cmax = gaga.get_min_max_constraints(params)
@@ -182,7 +184,7 @@ class Gan(object):
             print('Optimizer regularisation L2 G weight:', g_weight_decay)
             print('Optimizer regularisation L2 D weight:', d_weight_decay)
             self.d_optimizer = torch.optim.Adam(self.D.parameters(),
-                                                weight_decay=dweight_decay,
+                                                weight_decay=d_weight_decay,
                                                 lr=d_learning_rate)
             self.g_optimizer = torch.optim.Adam(self.G.parameters(),
                                                 weight_decay=g_weight_decay,
@@ -240,7 +242,8 @@ class Gan(object):
         si = 0 # nb of stored epoch
 
         # Real/Fake labels (1/0)
-        batch_size = self.params['batch_size']
+        self.batch_size = self.params['batch_size']
+        batch_size = self.batch_size
         real_labels = Variable(torch.ones(batch_size, 1)).type(self.dtypef)
         fake_labels = Variable(torch.zeros(batch_size, 1)).type(self.dtypef)
         # One-sided label smoothing
@@ -267,8 +270,8 @@ class Gan(object):
         while (epoch < self.params['epoch']):
             for batch_idx, data in enumerate(loader):
                 
-                # Clamp D if wasserstein mode
-                if (self.wasserstein_mode):
+                # Clamp D if wasserstein mode (not in gradient_penalty mode)
+                if (self.params['type'] == 'wasserstein'):
                     clamp_lower = self.params['clamp_lower']
                     clamp_upper = self.params['clamp_upper']
                     for p in self.D.parameters():
@@ -283,7 +286,7 @@ class Gan(object):
                     d_real_decision = self.D(x)
 
                     # compute loss BCELoss between decision and vector of ones (y_real_)
-                    if (self.wasserstein_mode):
+                    if (self.wasserstein_loss):
                         d_real_loss = -torch.mean(d_real_decision)
                     else:
                         d_real_loss = self.criterion(d_real_decision, real_labels)
@@ -299,7 +302,7 @@ class Gan(object):
                     d_fake_decision = self.D(d_fake_data)
                     
                     # compute loss between fake decision and vector of zeros
-                    if (self.wasserstein_mode):
+                    if (self.wasserstein_loss):
                         d_fake_loss = torch.mean(d_fake_decision)
                     else:
                         d_fake_loss = self.criterion(d_fake_decision, fake_labels)
@@ -307,7 +310,11 @@ class Gan(object):
                     # FIXME NOT OK for non-saturating version ? -> BCE is negative
 
                     # sum of loss
-                    d_loss = d_real_loss + d_fake_loss
+                    if (self.params['type'] == 'gradient_penalty'):
+                        gradient_penalty = self.compute_gradient_penalty(x, d_fake_data)
+                        d_loss = d_real_loss + d_fake_loss + self.params['gp_weight']*gradient_penalty
+                    else:
+                        d_loss = d_real_loss + d_fake_loss
 
                     # backprop + optimize
                     self.D.zero_grad()
@@ -327,7 +334,7 @@ class Gan(object):
                     g_fake_decision = self.D(g_fake_data)
 
                     # compute loss
-                    if (self.wasserstein_mode):
+                    if (self.wasserstein_loss):
                         g_loss = -torch.mean(g_fake_decision)
                     else:
                         # I think this is the non-saturated version (see Fedus2018)
@@ -341,8 +348,8 @@ class Gan(object):
                     self.g_optimizer.step()
 
                 # Housekeeping
-                self.D.zero_grad()
-                self.G.zero_grad()
+                self.D.zero_grad() # FIXME not needed ? 
+                self.G.zero_grad() # FIXME to put before g backward ? 
 
                 # print info sometimes
                 if (epoch) % 100 == 0:
@@ -392,6 +399,41 @@ class Gan(object):
         return optim
     
 
+    ''' ----------------------------------------------------------------------------- '''
+    def compute_gradient_penalty(self, real_data, fake_data):
+        #https://github.com/EmilienDupont/wgan-gp/blob/master/training.py
+        #https://github.com/caogang/wgan-gp/blob/master/gan_toy.py
+        gpu = (str(self.device) != 'cpu')
+        
+        # alpha
+        alpha = torch.rand(self.batch_size, 1)#, 1, 1)
+        alpha = alpha.expand_as(real_data)
+        if gpu:
+            alpha = alpha.cuda()
+
+        # interpolated
+        interpolated = alpha * real_data + (1 - alpha) * fake_data
+        interpolated = Variable(interpolated, requires_grad=True)
+        if gpu:
+            interpolated = interpolated.cuda()
+
+        # Calculate probability of interpolated examples
+        prob_interpolated = self.D(interpolated)
+
+        # gradient
+        gradients = torch_grad(outputs=prob_interpolated, inputs=interpolated,
+                               grad_outputs=torch.ones(prob_interpolated.size()).cuda() if gpu else torch.ones(
+                                   prob_interpolated.size()),
+                               create_graph=True, retain_graph=True, only_inputs=True)[0]
+
+        # norm
+        #LAMBDA = .1  # Smaller lambda seems to help for toy tasks specifically
+        #gradient_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean() * LAMBDA
+        gradients_norm = torch.sqrt(torch.sum(gradients ** 2, dim=1) + 1e-12)
+        gradient_penalty = ((gradients_norm - 1) ** 2).mean()        
+        return gradient_penalty
+
+    
     ''' ----------------------------------------------------------------------------- '''
     def plot_epoch(self, keys, epoch):
         '''

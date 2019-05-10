@@ -35,9 +35,9 @@ def gaga_plot(phsp_filename, pth_filename, n, nb_bins):
     n = int(n)
 
     keys_2d = [
-        ['X', 'Ekine'],
-        ['Y', 'Ekine'],
-        ['Z', 'Ekine'],
+        ['X', 'E'],
+        ['Y', 'E'],
+        ['Z', 'E'],
         ['X', 'Y'],
         ['Z', 'Y'],
         ['Z', 'X'],
@@ -94,7 +94,7 @@ def gaga_plot(phsp_filename, pth_filename, n, nb_bins):
     # remove empty plot
     phsp.fig_rm_empty_plot(nb_fig, ax)
     
-    #plt.suptitle('Epoch '+str(epoch))
+    plt.suptitle(pth_filename)
     plt.tight_layout()
     plt.subplots_adjust(top=0.9)
     plt.show()

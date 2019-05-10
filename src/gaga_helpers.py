@@ -8,6 +8,7 @@ import phsp
 from scipy.stats import kde
 from matplotlib import pyplot as plt
 import seaborn as sns
+from scipy.stats import entropy
 
 ''' ---------------------------------------------------------------------------------- '''
 '''
@@ -127,7 +128,6 @@ def load(filename):
     G_state = nn['g_model_state']
 
     # create the Generator
-    print(params)
     cmin, cmax = gaga.get_min_max_constraints(params)
     cmin = torch.from_numpy(cmin).type(dtypef)
     cmax = torch.from_numpy(cmax).type(dtypef)
@@ -135,6 +135,10 @@ def load(filename):
     
     if (str(device) != 'cpu'):
         G.cuda()
+        params['current_gpu'] = True
+    else:
+        params['current_gpu'] = False
+
     G.load_state_dict(G_state)
 
     return params, G, optim, dtypef
@@ -230,6 +234,65 @@ def generate_samples(params, G, dtypef, n):
 
 
 ''' ---------------------------------------------------------------------------------- '''
+def generate_samples_torch(params, G, dtypef, n):
+
+    z_dim = params['z_dim']
+    x_mean = params['x_mean']
+    x_std = params['x_std']
+    z = Variable(torch.randn(n, z_dim)).type(dtypef)
+    fake = G(z)
+
+    x_mean = Variable(torch.from_numpy(x_mean)).type(dtypef)
+    x_std = Variable(torch.from_numpy(x_std)).type(dtypef)
+    #fake = fake.cpu().data.numpy()
+    fake = (fake*x_std)+x_mean
+
+    return fake
+
+
+''' ---------------------------------------------------------------------------------- '''
+def generate_samples2(params, G, n, batch_size=-1, un_norm=True, to_numpy=False):
+
+    z_dim = params['z_dim']
+
+    if params['current_gpu']:
+        dtypef = torch.cuda.FloatTensor
+    else:
+        dtypef = torch.FloatTensor
+        
+    z_dim = params['z_dim']
+
+    batch_size = int(batch_size)
+    if batch_size == -1:
+        batch_size = n
+        to_numpy = True
+    if batch_size>n:
+        batch_size = n
+
+    m = 0
+    rfake = np.empty((0,params['x_dim']))
+    while m < n:
+        z = Variable(torch.randn(batch_size, z_dim)).type(dtypef)
+        fake = G(z)
+        if un_norm:
+            x_mean = params['x_mean']
+            x_std = params['x_std']
+            x_mean = Variable(torch.from_numpy(x_mean)).type(dtypef)
+            x_std = Variable(torch.from_numpy(x_std)).type(dtypef)
+            fake = (fake*x_std)+x_mean
+        if to_numpy:
+            fake = fake.cpu().data.numpy()
+            rfake = np.concatenate((rfake, fake), axis=0)
+        m = m+batch_size
+        if m+batch_size>n:
+            batch_size = n-m
+
+    if to_numpy == False:
+        return fake
+    return rfake
+
+
+''' ---------------------------------------------------------------------------------- '''
 def fig_plot_marginal(x, k, keys, ax, i, nb_bins, color):
     a = phsp.fig_get_sub_fig(ax,i)
     index = keys.index(k)
@@ -289,3 +352,16 @@ def fig_plot_marginal_2d(x, k1, k2, keys, ax, i, nbins, color):
     a.set_ylabel(k2)
 
     
+
+''' ---------------------------------------------------------------------------------- '''
+def Jensen_Shannon_divergence(x, y, bins):
+    
+    r = [np.amin(x), np.amax(x)]
+    P, bin_edges = np.histogram(x, range=r, bins=bins, density=True)
+    Q, bin_edges = np.histogram(y, range=r, bins=bins, density=True)
+    
+    _P = P / np.linalg.norm(P, ord=1)
+    _Q = Q / np.linalg.norm(Q, ord=1)
+    _M = 0.5 * (_P + _Q)
+    return 0.5 * (entropy(_P, _M) + entropy(_Q, _M))
+
