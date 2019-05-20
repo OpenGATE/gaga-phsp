@@ -4,110 +4,53 @@
 import click
 import gaga
 import phsp
+from torch.autograd import Variable
 import torch
 import numpy as np
-from torch.autograd import Variable
-import torch.nn.functional as F
-from matplotlib import pyplot as plt
-
-from geomloss import SamplesLoss  # See also ImagesLoss, VolumesLoss
-
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 @click.command(context_settings=CONTEXT_SETTINGS)
 @click.argument('phsp_filename')
 @click.argument('pth_filename')
-@click.option('--n', '-n',
-              default=1e4,
-              help='Number of samples to generate')
-def gaga_wasserstein(phsp_filename, pth_filename, n):
+@click.option('--n', '-n', default=1e4, help='Number of samples to generate')
+@click.option('--l', '-l', default=1e2, help='Number of projections')
+def gaga_wasserstein(phsp_filename, pth_filename, n, l):
     '''
     \b
-    Compute KL between real and GAN generated distributions
+    Compute sliced Wasserstein between real and GAN generated distributions
 
     \b
     <PHSP_FILENAME>   : input phase space file PHSP file (.npy)
     <PTH_FILENAME>    : input GAN PTH file (.pth)
     '''
 
-    # Create some large point clouds in 3D
-    # x = torch.randn(5000, 7, requires_grad=True).cuda()
-    # y = torch.randn(5000, 7).cuda()
-    
-    # # Define a Sinkhorn (~Wasserstein) loss between sampled measures
-    # loss = SamplesLoss(loss="sinkhorn", p=2, blur=.05)
-    
-    # L = loss(x, y)  # By default, use constant weights = 1/number of samples
-    # print('L=', L)
-    # exit()
-    
     n = int(n)
-
     # load phsp
-    real, keys, m = phsp.load(phsp_filename, n)
-    print(keys)
+    real, r_keys, m = phsp.load(phsp_filename, n)
 
     # load pth
     params, G, optim, dtypef = gaga.load(pth_filename)
-    print('dtypef', dtypef)
+
+    # convert array of key into str
+    f_keys = params['keys']
+    fk = ''
+    for k in f_keys:
+        fk = fk+k+' '
+    f_keys = fk
+
+    # required dimension from real
+    real, keys = phsp.select_keys(real, r_keys, f_keys)
 
     # generate samples
-    # dtypef, device = gaga.init_pytorch_cuda(False)
-    # print('dtypef', dtypef)
     fake = gaga.generate_samples_torch(params, G, dtypef, n)
-    print('fake', len(fake))
-    print('dtypef', dtypef)
 
+    # convert real to pytorch Tensor
     real = Variable(torch.from_numpy(real)).type(dtypef)
 
+    # distance
+    d = gaga.sliced_wasserstein(real, fake, l)
+    print(d)
 
-    # Create some large point clouds in 3D
-    # x = torch.randn(10000, 3, requires_grad=True).cuda()
-    # y = torch.randn(10000, 3).cuda()
-    # # Define a Sinkhorn (~Wasserstein) loss between sampled measures
-    # loss = SamplesLoss(loss="sinkhorn", p=2, blur=.05)
-    # print('ici')
-    # L = loss(x, y)
-    # print('L=', L)
-    # g_x, = torch.autograd.grad(L, [x])
-    # print('L=', L)
-
-    
-    # fake.requires_grad = True
-    # real.requires_grad = True
-
-    loss = SamplesLoss(loss="sinkhorn",
-                       p=1,
-                       blur=.05,
-                       scaling=0.8,
-                       #cluster_scale = 10,
-                       backend = 'online',
-                       verbose=True)
-    L = loss(fake, real)  # By default, use constant weights = 1/number of samples
-    print('L=', L)
-
-    
-    # dtypef, device = gaga.init_pytorch_cuda(False)
-    # fake = fake.type(dtypef)
-    # # real.cuda()
-    # # fake.cuda()
-    # # real.to('cuda')
-    # # fake.to('cuda')
-    # print(type(real))
-    # print(type(fake))
-    # print('cuda', real.is_cuda, fake.is_cuda)
-    # sinkhorn = gaga.SinkhornDistance(eps=0.1, max_iter=100)
-    # # sinkhorn.cuda()
-    # dist, P, C = sinkhorn(real, fake)
-    # print(dist)
-    # real to torch
-    #real = Variable(torch.from_numpy(real)).type(dtypef)
-    # kl = F.kl_div(real, fake, reduction='batchmean')
-    # print('kl', kl)
-    # kl = F.kl_div(fake, real, reduction='batchmean')
-    # print('kl', kl)
-
-    
     
     
 

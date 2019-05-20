@@ -13,6 +13,7 @@ from tqdm import tqdm
 import random
 import phsp
 from matplotlib import pyplot as plt
+import matplotlib.animation as animation
 
 # from torch.utils.data.sampler import Sampler
 # from matplotlib import pyplot as plt
@@ -55,6 +56,10 @@ class Discriminator(nn.Module):
         self.map1 = nn.Linear(x_dim, d_dim)
         self.maps = nn.ModuleList()
 
+        self.activ = F.relu
+        if 'leaky_relu' in params:
+            self.activ = F.leaky_relu
+
         for i in range(self.d_layers):
             self.maps.append(nn.Linear(d_dim,d_dim))
             
@@ -67,9 +72,9 @@ class Discriminator(nn.Module):
         #         nn.init.kaiming_normal_(p)
 
     def forward(self, x):
-        x = F.relu(self.map1(x))
+        x = self.activ(self.map1(x))
         for i in range(self.d_layers):
-            x = F.relu(self.maps[i](x))
+            x = self.activ(self.maps[i](x))
         if (self.wasserstein):
             # NO SIGMOID with Wasserstein
             # https://paper.dropbox.com/doc/Wasserstein-GAN--AZxqBJuXjF5jf3zyCdJAVqEMAg-GvU0p2V9ThzdwY3BbhoP7
@@ -109,20 +114,25 @@ class Generator(nn.Module):
             
         self.map3 = nn.Linear(g_dim, self.x_dim)
 
+        self.activ = F.relu
+        if 'leaky_relu' in params:
+            self.activ = F.leaky_relu
+
         # FIXME --> initialisation
         for p in self.parameters():
             if p.ndimension()>1:
-                #nn.init.kaiming_normal_(p)
+                nn.init.kaiming_normal_(p) ## seems better ???
                 #nn.init.xavier_normal_(p)
-                nn.init.kaiming_uniform_(p, nonlinearity='sigmoid')
+                #nn.init.kaiming_uniform_(p, nonlinearity='sigmoid')
 
     def forward(self, x):
-        x = F.relu(self.map1(x))
+        x = self.activ(self.map1(x))
         for i in range(self.g_layers-1):
-            x = F.relu(self.maps[i](x))
+            x = self.activ(self.maps[i](x))
             
         x = self.maps[self.g_layers-1](x)  # last one
         x = torch.sigmoid(x) # to output probability within [0-1]
+        #x = self.activ(x)
         x = self.map3(x)
 
         # clamp values
@@ -183,11 +193,19 @@ class Gan(object):
             d_weight_decay = float(params["d_weight_decay"])
             print('Optimizer regularisation L2 G weight:', g_weight_decay)
             print('Optimizer regularisation L2 D weight:', d_weight_decay)
+            if "beta1" in params["beta_1"]:
+                beta1 = float(params["beta_1"])
+                beta2 = float(params["beta_2"])
+            else:
+                beta1 = 0.9
+                beta2 = 0.999
             self.d_optimizer = torch.optim.Adam(self.D.parameters(),
                                                 weight_decay=d_weight_decay,
+                                                betas=[beta1,beta2],
                                                 lr=d_learning_rate)
             self.g_optimizer = torch.optim.Adam(self.G.parameters(),
                                                 weight_decay=g_weight_decay,
+                                                betas=[beta1,beta2],
                                                 lr=g_learning_rate)
             
         if (params['optimiser'] == 'RMSprop'):
@@ -430,7 +448,21 @@ class Gan(object):
         #LAMBDA = .1  # Smaller lambda seems to help for toy tasks specifically
         #gradient_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean() * LAMBDA
         gradients_norm = torch.sqrt(torch.sum(gradients ** 2, dim=1) + 1e-12)
-        gradient_penalty = ((gradients_norm - 1) ** 2).mean()        
+
+        # Two sides penalty
+        #gradient_penalty = ((gradients_norm - 1) ** 2).mean()
+
+        # one side penalty
+        a = torch.max(gradients_norm - 1, torch.zeros_like(gradients_norm))
+        gradient_penalty = (a** 2).mean()
+
+        # one side gradient penalty
+        # replace
+        # E((|∇f(αx_real −(1−α)x_fake)|−1)²)
+        # by
+        # (max(|∇f|−1,0))²
+        #        
+        
         return gradient_penalty
 
     
@@ -475,7 +507,13 @@ class Gan(object):
         # remove empty plot
         phsp.fig_rm_empty_plot(len(keys), ax)
         #plt.show()
+        #output_filename = 'aa_{:06d}.png'.format(epoch)
         output_filename = 'aa.png'
+
+        # ani = animation.FuncAnimation(fig,update_img,300,interval=30)
+        # writer = animation.writers['ffmpeg'](fps=30)
+        # ani.save('demo.mp4',writer=writer,dpi=dpi)
+        
         plt.suptitle('Epoch '+str(epoch))
         plt.tight_layout()
         plt.subplots_adjust(top=0.9)

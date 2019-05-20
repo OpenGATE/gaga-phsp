@@ -1,0 +1,74 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+import click
+import numpy as np
+from matplotlib import pyplot as plt
+
+def wasserstein1D(x, y, p=2):
+    sx = np.sort(x)
+    sy = np.sort(y)
+    z = (sx-sy)
+    return np.sum(np.power(np.abs(z),p))/len(z)
+    
+def sliced_wasserstein(x, y, l, p=2):
+    ndim = len(x[0])
+    # directions: matrix [ndim x l]
+    directions = np.random.randn(ndim, l)
+    directions /= np.linalg.norm(directions, axis=0)
+    
+    # Projection (Radon) x = [n X ndim], px = [n]
+    px = np.matmul(x, directions)
+    py = np.matmul(y, directions)
+    
+    # sum wasserstein1D over all directions 
+    d = 0
+    for i in range(l):
+        lx = px[:,i]
+        ly = py[:,i]
+        d += wasserstein1D(lx, ly, p)
+    d = d/l
+    return d
+    
+
+CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
+@click.command(context_settings=CONTEXT_SETTINGS)
+@click.option('--n', '-n', default=1e4, help='Number of samples to generate')
+@click.option('--l', '-l', default=1e2, help='Number of projections')
+@click.option('--plot/--no-plot', default=False)
+def test_wasserstein(n, l, plot):
+    '''
+    \b
+    Compute sliced Wasserstein distance between nD Gaussian distributions
+    '''
+
+    # Nb of samples
+    n = int(n)
+    np.random.seed(0)
+
+    # Input data (3D Gaussian)
+    mean = [0, 0, 0]
+    cov = [[1, 0, 0], [0, 2, 0], [0, 0, 1]]
+    x = np.random.multivariate_normal(mean, cov, n)
+
+    mean = [2, 3, 0]
+    cov = [[2, 0, 0], [0, 1, 0], [0, 0, 1]]
+    y = np.random.multivariate_normal(mean, cov, n)
+
+    # plot (2D only)
+    if (plot):
+        plt.plot(x[:,0], x[:,1], '.', alpha=0.5)
+        plt.plot(y[:,0], y[:,1], '.', alpha=0.5)
+        plt.axis('equal')
+        plt.show()
+
+    l = int(l)
+    d = sliced_wasserstein(x,y,l)
+    print(d)
+    
+    
+
+# --------------------------------------------------------------------------
+if __name__ == '__main__':
+    test_wasserstein()
+

@@ -56,6 +56,12 @@ def gaga_train(phsp_filename,
     # read input training dataset
     print(Fore.CYAN +"Loading training dataset ... "+phsp_filename+Style.RESET_ALL)
     x, keys, m = phsp.load(phsp_filename)
+
+    # consider only some keys
+    if 'keys' in params:
+        k = params['keys']
+        x, keys = phsp.select_keys(x, keys, k)
+    
     params['training_size'] = len(x)
     params['keys'] = keys
     params['x_dim'] = len(keys)

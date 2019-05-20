@@ -105,7 +105,7 @@ def print_info(params, optim):
 
 
 ''' ---------------------------------------------------------------------------------- '''
-def load(filename):
+def load(filename, verbose=False):
     '''
     Load a GAN-PHSP
     Output params   = dict with all parameters
@@ -113,7 +113,7 @@ def load(filename):
     Output optim    = dict with information of the training process
     '''
     
-    dtypef, device = init_pytorch_cuda('auto', True)
+    dtypef, device = init_pytorch_cuda('auto', verbose)
     if (str(device) == 'cpu'):
         nn = torch.load(filename, map_location=lambda storage, loc: storage)
     else:
@@ -166,8 +166,10 @@ def get_min_max_constraints(params):
     x_std = params['x_std']
     x_mean = params['x_mean']
     
+    #print(cmin, cmax)
     cmin = (cmin-x_mean)/x_std
     cmax = (cmax-x_mean)/x_std
+    #print(cmin, cmax)
 
     return cmin, cmax
     
@@ -181,7 +183,7 @@ def plot_epoch(ax, optim, filename):
 
     x1 = np.asarray(optim['d_loss_real'])
     x2 = np.asarray(optim['d_loss_fake'])
-    x = np.add(x1,x2)
+    x = -np.add(x1,x2)
 
     a = ax[0]
     l = filename
@@ -296,7 +298,10 @@ def generate_samples2(params, G, n, batch_size=-1, un_norm=True, to_numpy=False)
 def fig_plot_marginal(x, k, keys, ax, i, nb_bins, color):
     a = phsp.fig_get_sub_fig(ax,i)
     index = keys.index(k)
-    d = x[:,index]
+    if len(x[0])>1:
+        d = x[:,index]
+    else:
+        d = x
     label = ' {} $\mu$={:.2f} $\sigma$={:.2f}'.format(k, np.mean(d), np.std(d))
     a.hist(d, nb_bins,
            # density=True,
@@ -354,9 +359,14 @@ def fig_plot_marginal_2d(x, k1, k2, keys, ax, i, nbins, color):
     
 
 ''' ---------------------------------------------------------------------------------- '''
-def Jensen_Shannon_divergence(x, y, bins):
-    
+def Jensen_Shannon_divergence(x, y, bins, margin=0):
+
+    #margin = 0#.01 # 5%
     r = [np.amin(x), np.amax(x)]
+    if r[0]<0:
+        r = [r[0]+margin*r[0], r[1]+margin*r[1]]
+    else:
+        r = [r[0]-margin*r[0], r[1]+margin*r[1]]
     P, bin_edges = np.histogram(x, range=r, bins=bins, density=True)
     Q, bin_edges = np.histogram(y, range=r, bins=bins, density=True)
     
@@ -364,4 +374,40 @@ def Jensen_Shannon_divergence(x, y, bins):
     _Q = Q / np.linalg.norm(Q, ord=1)
     _M = 0.5 * (_P + _Q)
     return 0.5 * (entropy(_P, _M) + entropy(_Q, _M))
+
+
+
+''' ---------------------------------------------------------------------------------- '''
+def sliced_wasserstein(x, y, l, p=2):
+    l = int(l)
+    ndim = len(x[0])
+    # directions: matrix [ndim X l]
+    directions = np.random.randn(ndim, l)
+    directions /= np.linalg.norm(directions, axis=0)
+
+    # send to gpu if possible
+    dtypef = torch.FloatTensor
+    if x.is_cuda:
+        dtypef = torch.cuda.FloatTensor
+    directions = torch.from_numpy(directions).type(dtypef)
+
+    # Projection (Radon) x = [n X ndim], px = [n]
+    px = torch.matmul(x,directions)
+    py = torch.matmul(y,directions)
+
+    # sum wasserstein1D over all directions
+    d = 0
+    for i in range(l):
+        lx = px[:,i]
+        ly = py[:,i]
+        d += wasserstein1D(lx, ly, p)
+    d = d/l
+    d = d.data.cpu().numpy()
+    return d
+
+def wasserstein1D(x, y, p=2):
+    sx, indices = torch.sort(x)
+    sy, indices = torch.sort(y)
+    z = (sx-sy)
+    return torch.sum(torch.pow(torch.abs(z), p))/len(z)
 

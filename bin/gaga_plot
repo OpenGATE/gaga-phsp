@@ -52,6 +52,14 @@ def gaga_plot(phsp_filename, pth_filename, n, nb_bins):
 
     # load pth
     params, G, optim, dtypef= gaga.load(pth_filename)
+    keys = params['keys']
+
+    # curate keys_2d
+    k2 = []
+    for k in keys_2d:
+        if (k[1] in keys) and (k[0] in keys):
+            k2.append(k)
+    keys_2d = k2
 
     # fig panel
     nb_fig = len(keys)+len(keys_2d)
@@ -80,16 +88,18 @@ def gaga_plot(phsp_filename, pth_filename, n, nb_bins):
     # n = int(n/10)
     # real = real[0:n]
     # fake = fake[0:n]
-    starti = i
-    for kk in keys_2d:
-        gaga.fig_plot_marginal_2d(real, kk[0], kk[1], keys, ax, i, nb_bins, 'g')
-        i = i+1
+    print(len(keys))
+    if len(keys) > 1:
+        starti = i
+        for kk in keys_2d:
+            gaga.fig_plot_marginal_2d(real, kk[0], kk[1], keys, ax, i, nb_bins, 'g')
+            i = i+1
         
-    # plot 2D distribution
-    i = starti
-    for kk in keys_2d:
-        gaga.fig_plot_marginal_2d(fake, kk[0], kk[1], keys, ax, i, nb_bins, 'r')
-        i = i+1
+        # plot 2D distribution
+        i = starti
+        for kk in keys_2d:
+            gaga.fig_plot_marginal_2d(fake, kk[0], kk[1], keys, ax, i, nb_bins, 'r')
+            i = i+1
      
     # remove empty plot
     phsp.fig_rm_empty_plot(nb_fig, ax)
