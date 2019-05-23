@@ -14,7 +14,9 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 @click.argument('pth_filename')
 @click.option('--n', '-n', default=1e4, help='Number of samples to generate')
 @click.option('--l', '-l', default=1e2, help='Number of projections')
-def gaga_wasserstein(phsp_filename, pth_filename, n, l):
+@click.option('--p', '-p', default=1, help='Wasserstein distance power p=1 default')
+@click.option('--keys', '-k', help='Plot the given keys (as a str list such that "X Y Z")', default='')
+def gaga_wasserstein(phsp_filename, pth_filename, n, l, p, keys):
     '''
     \b
     Compute sliced Wasserstein between real and GAN generated distributions
@@ -33,13 +35,9 @@ def gaga_wasserstein(phsp_filename, pth_filename, n, l):
 
     # convert array of key into str
     f_keys = params['keys']
-    fk = ''
-    for k in f_keys:
-        fk = fk+k+' '
-    f_keys = fk
 
-    # required dimension from real
-    real, keys = phsp.select_keys(real, r_keys, f_keys)
+    # keep only required dimension from real
+    real = phsp.select_keys(real, r_keys, f_keys)
 
     # generate samples
     fake = gaga.generate_samples_torch(params, G, dtypef, n)
@@ -47,11 +45,20 @@ def gaga_wasserstein(phsp_filename, pth_filename, n, l):
     # convert real to pytorch Tensor
     real = Variable(torch.from_numpy(real)).type(dtypef)
 
-    # distance
-    d = gaga.sliced_wasserstein(real, fake, l)
-    print(d)
+    x_mean = Variable(torch.from_numpy(params['x_mean'])).type(dtypef)
+    x_std = Variable(torch.from_numpy(params['x_std'])).type(dtypef)
+    fake = (fake-x_mean)/x_std
+    real = (real-x_mean)/x_std
 
-    
+    # select the required keys
+    keys = phsp.str_keys_to_array_keys(keys)
+    if len(keys) > 0:
+        real = phsp.select_keys(real, f_keys, keys)
+        fake = phsp.select_keys(fake, f_keys, keys)
+
+    # distance
+    d = gaga.sliced_wasserstein(real, fake, l, p)
+    print(d)
     
 
 # --------------------------------------------------------------------------

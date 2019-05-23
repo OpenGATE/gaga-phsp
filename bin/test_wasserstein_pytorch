@@ -56,11 +56,11 @@ def test_wasserstein_pytorch(n, l, plot):
 
     # Input data (3D Gaussian)
     mean = [0, 0, 0]
-    cov = [[1, 0, 0], [0, 2, 0], [0, 0, 1]]
+    cov = [[1, 0, 0], [0, 10, 0], [0, 0, 1]]
     x = np.random.multivariate_normal(mean, cov, n)
 
-    mean = [2, 3, 0]
-    cov = [[2, 0, 0], [0, 1, 0], [0, 0, 1]]
+    mean = [0.5, 0, 0]
+    cov = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
     y = np.random.multivariate_normal(mean, cov, n)
 
     # plot (2D only)

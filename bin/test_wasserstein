@@ -17,7 +17,7 @@ def sliced_wasserstein(x, y, l, p=2):
     directions = np.random.randn(ndim, l)
     directions /= np.linalg.norm(directions, axis=0)
     
-    # Projection (Radon) x = [n X ndim], px = [n]
+    # Projection (Radon) x = [n X ndim], px = [n X L]
     px = np.matmul(x, directions)
     py = np.matmul(y, directions)
     

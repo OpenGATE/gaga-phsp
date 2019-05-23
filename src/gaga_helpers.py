@@ -381,6 +381,7 @@ def Jensen_Shannon_divergence(x, y, bins, margin=0):
 def sliced_wasserstein(x, y, l, p=2):
     l = int(l)
     ndim = len(x[0])
+
     # directions: matrix [ndim X l]
     directions = np.random.randn(ndim, l)
     directions /= np.linalg.norm(directions, axis=0)
@@ -391,7 +392,7 @@ def sliced_wasserstein(x, y, l, p=2):
         dtypef = torch.cuda.FloatTensor
     directions = torch.from_numpy(directions).type(dtypef)
 
-    # Projection (Radon) x = [n X ndim], px = [n]
+    # Projection (Radon) x = [n X ndim], px = [n X L]
     px = torch.matmul(x,directions)
     py = torch.matmul(y,directions)
 
@@ -402,9 +403,11 @@ def sliced_wasserstein(x, y, l, p=2):
         ly = py[:,i]
         d += wasserstein1D(lx, ly, p)
     d = d/l
+    
     d = d.data.cpu().numpy()
     return d
 
+''' ---------------------------------------------------------------------------------- '''
 def wasserstein1D(x, y, p=2):
     sx, indices = torch.sort(x)
     sy, indices = torch.sort(y)
