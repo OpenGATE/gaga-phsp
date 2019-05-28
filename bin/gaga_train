@@ -62,16 +62,12 @@ def gaga_train(phsp_filename,
     if 'keys' in params:
         keys = params['keys']
         keys = phsp.str_keys_to_array_keys(keys)
-        print(keys)
         if 'angleXY' in keys:
             x, read_keys = phsp.add_angle(x, read_keys, 'X', 'Y')
-            print(read_keys)
         x = phsp.select_keys(x, read_keys, keys)
     else:
         keys = read_keys
 
-    print('keys', keys)
-    
     params['training_size'] = len(x)
     params['keys'] = keys
     params['x_dim'] = len(keys)

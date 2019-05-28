@@ -222,7 +222,7 @@ def plot_epoch(ax, optim, filename):
 
     
 ''' ---------------------------------------------------------------------------------- '''
-def generate_samples(params, G, dtypef, n):
+def generate_samples_OLD(params, G, dtypef, n):
 
     z_dim = params['z_dim']
     x_mean = params['x_mean']
@@ -236,7 +236,7 @@ def generate_samples(params, G, dtypef, n):
 
 
 ''' ---------------------------------------------------------------------------------- '''
-def generate_samples_torch(params, G, dtypef, n):
+def generate_samples_torch_OLD(params, G, dtypef, n):
 
     z_dim = params['z_dim']
     x_mean = params['x_mean']
@@ -253,7 +253,7 @@ def generate_samples_torch(params, G, dtypef, n):
 
 
 ''' ---------------------------------------------------------------------------------- '''
-def generate_samples2(params, G, n, batch_size=-1, un_norm=True, to_numpy=False):
+def generate_samples2(params, G, n, batch_size=-1, normalize=False, to_numpy=False):
 
     z_dim = params['z_dim']
 
@@ -262,36 +262,36 @@ def generate_samples2(params, G, n, batch_size=-1, un_norm=True, to_numpy=False)
     else:
         dtypef = torch.FloatTensor
         
-    z_dim = params['z_dim']
-
     batch_size = int(batch_size)
     if batch_size == -1:
-        batch_size = n
+        batch_size = int(n)
         to_numpy = True
     if batch_size>n:
-        batch_size = n
+        batch_size = int(n)
 
     m = 0
-    rfake = np.empty((0,params['x_dim']))
+    z_dim = params['z_dim']
+    x_dim = params['x_dim']
+    rfake = np.empty((0,x_dim))
     while m < n:
         z = Variable(torch.randn(batch_size, z_dim)).type(dtypef)
         fake = G(z)
-        if un_norm:
-            x_mean = params['x_mean']
-            x_std = params['x_std']
-            x_mean = Variable(torch.from_numpy(x_mean)).type(dtypef)
-            x_std = Variable(torch.from_numpy(x_std)).type(dtypef)
-            fake = (fake*x_std)+x_mean
-        if to_numpy:
-            fake = fake.cpu().data.numpy()
-            rfake = np.concatenate((rfake, fake), axis=0)
+        # put back to cpu to allow concatenation
+        fake = fake.cpu().data.numpy()
+        rfake = np.concatenate((rfake, fake), axis=0)
         m = m+batch_size
         if m+batch_size>n:
             batch_size = n-m
 
-    if to_numpy == False:
-        return fake
-    return rfake
+    if not normalize:
+        x_mean = params['x_mean']
+        x_std = params['x_std']
+        rfake = (rfake*x_std)+x_mean
+
+    if to_numpy:
+        return rfake
+    
+    return Variable(torch.from_numpy(rfake)).type(dtypef)
 
 
 ''' ---------------------------------------------------------------------------------- '''
@@ -378,37 +378,50 @@ def Jensen_Shannon_divergence(x, y, bins, margin=0):
 
 
 ''' ---------------------------------------------------------------------------------- '''
-def sliced_wasserstein(x, y, l, p=2):
+def sliced_wasserstein(x, y, l, p=1):
     l = int(l)
     ndim = len(x[0])
 
-    # directions: matrix [ndim X l]
-    directions = np.random.randn(ndim, l)
-    directions /= np.linalg.norm(directions, axis=0)
+    if ndim == 1:
+        d = wasserstein1D(x, y, p)
+        d = d.data.cpu().numpy()
+        return d
 
-    # send to gpu if possible
-    dtypef = torch.FloatTensor
-    if x.is_cuda:
-        dtypef = torch.cuda.FloatTensor
-    directions = torch.from_numpy(directions).type(dtypef)
-
-    # Projection (Radon) x = [n X ndim], px = [n X L]
-    px = torch.matmul(x,directions)
-    py = torch.matmul(y,directions)
-
-    # sum wasserstein1D over all directions
+    l_batch_size = int(1e2)
+    l_current = 0
     d = 0
-    for i in range(l):
-        lx = px[:,i]
-        ly = py[:,i]
-        d += wasserstein1D(lx, ly, p)
-    d = d/l
+    while l_current<l:
+        
+        # directions: matrix [ndim X l]
+        directions = np.random.randn(ndim, l_batch_size)
+        directions /= np.linalg.norm(directions, axis=0)
+        
+        # send to gpu if possible
+        dtypef = torch.FloatTensor
+        if x.is_cuda:
+            dtypef = torch.cuda.FloatTensor
+            directions = torch.from_numpy(directions).type(dtypef)
     
+        # Projection (Radon) x = [n X ndim], px = [n X L]
+        px = torch.matmul(x,directions)
+        py = torch.matmul(y,directions)
+
+        # sum wasserstein1D over all directions
+        for i in range(l_batch_size):
+            lx = px[:,i]
+            ly = py[:,i]
+            d += wasserstein1D(lx, ly, p)
+
+        l_current += l_batch_size
+        if l_current+l_batch_size>l:
+            l_batch_size = l-l_current
+    
+    d = torch.pow(d/l, 1/p)    
     d = d.data.cpu().numpy()
     return d
 
 ''' ---------------------------------------------------------------------------------- '''
-def wasserstein1D(x, y, p=2):
+def wasserstein1D(x, y, p=1):
     sx, indices = torch.sort(x)
     sy, indices = torch.sort(y)
     z = (sx-sy)

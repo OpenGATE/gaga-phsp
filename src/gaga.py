@@ -486,11 +486,14 @@ class Gan(object):
         real = (real*self.x_std)+self.x_mean
         
         # generate z noise (latent) and fake real
-        # z = Variable(torch.randn(n, self.params['z_dim'])).type(self.dtypef)
-        # fake = self.G(z)
-        # fake = fake.cpu().data.numpy()
-        # fake = (fake*self.x_std)+self.x_mean
-        fake = generate_samples(self.params, self.G, self.dtypef, n)
+        #fake = generate_samples(self.params, self.G, self.dtypef, n)
+        z_dim = self.params['z_dim']
+        x_mean = self.params['x_mean']
+        x_std = self.params['x_std']
+        z = Variable(torch.randn(n, z_dim)).type(self.dtypef)
+        fake = self.G(z)
+        fake = fake.cpu().data.numpy()
+        fake = (fake*x_std)+x_mean
         
         # plot all keys for real data
         i = 0

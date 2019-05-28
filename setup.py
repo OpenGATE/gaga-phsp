@@ -33,6 +33,7 @@ setuptools.setup(
         'bin/gaga_info',
         'bin/gaga_plot',
         'bin/gaga_jsd',
+        'bin/gaga_generate',
         'bin/gaga_wasserstein',
         'bin/test_wasserstein',
         'bin/test_wasserstein_pytorch',

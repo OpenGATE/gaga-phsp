@@ -16,7 +16,11 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 @click.option('--l', '-l', default=1e2, help='Number of projections')
 @click.option('--p', '-p', default=1, help='Wasserstein distance power p=1 default')
 @click.option('--keys', '-k', help='Plot the given keys (as a str list such that "X Y Z")', default='')
-def gaga_wasserstein(phsp_filename, pth_filename, n, l, p, keys):
+@click.option('--toggle/--no-toggle', default=False, help='Convert XY to angle')
+@click.option('--radius', default=350, help='When convert angle, need the radius (in mm)')
+@click.option('--normalize/--no-normalize', default=True,
+              help='Normalize dimensions')
+def gaga_wasserstein(phsp_filename, pth_filename, n, l, p, keys, toggle, radius, normalize):
     '''
     \b
     Compute sliced Wasserstein between real and GAN generated distributions
@@ -27,34 +31,55 @@ def gaga_wasserstein(phsp_filename, pth_filename, n, l, p, keys):
     '''
 
     n = int(n)
+    
     # load phsp
     real, r_keys, m = phsp.load(phsp_filename, n)
 
+    # user keys
+    keys = phsp.str_keys_to_array_keys(keys)
+    
     # load pth
     params, G, optim, dtypef = gaga.load(pth_filename)
-
-    # convert array of key into str
     f_keys = params['keys']
+    if len(keys) == 0:
+        keys = f_keys
+            
+    # generate samples (do NOT normalize yet)
+    fake = gaga.generate_samples2(params, G, n, 1e5, False, True)
+    
+    # Keep X,Y or convert to toggle
+    if toggle:
+        keys = phsp.keys_toggle_angle(keys)
 
-    # keep only required dimension from real
-    real = phsp.select_keys(real, r_keys, f_keys)
+    real, r_keys = phsp.add_missing_angle(real, r_keys, keys, radius)
+    fake, f_keys = phsp.add_missing_angle(fake, f_keys, keys, radius)
+    real = phsp.select_keys(real, r_keys, keys)
+    fake = phsp.select_keys(fake, f_keys, keys)
 
-    # generate samples
-    fake = gaga.generate_samples_torch(params, G, dtypef, n)
+    print('real', real.shape, keys)
+    print('fake', fake.shape, keys)    
 
-    # convert real to pytorch Tensor
+    # normalize for computing the wasserstein
+    if normalize:
+        x_mean = params['x_mean']
+        x_std = params['x_std']
+        f_keys = params['keys']
+        x_mean, z = phsp.add_missing_angle(x_mean, f_keys, keys, radius)
+        x_std, z = phsp.add_missing_angle(x_std, f_keys, keys, radius)
+        real = (real-x_mean)/x_std
+        fake = (fake-x_mean)/x_std
+ 
+    print('fake m',
+          np.amin(fake, axis=0), np.amax(fake, axis=0),
+          np.mean(fake, axis=0), np.std(fake, axis=0))
+
+    print('real m',
+          np.amin(real, axis=0), np.amax(real, axis=0),
+          np.mean(real, axis=0), np.std(real, axis=0))
+
+    # convert to pytorch
+    fake = Variable(torch.from_numpy(fake)).type(dtypef)
     real = Variable(torch.from_numpy(real)).type(dtypef)
-
-    x_mean = Variable(torch.from_numpy(params['x_mean'])).type(dtypef)
-    x_std = Variable(torch.from_numpy(params['x_std'])).type(dtypef)
-    fake = (fake-x_mean)/x_std
-    real = (real-x_mean)/x_std
-
-    # select the required keys
-    keys = phsp.str_keys_to_array_keys(keys)
-    if len(keys) > 0:
-        real = phsp.select_keys(real, f_keys, keys)
-        fake = phsp.select_keys(fake, f_keys, keys)
 
     # distance
     d = gaga.sliced_wasserstein(real, fake, l, p)

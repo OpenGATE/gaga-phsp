@@ -15,7 +15,9 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 @click.argument('pth_filename')
 @click.option('--n', '-n', default=1e4, help='Number of samples to generate')
 @click.option('--nb_bins', '-b', default=int(200), help='Number of bins')
-def gaga_plot(phsp_filename, pth_filename, n, nb_bins):
+@click.option('--toggle/--no-toggle', default=False, help='convert angle to XY')
+@click.option('--radius', default=350, help='When convert angle, need the radius (in mm)')
+def gaga_plot(phsp_filename, pth_filename, n, nb_bins, toggle, radius):
     '''
     \b
     Plot marginal distribution from a GAN-PHSP
@@ -44,14 +46,30 @@ def gaga_plot(phsp_filename, pth_filename, n, nb_bins):
     ]
 
     # load phsp
-    real, real_keys, m = phsp.load(phsp_filename, n)
+    real, r_keys, m = phsp.load(phsp_filename, n)
 
     # load pth
     params, G, optim, dtypef= gaga.load(pth_filename)
-    keys = params['keys']
+    f_keys = params['keys']
+    keys = f_keys.copy()
 
-    if 'angleXY' in keys:
-        real, real_keys = phsp.add_angle(real, real_keys, 'X', 'Y')
+    # generate samples
+    fake = gaga.generate_samples2(params, G, n, int(1e5), False, True)
+
+    # Keep X,Y or convert to toggle
+    if toggle:
+        keys = phsp.keys_toggle_angle(keys)
+
+    real, r_keys = phsp.add_missing_angle(real, r_keys, keys, radius)
+    fake, f_keys = phsp.add_missing_angle(fake, f_keys, keys, radius)
+        
+    real = phsp.select_keys(real, r_keys, keys)
+    fake = phsp.select_keys(fake, f_keys, keys)
+
+    # fig panel
+    nb_fig = len(keys)+len(keys_2d)
+    nrow, ncol = phsp.fig_get_nb_row_col(nb_fig)
+    f, ax = plt.subplots(nrow, ncol, figsize=(25,10))
 
     # curate keys_2d
     k2 = []
@@ -60,18 +78,10 @@ def gaga_plot(phsp_filename, pth_filename, n, nb_bins):
             k2.append(k)
     keys_2d = k2
 
-    # fig panel
-    nb_fig = len(keys)+len(keys_2d)
-    nrow, ncol = phsp.fig_get_nb_row_col(nb_fig)
-    f, ax = plt.subplots(nrow, ncol, figsize=(25,10))
-
-    # generate samples
-    fake = gaga.generate_samples(params, G, dtypef, n)
-
     # plot all keys for real data
     i = 0
     for k in keys:
-        gaga.fig_plot_marginal(real, k, real_keys, ax, i, nb_bins, 'g')
+        gaga.fig_plot_marginal(real, k, keys, ax, i, nb_bins, 'g')
         i = i+1
 
     # plot all keys for fake data
@@ -88,7 +98,7 @@ def gaga_plot(phsp_filename, pth_filename, n, nb_bins):
     if len(keys) > 1:
         starti = i
         for kk in keys_2d:
-            gaga.fig_plot_marginal_2d(real, kk[0], kk[1], real_keys, ax, i, nb_bins, 'g')
+            gaga.fig_plot_marginal_2d(real, kk[0], kk[1], keys, ax, i, nb_bins, 'g')
             i = i+1
         
         # plot 2D distribution
