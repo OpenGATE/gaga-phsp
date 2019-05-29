@@ -22,12 +22,17 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 @click.option('--progress-bar/--no-progress-bar', default=True)
 @click.option('--plot/--no-plot', default=False)
 @click.option('--plot-every-epoch', default=400)
+@click.option('--w-e', default=-1, help='Compute sliced wasserstein every n epoch (slow)')
+@click.option('--w-n', default=1e5, help='Wasserstein nb f samples')
+@click.option('--w-l', default=1e2, help='Wasserstein nb of direction')
+@click.option('--w-p', default=1, help='Wasserstein distance p')
 def gaga_train(phsp_filename,
-                  json_filename,
-                  output_filename,
-                  progress_bar,
-                  plot,
-                  plot_every_epoch):
+               json_filename,
+               output_filename,
+               progress_bar,
+               plot,
+               plot_every_epoch,
+               w_e, w_n, w_l, w_p):
     '''
     \b
     Train GAN to learn a PHSP (Phase Space File)
@@ -52,6 +57,10 @@ def gaga_train(phsp_filename,
     start = datetime.datetime.now()
     params['start date'] = start.strftime(gaga.date_format)
     params['hostname'] = socket.gethostname()
+    params['dump_wasserstein_every'] = int(w_e)
+    params['w_n'] = int(w_n)
+    params['w_l'] = int(w_l)
+    params['w_p'] = int(w_p)
     
     # read input training dataset
     print(Fore.CYAN +"Loading training dataset ... "+phsp_filename+Style.RESET_ALL)
@@ -68,6 +77,8 @@ def gaga_train(phsp_filename,
     else:
         keys = read_keys
 
+    # maybe should I suffle the input x ? 
+        
     params['training_size'] = len(x)
     params['keys'] = keys
     params['x_dim'] = len(keys)

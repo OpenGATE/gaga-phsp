@@ -66,17 +66,17 @@ def gaga_plot(phsp_filename, pth_filename, n, nb_bins, toggle, radius):
     real = phsp.select_keys(real, r_keys, keys)
     fake = phsp.select_keys(fake, f_keys, keys)
 
-    # fig panel
-    nb_fig = len(keys)+len(keys_2d)
-    nrow, ncol = phsp.fig_get_nb_row_col(nb_fig)
-    f, ax = plt.subplots(nrow, ncol, figsize=(25,10))
-
     # curate keys_2d
     k2 = []
     for k in keys_2d:
         if (k[1] in keys) and (k[0] in keys):
             k2.append(k)
     keys_2d = k2
+
+    # fig panel
+    nb_fig = len(keys)+len(keys_2d)
+    nrow, ncol = phsp.fig_get_nb_row_col(nb_fig)
+    f, ax = plt.subplots(nrow, ncol, figsize=(25,10))
 
     # plot all keys for real data
     i = 0

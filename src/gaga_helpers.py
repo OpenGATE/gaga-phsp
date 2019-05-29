@@ -222,6 +222,28 @@ def plot_epoch(ax, optim, filename):
 
     
 ''' ---------------------------------------------------------------------------------- '''
+def plot_epoch_wasserstein(ax, optim, filename):
+    '''
+    Plot wasserstein 
+    '''
+
+    y = np.asarray(optim['w_value'])
+    x = np.asarray(optim['w_epoch'])
+
+    a = ax[0].twinx()
+    a.plot(x, y, '-', color='r', label='W')
+    a.legend()
+
+    a = ax[1].twinx()
+    a.plot(x, y, '-', color='r', label='W')
+    a.legend()
+
+    a = ax[2].twinx()
+    a.plot(x, y, '.-', color='r', label='W')
+    a.legend()
+
+    
+''' ---------------------------------------------------------------------------------- '''
 def generate_samples_OLD(params, G, dtypef, n):
 
     z_dim = params['z_dim']
@@ -387,6 +409,9 @@ def sliced_wasserstein(x, y, l, p=1):
         d = d.data.cpu().numpy()
         return d
 
+    dtypef = torch.FloatTensor
+    if x.is_cuda:
+        dtypef = torch.cuda.FloatTensor
     l_batch_size = int(1e2)
     l_current = 0
     d = 0
@@ -397,10 +422,7 @@ def sliced_wasserstein(x, y, l, p=1):
         directions /= np.linalg.norm(directions, axis=0)
         
         # send to gpu if possible
-        dtypef = torch.FloatTensor
-        if x.is_cuda:
-            dtypef = torch.cuda.FloatTensor
-            directions = torch.from_numpy(directions).type(dtypef)
+        directions = torch.from_numpy(directions).type(dtypef)
     
         # Projection (Radon) x = [n X ndim], px = [n X L]
         px = torch.matmul(x,directions)

@@ -175,6 +175,15 @@ class Gan(object):
         x_std = params['x_std']
         x_mean = params['x_mean']
         self.wasserstein_loss = (params['type'] == 'wasserstein') or (params['type'] == 'gradient_penalty')
+        if 'dump_wasserstein_every' not in self.params:
+            self.params['dump_wasserstein_every'] = -1
+        if 'w_n' not in self.params:
+            self.params['w_n'] = int(1e4)
+        if 'w_l' not in self.params:
+            self.params['w_l'] = int(1e2)
+        if 'w_p' not in self.params:
+            self.params['w_p'] = 1
+        print('w', self.params['dump_wasserstein_every'], self.params['w_n'], self.params['w_l'], self.params['w_p'])
 
         # clamp take normalisation into account
         cmin, cmax = gaga.get_min_max_constraints(params)
@@ -257,6 +266,8 @@ class Gan(object):
         optim['d_loss_fake'] = []
         optim['g_model_state'] = []
         optim['current_epoch'] = []
+        optim['w_value'] = []
+        optim['w_epoch'] = []
         si = 0 # nb of stored epoch
 
         # Real/Fake labels (1/0)
@@ -280,12 +291,22 @@ class Gan(object):
                             #shuffle=False,  ## if false ~20% faster, seems identical
                             drop_last=True)
 
+        # Sampler for wasserstein distance 
+        loader_w = DataLoader(self.x,
+                              batch_size=int(self.params['w_n']),
+                              num_workers=1,
+                              # pin_memory=True,
+                              # https://discuss.pytorch.org/t/what-is-the-disadvantage-of-using-pin-memory/1702/4
+                              shuffle=False,
+                              drop_last=True)
+
         # Start training
         epoch = 0
         start = datetime.datetime.now()
         pbar = tqdm(total=self.params['epoch'], disable=not self.params['progress_bar'])
         z_dim = self.params['z_dim']
         while (epoch < self.params['epoch']):
+
             for batch_idx, data in enumerate(loader):
                 
                 # Clamp D if wasserstein mode (not in gradient_penalty mode)
@@ -398,6 +419,21 @@ class Gan(object):
                         optim['g_model_state'].append(state)
                         optim['current_epoch'].append(epoch)
                         si = si+1
+
+                # compute wasserstein distance sometimes
+                dwe = self.params['dump_wasserstein_every']
+                if (dwe >0) and (epoch % dwe == 0):
+                    n = int(self.params['w_n'])
+                    l = int(self.params['w_l'])
+                    p = int(self.params['w_p'])
+                    real = next(iter(loader_w))
+                    real = Variable(real).type(self.dtypef)
+                    z = Variable(torch.randn(n, z_dim)).type(self.dtypef)
+                    fake = self.G(z)                 
+                    d = gaga.sliced_wasserstein(real, fake, l, p)                    
+                    optim['w_value'].append(d)
+                    optim['w_epoch'].append(epoch)
+                    tqdm.write('Epoch {} wasserstein: {:5f}'.format(epoch, d))
 
                 # update loop
                 pbar.update(1)

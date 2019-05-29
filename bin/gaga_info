@@ -28,6 +28,7 @@ def gaga_info(pth_filename, plot):
         gaga.print_info(params, optim)
         if plot:
             gaga.plot_epoch(ax, optim, f)
+            gaga.plot_epoch_wasserstein(ax, optim, f)
 
     if plot:
         plt.tight_layout()
