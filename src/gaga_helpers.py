@@ -345,7 +345,7 @@ def fig_plot_marginal_2d(x, k1, k2, keys, ax, i, nbins, color):
     label = '{} {}'.format(k1, k2)
 
     ptype = 'scatter'
-    # ptype = 'density'
+    # ptype = 'hist'
     
     if ptype == 'scatter':
         a.scatter(d1, d2, color=color,
@@ -371,13 +371,10 @@ def fig_plot_marginal_2d(x, k1, k2, keys, ax, i, nbins, color):
         zi = k(np.vstack([xi.flatten(), yi.flatten()]))
         a.pcolormesh(xi, yi,
                      zi.reshape(xi.shape), 
-                     alpha=0.5)
-
-        
+                     alpha=0.5)     
         
     a.set_xlabel(k1)
     a.set_ylabel(k2)
-
     
 
 ''' ---------------------------------------------------------------------------------- '''

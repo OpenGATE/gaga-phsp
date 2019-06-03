@@ -37,9 +37,12 @@ def gaga_plot(phsp_filename, pth_filename, n, nb_bins, toggle, radius):
         ['Y', 'E'],
         ['Z', 'E'],
         ['angleXY', 'E'],
+        ['angleXY', 'Z'],
         ['X', 'Y'],
         ['Z', 'Y'],
         ['Z', 'X'],
+        ['angleXY', 'dZ'],
+        ['E', 'dZ'],
         ['dZ', 'Z'],
         ['dY', 'Y'],
         ['dX', 'X']

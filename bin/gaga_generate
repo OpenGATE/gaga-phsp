@@ -15,7 +15,9 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 @click.argument('pth_filename')
 @click.option('--n', '-n', default=1e4, help='Number of samples to generate')
 @click.option('--output', '-o', default='AUTO', help='If AUTO, use pth_filename.npy')
-def gaga_plot(pth_filename, n, output):
+@click.option('--toggle/--no-toggle', default=False, help='Convert XY to angle')
+@click.option('--radius', default=350, help='When convert angle, need the radius (in mm)')
+def gaga_plot(pth_filename, n, output, toggle, radius):
     '''
     \b
     Generate a PHSP from a GAN
@@ -28,18 +30,24 @@ def gaga_plot(pth_filename, n, output):
 
     # load pth
     params, G, optim, dtypef= gaga.load(pth_filename)
-    keys = list(params['keys'])
+    f_keys = list(params['keys'])
 
     # generate samples
     b = 1e5
     fake = gaga.generate_samples2(params, G, n, b, False, True)
 
+    # Keep X,Y or convert to toggle
+    if toggle:
+        keys = phsp.keys_toggle_angle(f_keys)
+        fake, f_keys = phsp.add_missing_angle(fake, f_keys, keys, radius)
+        fake = phsp.select_keys(fake, f_keys, keys)
+    else:
+        keys = f_keys
+
     # special case
     i = keys.index('E')
     #keys[i] = 'Ekine'
-    #print('min', np.amin(fake[:,i]))
     fake[:,i][fake[:,i] <0] = 0.00000000001 # E should not be zero !
-    #print('min', np.amin(fake[:,i]))    
 
     # write    
     if output == 'AUTO':
