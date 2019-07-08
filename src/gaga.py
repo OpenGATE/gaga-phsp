@@ -55,6 +55,7 @@ class Discriminator(nn.Module):
         
         self.map1 = nn.Linear(x_dim, d_dim)
         self.maps = nn.ModuleList()
+        self.norms = nn.ModuleList()
 
         self.activ = F.relu
         if 'leaky_relu' in params:
@@ -62,6 +63,7 @@ class Discriminator(nn.Module):
 
         for i in range(self.d_layers):
             self.maps.append(nn.Linear(d_dim,d_dim))
+            self.norms.append(nn.LayerNorm(d_dim))
             
         self.map3 = nn.Linear(d_dim, 1)
 
@@ -73,8 +75,14 @@ class Discriminator(nn.Module):
 
     def forward(self, x):
         x = self.activ(self.map1(x))
-        for i in range(self.d_layers):
-            x = self.activ(self.maps[i](x))
+
+        if self.params['layer_norm'] == True:
+            for i in range(self.d_layers):
+                x = self.activ(self.norms[i](self.maps[i](x)))
+        else:
+            for i in range(self.d_layers):
+                x = self.activ(self.maps[i](x))
+
         if (self.wasserstein):
             # NO SIGMOID with Wasserstein
             # https://paper.dropbox.com/doc/Wasserstein-GAN--AZxqBJuXjF5jf3zyCdJAVqEMAg-GvU0p2V9ThzdwY3BbhoP7
