@@ -16,8 +16,10 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 @click.option('--n', '-n', default=1e4, help='Number of samples to generate')
 @click.option('--nb_bins', '-b', default=int(200), help='Number of bins')
 @click.option('--toggle/--no-toggle', default=False, help='convert angle to XY')
+@click.option('--s2d/--no-s2d', default=False, help='display 2D scatter plots')
+@click.option('--quantile', '-q', default=float(0), help='Restrict histogram to quantile')
 @click.option('--radius', default=350, help='When convert angle, need the radius (in mm)')
-def gaga_plot(phsp_filename, pth_filename, n, nb_bins, toggle, radius):
+def gaga_plot(phsp_filename, pth_filename, n, nb_bins, toggle, radius, s2d, quantile):
     '''
     \b
     Plot marginal distribution from a GAN-PHSP
@@ -33,28 +35,41 @@ def gaga_plot(phsp_filename, pth_filename, n, nb_bins, toggle, radius):
     n = int(n)
 
     keys_2d = [
-        ['X', 'E'],
-        ['Y', 'E'],
-        ['Z', 'E'],
-        ['angleXY', 'E'],
-        ['angleXY', 'Z'],
-        ['X', 'Y'],
-        ['Z', 'Y'],
-        ['Z', 'X'],
-        ['angleXY', 'dZ'],
-        ['E', 'dZ'],
-        ['dZ', 'Z'],
-        ['dY', 'Y'],
-        ['dX', 'X']
+        ['X', 'Ekine'],
+        ['Y', 'Ekine'],
+        ['Z', 'Ekine'],
+        ['X', 'Ekine'],
+        ['Y', 'Ekine'],
+        ['Z', 'Ekine'],
+        ['angleXY', 'Ekine'],
+        # ['angleXY', 'Z'],
+        # ['X', 'Y'],
+        # ['Z', 'Y'],
+        # ['Z', 'X'],
+        # ['angleXY', 'dZ'],
+        # ['Ekine', 'dZ'],
+        # ['dZ', 'Z'],
+        # ['dY', 'Y'],
+        # ['dX', 'X']
     ]
 
     # load phsp
     real, r_keys, m = phsp.load(phsp_filename, n)
+    print(r_keys)
 
     # load pth
     params, G, optim, dtypef= gaga.load(pth_filename)
     f_keys = params['keys']
     keys = f_keys.copy()
+    print(keys)
+    # try:
+    #     index = keys.index('E')
+    #     print(index)
+    #     keys[index] = 'Ekine'
+    #     print(keys)   
+    #     f_keys = keys.copy()     
+    # except:
+    #     print('ok')
 
     # generate samples
     fake = gaga.generate_samples2(params, G, n, int(1e5), False, True)
@@ -77,20 +92,34 @@ def gaga_plot(phsp_filename, pth_filename, n, nb_bins, toggle, radius):
     keys_2d = k2
 
     # fig panel
-    nb_fig = len(keys)+len(keys_2d)
+    if not s2d:
+        keys_2d = []
+    nb_fig = len(keys)+len(keys_2d)+len(keys_2d)
     nrow, ncol = phsp.fig_get_nb_row_col(nb_fig)
-    f, ax = plt.subplots(nrow, ncol, figsize=(25,10))
+    fig, ax = plt.subplots(nrow, ncol, figsize=(25,10))
 
     # plot all keys for real data
     i = 0
+    
     for k in keys:
-        gaga.fig_plot_marginal(real, k, keys, ax, i, nb_bins, 'g')
+        index = keys.index(k)
+        d = real[:,index]
+        q1 = quantile
+        q2 = 1.0-quantile
+        q = (np.quantile(d, q1), np.quantile(d, q2))        
+        gaga.fig_plot_marginal(real, k, keys, ax, i, nb_bins, 'g', q)
         i = i+1
 
     # plot all keys for fake data
     i = 0
-    for k in keys:
-        gaga.fig_plot_marginal(fake, k, keys, ax, i, nb_bins, 'r')
+    for k in keys:    
+        index = keys.index(k)
+        d = real[:,index]
+        q1 = quantile
+        q2 = 1.0-quantile
+        q = (np.quantile(d, q1), np.quantile(d, q2)) 
+        print(q)
+        gaga.fig_plot_marginal(fake, k, keys, ax, i, nb_bins, 'r', q)
         i = i+1
 
 
@@ -109,6 +138,13 @@ def gaga_plot(phsp_filename, pth_filename, n, nb_bins, toggle, radius):
         for kk in keys_2d:
             gaga.fig_plot_marginal_2d(fake, kk[0], kk[1], keys, ax, i, nb_bins, 'r')
             i = i+1
+
+        if False:
+            for kk in keys_2d:
+                a = phsp.fig_get_sub_fig(ax,i)
+                gaga.fig_plot_diff_2d(real, fake, keys, kk, a, fig, nb_bins)
+                i = i+1
+    
      
     # remove empty plot
     phsp.fig_rm_empty_plot(nb_fig, ax)
