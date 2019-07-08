@@ -7,6 +7,7 @@ import os
 import phsp
 from scipy.stats import kde
 from matplotlib import pyplot as plt
+from matplotlib.colors import LogNorm
 import seaborn as sns
 from scipy.stats import entropy
 
@@ -317,7 +318,7 @@ def generate_samples2(params, G, n, batch_size=-1, normalize=False, to_numpy=Fal
 
 
 ''' ---------------------------------------------------------------------------------- '''
-def fig_plot_marginal(x, k, keys, ax, i, nb_bins, color):
+def fig_plot_marginal(x, k, keys, ax, i, nb_bins, color, r=''):
     a = phsp.fig_get_sub_fig(ax,i)
     index = keys.index(k)
     if len(x[0])>1:
@@ -325,12 +326,21 @@ def fig_plot_marginal(x, k, keys, ax, i, nb_bins, color):
     else:
         d = x
     label = ' {} $\mu$={:.2f} $\sigma$={:.2f}'.format(k, np.mean(d), np.std(d))
-    a.hist(d, nb_bins,
-           # density=True,
-           histtype='stepfilled',
-           facecolor=color,
-           alpha=0.5,
-           label=label)
+    if r != '':
+        a.hist(d, nb_bins,
+               # density=True,
+               histtype='stepfilled',
+               facecolor=color,
+               alpha=0.5,
+               range=r,
+               label=label)
+    else:
+        a.hist(d, nb_bins,
+               # density=True,
+               histtype='stepfilled',
+               facecolor=color,
+               alpha=0.5,
+               label=label)
     a.set_ylabel('Counts')
     a.legend()
 
@@ -375,6 +385,36 @@ def fig_plot_marginal_2d(x, k1, k2, keys, ax, i, nbins, color):
         
     a.set_xlabel(k1)
     a.set_ylabel(k2)
+
+
+''' ---------------------------------------------------------------------------------- '''
+def fig_plot_diff_2d(x, y, keys, kk, ax, fig, nb_bins):
+    k1 = kk[0]
+    k2 = kk[1]
+    index1 = keys.index(k1)
+    index2 = keys.index(k2)
+    x1 = x[:,index1]
+    x2 = x[:,index2]
+    y1 = y[:,index1]
+    y2 = y[:,index2]
+    label = '{} {}'.format(k1, k2)
+
+    # compute histo
+    H_x, xedges_x, yedges_x = np.histogram2d(x1, x2, bins=nb_bins)
+    H_y, xedges_y, yedges_y = np.histogram2d(y1, y2, bins=(xedges_x, yedges_x))
+
+    # make diff
+    #H = (H_y - H_x)/H_y
+    np.seterr(divide='ignore', invalid='ignore')
+    H = np.divide(H_y - H_x, H_y)
+
+    # plot
+    X, Y = np.meshgrid(xedges_x, yedges_x)
+    im = ax.pcolormesh(X, Y, H.T) #, norm=LogNorm())
+    im.set_clim(vmin=-1, vmax=1)
+    fig.colorbar(im, ax=ax)
+    ax.set_xlabel(k1)
+    ax.set_ylabel(k2)
     
 
 ''' ---------------------------------------------------------------------------------- '''
