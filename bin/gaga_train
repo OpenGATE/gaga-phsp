@@ -26,13 +26,17 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 @click.option('--w-n', default=1e5, help='Wasserstein nb f samples')
 @click.option('--w-l', default=1e2, help='Wasserstein nb of direction')
 @click.option('--w-p', default=1, help='Wasserstein distance p')
+@click.option('--keys', '-k',
+              help='only learn the given keys, replace keys in json (as a str list such that "X Y Z")',
+              default='')
 def gaga_train(phsp_filename,
                json_filename,
                output_filename,
                progress_bar,
                plot,
                plot_every_epoch,
-               w_e, w_n, w_l, w_p):
+               w_e, w_n, w_l, w_p,
+               keys):
     '''
     \b
     Train GAN to learn a PHSP (Phase Space File)
@@ -45,6 +49,7 @@ def gaga_train(phsp_filename,
 
     # term color
     init()
+    pkeys = keys
     # fd = "%Y-%m-%d %H:%M:%S"
 
     # read parameters
@@ -70,6 +75,8 @@ def gaga_train(phsp_filename,
     print('read_keys', read_keys);
     if 'keys' in params:
         keys = params['keys']
+        if pkeys != '':
+            keys = pkeys
         keys = phsp.str_keys_to_array_keys(keys)
         if 'angleXY' in keys:
             x, read_keys = phsp.add_angle(x, read_keys, 'X', 'Y')
