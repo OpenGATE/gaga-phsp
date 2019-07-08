@@ -44,10 +44,13 @@ def gaga_plot(pth_filename, n, output, toggle, radius):
     else:
         keys = f_keys
 
-    # special case
-    i = keys.index('E')
-    #keys[i] = 'Ekine'
-    fake[:,i][fake[:,i] <0] = 0.00000000001 # E should not be zero !
+    # special case (for retro-compatibility)
+    try:
+        i = keys.index('E')
+        fake[:,i][fake[:,i] <0] = 0.00000000001 # E should not be zero !
+    except:
+        i = keys.index('Ekine')
+        fake[:,i][fake[:,i] <0] = 0.00000000001 # E should not be zero !
 
     # write    
     if output == 'AUTO':
