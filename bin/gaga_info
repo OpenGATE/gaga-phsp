@@ -3,13 +3,17 @@
 
 import click
 import gaga
+import copy
+import torch
+from shutil import copyfile
 from matplotlib import pyplot as plt
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 @click.command(context_settings=CONTEXT_SETTINGS)
 @click.argument('pth_filename', nargs=-1)
 @click.option('--plot/--no-plot', default=False)
-def gaga_info(pth_filename, plot):
+@click.option('--add_energy', default=float(-1))
+def gaga_info(pth_filename, plot, add_energy):
     '''
     \b
     Print info about a trained GAN-PTH (Phase Space File)
@@ -34,6 +38,22 @@ def gaga_info(pth_filename, plot):
         plt.tight_layout()
         plt.savefig('a.pdf', dpi=fig.dpi)
         plt.show()
+
+    if add_energy != -1:
+        if len(pth_filename) != 1:
+            print('Cannot add_energy to several pth_filename')
+            exit(0)
+        f = pth_filename[0]
+        print('add energy', add_energy)
+        params['Ekine'] = add_energy
+        if params['current_gpu']:
+            nn = torch.load(f)
+        else:
+            nn = torch.load(f, map_location=lambda storage, loc: storage)
+        nn['params'] = params
+        copyfile(f, f+'.save')
+        torch.save(nn, f)
+        
 
 # --------------------------------------------------------------------------
 if __name__ == '__main__':

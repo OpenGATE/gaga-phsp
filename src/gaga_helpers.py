@@ -28,6 +28,13 @@ def init_pytorch_cuda(gpu_mode, verbose=False):
         print('pytorch version', torch.__version__)
     dtypef = torch.FloatTensor
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+    if verbose:
+        if torch.cuda.is_available():
+            print('CUDA is available')
+        else:
+            print('CUDA is *NOT* available')
+            
     if (gpu_mode == 'auto'):
         if (torch.cuda.is_available()):
             dtypef = torch.cuda.FloatTensor
@@ -106,7 +113,7 @@ def print_info(params, optim):
 
 
 ''' ---------------------------------------------------------------------------------- '''
-def load(filename, verbose=False):
+def load(filename, gpu_mode='auto', verbose=False):
     '''
     Load a GAN-PHSP
     Output params   = dict with all parameters
@@ -114,7 +121,7 @@ def load(filename, verbose=False):
     Output optim    = dict with information of the training process
     '''
     
-    dtypef, device = init_pytorch_cuda('auto', verbose)
+    dtypef, device = init_pytorch_cuda(gpu_mode, verbose)
     if (str(device) == 'cpu'):
         nn = torch.load(filename, map_location=lambda storage, loc: storage)
     else:

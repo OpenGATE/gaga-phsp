@@ -34,6 +34,7 @@ setuptools.setup(
         'bin/gaga_plot',
         'bin/gaga_jsd',
         'bin/gaga_generate',
+        'bin/gaga_convert_pth_to_pt',
         'bin/gaga_wasserstein',
         'bin/test_wasserstein',
         'bin/test_wasserstein_pytorch',
