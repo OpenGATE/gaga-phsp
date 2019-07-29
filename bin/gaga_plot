@@ -55,13 +55,13 @@ def gaga_plot(phsp_filename, pth_filename, n, nb_bins, toggle, radius, s2d, quan
 
     # load phsp
     real, r_keys, m = phsp.load(phsp_filename, n)
-    print(r_keys)
+    # print(r_keys)
 
     # load pth
     params, G, optim, dtypef= gaga.load(pth_filename)
     f_keys = params['keys']
     keys = f_keys.copy()
-    print(keys)
+    # print(keys)
     # try:
     #     index = keys.index('E')
     #     print(index)
@@ -118,7 +118,7 @@ def gaga_plot(phsp_filename, pth_filename, n, nb_bins, toggle, radius, s2d, quan
         q1 = quantile
         q2 = 1.0-quantile
         q = (np.quantile(d, q1), np.quantile(d, q2)) 
-        print(q)
+        # print(q)
         gaga.fig_plot_marginal(fake, k, keys, ax, i, nb_bins, 'r', q)
         i = i+1
 
