@@ -270,12 +270,18 @@ class Gan(object):
         # save optim epoch values
         optim = {}
         optim['g_loss'] = []
+        optim['d_loss'] = []
         optim['d_loss_real'] = []
         optim['d_loss_fake'] = []
         optim['g_model_state'] = []
         optim['current_epoch'] = []
         optim['w_value'] = []
         optim['w_epoch'] = []
+        optim['validation_d_loss_real'] = []
+        optim['validation_d_loss_fake'] = []
+        optim['validation_d_loss'] = []
+        optim['validation_g_loss'] = []
+        optim['validation_epoch'] = []
         si = 0 # nb of stored epoch
 
         # Real/Fake labels (1/0)
@@ -307,6 +313,29 @@ class Gan(object):
                               # https://discuss.pytorch.org/t/what-is-the-disadvantage-of-using-pin-memory/1702/4
                               shuffle=False,
                               drop_last=True)
+        
+        # Sampler for validation 
+        vdfn = self.params['validation_filename']
+        print(vdfn)
+        if vdfn != None:
+            self.validation_x, validation_read_keys, m = phsp.load(vdfn)            
+            print('validation keys', validation_read_keys, len(self.validation_x))
+
+            # normalisation
+            x_mean = self.params['x_mean']
+            x_std = self.params['x_std']
+            self.validation_x = (self.validation_x-x_mean)/x_std
+            print('normalisation', x_mean)
+            
+            loader_validation = DataLoader(self.validation_x,
+                                           batch_size=batch_size,
+                                           num_workers=1,
+                                           # pin_memory=True,
+                                           # https://discuss.pytorch.org/t/what-is-the-disadvantage-of-using-pin-memory/1702/4
+                                           shuffle=False,
+                                           drop_last=True)
+            print('done')
+            
 
         # Start training
         epoch = 0
@@ -316,6 +345,7 @@ class Gan(object):
         while (epoch < self.params['epoch']):
 
             for batch_idx, data in enumerate(loader):
+                # print('idx',batch_idx, len(data))
                 
                 # Clamp D if wasserstein mode (not in gradient_penalty mode)
                 if (self.params['type'] == 'wasserstein'):
@@ -415,6 +445,7 @@ class Gan(object):
                 # save loss value 
                 optim['d_loss_real'].append(d_real_loss.data.item())
                 optim['d_loss_fake'].append(d_fake_loss.data.item())
+                optim['d_loss'].append(d_loss.data.item())
                 optim['g_loss'].append(g_loss.data.item())
                 
                 # dump sometimes
@@ -443,6 +474,58 @@ class Gan(object):
                     optim['w_epoch'].append(epoch)
                     tqdm.write('Epoch {} wasserstein: {:5f}'.format(epoch, d))
 
+                # compute loss on validation dataset sometimes
+                vdfn = self.params['validation_filename']
+                vde = self.params['validation_every_epoch']
+                if (vdfn != None) and (epoch % vde == 0):
+                    # print('VALIDATION ', vdfn, epoch, vde)                                     
+                    # print('validation keys', validation_read_keys, len(self.validation_x))
+                    
+                    #for batch_idx_v, data_v in enumerate(loader_validation):
+                    #print('idx',batch_idx_v, len(data_v))
+                    data_v = next(iter(loader_validation))
+                    # print('len ',len(data_v))
+
+                    x = Variable(data_v).type(self.dtypef)
+                    dv_real_decision = self.D(x)
+                    if (self.wasserstein_loss):
+                        dv_real_loss = -torch.mean(dv_real_decision)
+                    else:
+                        dv_real_loss = self.criterion(dv_real_decision, real_labels)
+                    z = Variable(torch.randn(batch_size, z_dim)).type(self.dtypef)
+                    dv_fake_data = self.G(z) # .detach()
+                    dv_fake_decision = self.D(dv_fake_data)
+                    if (self.wasserstein_loss):
+                        dv_fake_loss = torch.mean(dv_fake_decision)
+                    else:
+                        dv_fake_loss = self.criterion(dv_fake_decision, fake_labels)
+                    # sum of loss
+                    if (self.params['type'] == 'gradient_penalty'):
+                        gradient_penalty = self.compute_gradient_penalty(x, dv_fake_data)
+                        dv_loss = dv_real_loss + dv_fake_loss + self.params['gp_weight']*gradient_penalty
+                    else:
+                        dv_loss = dv_real_loss + dv_fake_loss
+
+                    z = Variable(torch.randn(batch_size, z_dim)).type(self.dtypef)
+                    gv_fake_data = self.G(z)#.detach()
+                    gv_fake_decision = self.D(gv_fake_data)
+                    if (self.wasserstein_loss):
+                        gv_loss = -torch.mean(gv_fake_decision)
+                    else:
+                        gv_loss = self.criterion(gv_fake_decision, real_labels)
+
+                    optim['validation_d_loss_real'].append(dv_real_loss.data.item())
+                    optim['validation_d_loss_fake'].append(dv_fake_loss.data.item())
+                    optim['validation_d_loss'].append(dv_loss.data.item())
+                    optim['validation_g_loss'].append(gv_loss.data.item())
+                    optim['validation_epoch'].append(epoch)
+                    # tqdm.write('Epoch {} validation: D {:5f}   G {:5f}   /   D {:5f}   G {:5f} '
+                    #            .format(epoch, dv_loss.data.item(), gv_loss.data.item(),
+                    #                    d_loss.data.item(),
+                    #                    g_loss.data.item()))
+                    #break
+                        
+                    
                 # update loop
                 pbar.update(1)
                 epoch += 1

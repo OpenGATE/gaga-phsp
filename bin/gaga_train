@@ -16,8 +16,10 @@ import datetime
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 @click.command(context_settings=CONTEXT_SETTINGS)
-@click.argument('phsp_filename')
-@click.argument('json_filename')
+@click.argument('phsp_filename',
+                type=click.Path(exists=True, file_okay=True, dir_okay=False))
+@click.argument('json_filename',
+                type=click.Path(exists=True, file_okay=True, dir_okay=False))
 @click.argument('output_filename')
 @click.option('--progress-bar/--no-progress-bar', default=True)
 @click.option('--plot/--no-plot', default=False)
@@ -29,6 +31,11 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 @click.option('--keys', '-k',
               help='only learn the given keys, replace keys in json (as a str list such that "X Y Z")',
               default='')
+@click.option('--validation-dataset',
+              default=None, help='Validation dataset filename, to compute loss per epoch',
+              type=click.Path(exists=True, file_okay=True, dir_okay=False))
+@click.option('--validation-every-epoch', '--vd-e', 
+              default=400, help='Compute loss on validation dataset every epoch')
 def gaga_train(phsp_filename,
                json_filename,
                output_filename,
@@ -36,7 +43,9 @@ def gaga_train(phsp_filename,
                plot,
                plot_every_epoch,
                w_e, w_n, w_l, w_p,
-               keys):
+               keys,
+               validation_dataset,
+               validation_every_epoch):
     '''
     \b
     Train GAN to learn a PHSP (Phase Space File)
@@ -51,7 +60,7 @@ def gaga_train(phsp_filename,
     init()
     pkeys = keys
     # fd = "%Y-%m-%d %H:%M:%S"
-
+   
     # read parameters
     param_file = open(json_filename).read()
     params = json.loads(param_file)
@@ -59,6 +68,8 @@ def gaga_train(phsp_filename,
     params['plot'] = plot
     params['plot_every_epoch'] = plot_every_epoch
     params['training_filename'] = phsp_filename
+    params['validation_filename'] = validation_dataset
+    params['validation_every_epoch'] = validation_every_epoch
     start = datetime.datetime.now()
     params['start date'] = start.strftime(gaga.date_format)
     params['hostname'] = socket.gethostname()
