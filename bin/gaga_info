@@ -28,7 +28,7 @@ def gaga_info(pth_filename, plot, add_energy):
         fig, ax = plt.subplots(1, 3, figsize=(16,5))
     
     for f in pth_filename:
-        params, G, optim, dtypef = gaga.load(f)
+        params, G, D, optim, dtypef = gaga.load(f)
         gaga.print_info(params, optim)
         if plot:
             gaga.plot_epoch(ax, optim, f)

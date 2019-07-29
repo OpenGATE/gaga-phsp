@@ -134,22 +134,27 @@ def load(filename, gpu_mode='auto', verbose=False):
     else:
         optim =  nn['optim']
     G_state = nn['g_model_state']
+    D_state = nn['d_model_state']
 
     # create the Generator
     cmin, cmax = gaga.get_min_max_constraints(params)
     cmin = torch.from_numpy(cmin).type(dtypef)
     cmax = torch.from_numpy(cmax).type(dtypef)
     G = gaga.Generator(params, cmin, cmax)
+    D = gaga.Discriminator(params)
     
     if (str(device) != 'cpu'):
         G.cuda()
+        D.cuda()
         params['current_gpu'] = True
     else:
         params['current_gpu'] = False
 
     G.load_state_dict(G_state)
+    D.load_state_dict(D_state)
 
-    return params, G, optim, dtypef
+    return params, G, D, optim, dtypef
+
 
 ''' ---------------------------------------------------------------------------------- '''
 def get_min_max_constraints(params):
