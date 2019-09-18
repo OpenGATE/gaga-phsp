@@ -323,18 +323,18 @@ class Gan(object):
 
         # Sampler for validation
         vdfn = self.params['validation_filename']
-        print(vdfn)
         if vdfn != None:
+            print('Validation file:', vdfn)
             self.validation_x, validation_read_keys, m = phsp.load(vdfn)
-            print('keys', validation_read_keys, len(self.validation_x), len(self.validation_x[0]))
+            print('Validation read keys', validation_read_keys, len(self.validation_x), len(self.validation_x[0]))
             self.validation_x = phsp.select_keys(self.validation_x, validation_read_keys, self.params['keys'])
-            print('validation keys', self.params['keys'], len(self.validation_x), len(self.validation_x[0]))
+            print('Validation selected keys', self.params['keys'], len(self.validation_x), len(self.validation_x[0]))
 
             # normalisation
             x_mean = self.params['x_mean']
             x_std = self.params['x_std']
             self.validation_x = (self.validation_x-x_mean)/x_std
-            print('normalisation', x_mean)
+            print('Validation normalisation', x_mean)
 
             loader_validation = DataLoader(self.validation_x,
                                            batch_size=batch_size,
@@ -343,7 +343,7 @@ class Gan(object):
                                            # https://discuss.pytorch.org/t/what-is-the-disadvantage-of-using-pin-memory/1702/4
                                            shuffle=False,
                                            drop_last=True)
-            print('validation loader done')
+            print('Validation loader done')
 
 
         # Start training

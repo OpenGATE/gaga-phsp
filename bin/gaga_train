@@ -5,7 +5,7 @@ import click
 import json
 import time
 import socket
-import phsp
+import gatetools.phsp as phsp
 import gaga
 import copy
 import numpy as np
@@ -94,7 +94,6 @@ def gaga_train(phsp_filename,
     x, read_keys, m = phsp.load(phsp_filename)
 
     # consider only some keys
-    print('read_keys', read_keys);
     if 'keys' in params:
         keys = params['keys']
         if pkeys != '':
@@ -105,8 +104,6 @@ def gaga_train(phsp_filename,
         x = phsp.select_keys(x, read_keys, keys)
     else:
         keys = read_keys
-
-    # maybe should I suffle the input x ?
 
     params['training_size'] = len(x)
     params['keys'] = keys
@@ -122,7 +119,7 @@ def gaga_train(phsp_filename,
     # print parameters
     for e in params:
         if (e[0] != '#'):
-            print('   {:20s} {}'.format(e, str(params[e])))
+            print('   {:22s} {}'.format(e, str(params[e])))
 
     # train
     print(Fore.CYAN +'Building the GAN model ...'+Style.RESET_ALL)
