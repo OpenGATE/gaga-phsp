@@ -2,7 +2,6 @@ import numpy as np
 import torch
 import torch.nn as nn
 from gaga_helpers import *
-from sinkhorn import *
 from torch.autograd import Variable
 from torch.autograd import grad as torch_grad
 import torch.nn.functional as F
@@ -26,7 +25,7 @@ import matplotlib.animation as animation
 #  All mistakes and bullshits are mine
 
 
-''' ---------------------------------------------------------------------------------- '''
+# -----------------------------------------------------------------------------
 class Discriminator(nn.Module):
     '''
     Discriminator: D(x, θD) -> probability that x is real data
@@ -40,10 +39,6 @@ class Discriminator(nn.Module):
     At Nash equilibrium, half of input will be real, half fake: D(x) = 1/2
     '''
 
-    # def __init__(self, x_dim,
-    #              d_hidden_dim,
-    #              d_layers,
-    #              wasserstein=False):
     def __init__(self, params):
         super(Discriminator, self).__init__()
 
@@ -67,12 +62,6 @@ class Discriminator(nn.Module):
 
         self.map3 = nn.Linear(d_dim, 1)
 
-        # FIXME --> initialisation
-        # for p in self.parameters():
-        #     if p.ndimension()>1:
-        #         #nn.init.xavier_normal_(p)
-        #         nn.init.kaiming_normal_(p)
-
     def forward(self, x):
         x = self.activ(self.map1(x))
 
@@ -93,7 +82,7 @@ class Discriminator(nn.Module):
 
 
 
-''' --------------------------------------------------------------------------------- '''
+# -----------------------------------------------------------------------------
 class Generator(nn.Module):
     '''
     Generator: G(z, θG) -> x fake samples
@@ -102,7 +91,6 @@ class Generator(nn.Module):
     training dataset. May have several z input at different layers.
     '''
 
-    #def __init__(self, z_dim, x_dim, g_hidden_dim, g_layers):
     def __init__(self, params, cmin, cmax):
         super(Generator, self).__init__()
 
@@ -126,7 +114,7 @@ class Generator(nn.Module):
         if 'leaky_relu' in params:
             self.activ = F.leaky_relu
 
-        # FIXME --> initialisation
+        # initialisation
         for p in self.parameters():
             if p.ndimension()>1:
                 nn.init.kaiming_normal_(p) ## seems better ???
@@ -151,7 +139,7 @@ class Generator(nn.Module):
 
 
 
-''' --------------------------------------------------------------------------------- '''
+# -----------------------------------------------------------------------------
 class Gan(object):
     '''
     Main GAN object
@@ -422,7 +410,7 @@ class Gan(object):
                     if (self.wasserstein_loss):
                         g_loss = -torch.mean(g_fake_decision)
                     else:
-                        # I think this is the non-saturated version (see Fedus2018)
+                        # this is the non-saturated version (see Fedus2018)
                         # loss is  BCE(D(G(z), 1)) instead of
                         # non-saturated : BCE(D(G(z), 1)) = -1/2 E_z[log(D(G(z)))]
                         # minmax : -BCE(D(G(z)), 0) = E_z[log(1-D(G(z)))]
@@ -488,13 +476,7 @@ class Gan(object):
                 if (vdfn != None) and (epoch % vde == 0):
 
                     with torch.set_grad_enabled(False):
-                        # print('VALIDATION ', vdfn, epoch, vde)
-                        # print('validation keys', validation_read_keys, len(self.validation_x))
-
-                        #for batch_idx_v, data_v in enumerate(loader_validation):
-                        #print('idx',batch_idx_v, len(data_v))
                         data_v = next(iter(loader_validation)) ## FIXME SLOW ??? better if num_workers=2
-                        # print('len ',len(data_v))
 
                         xx = Variable(data_v).type(self.dtypef)
                         dv_real_decision = self.D(xx).detach()                    
@@ -649,10 +631,6 @@ class Gan(object):
         #plt.show()
         #output_filename = 'aa_{:06d}.png'.format(epoch)
         output_filename = 'aa.png'
-
-        # ani = animation.FuncAnimation(fig,update_img,300,interval=30)
-        # writer = animation.writers['ffmpeg'](fps=30)
-        # ani.save('demo.mp4',writer=writer,dpi=dpi)
 
         plt.suptitle('Epoch '+str(epoch))
         plt.tight_layout()

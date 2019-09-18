@@ -11,14 +11,15 @@ from matplotlib.colors import LogNorm
 import seaborn as sns
 from scipy.stats import entropy
 
-''' ---------------------------------------------------------------------------------- '''
+
+# ----------------------------------------------------------------------------
 '''
 date format
 '''
 date_format = "%Y-%m-%d %H:%M:%S"
 
 
-''' ---------------------------------------------------------------------------------- '''
+# ----------------------------------------------------------------------------
 def init_pytorch_cuda(gpu_mode, verbose=False):
     '''
     Test if pytorch use CUDA. Return type and device
@@ -62,18 +63,17 @@ def init_pytorch_cuda(gpu_mode, verbose=False):
 
 
 
-''' ---------------------------------------------------------------------------------- '''
+# ----------------------------------------------------------------------------
 def print_network(net):
     '''
     Print info about a network
     '''
-
     num_params = get_network_nb_parameters(net)
     print(net)
     print('Total number of parameters: %d' % num_params)
 
 
-''' ---------------------------------------------------------------------------------- '''
+# ----------------------------------------------------------------------------
 def get_network_nb_parameters(net):
     '''
     Compute total nb of parameters
@@ -84,7 +84,7 @@ def get_network_nb_parameters(net):
     return num_params
 
 
-''' ---------------------------------------------------------------------------------- '''
+# ----------------------------------------------------------------------------
 def print_info(params, optim):
     '''
     Print info about a trained GAN-PHSP
@@ -112,7 +112,7 @@ def print_info(params, optim):
     print('   {:22s} {}'.format('Final g_loss', g_loss))
 
 
-''' ---------------------------------------------------------------------------------- '''
+# ----------------------------------------------------------------------------
 def load(filename, gpu_mode='auto', verbose=False):
     '''
     Load a GAN-PHSP
@@ -156,7 +156,7 @@ def load(filename, gpu_mode='auto', verbose=False):
     return params, G, D, optim, dtypef
 
 
-''' ---------------------------------------------------------------------------------- '''
+# ----------------------------------------------------------------------------
 def get_min_max_constraints(params):
     '''
     Compute the min/max values per dimension according to params['keys'] and params['constraints']
@@ -185,7 +185,7 @@ def get_min_max_constraints(params):
     return cmin, cmax
     
 
-''' ---------------------------------------------------------------------------------- '''
+# ----------------------------------------------------------------------------
 def plot_epoch(ax, optim, filename):
     '''
     Plot D loss wrt to epoch
@@ -232,7 +232,7 @@ def plot_epoch(ax, optim, filename):
     a.legend()
 
     
-''' ---------------------------------------------------------------------------------- '''
+# ----------------------------------------------------------------------------
 def plot_epoch_wasserstein(ax, optim, filename):
     '''
     Plot wasserstein 
@@ -256,38 +256,7 @@ def plot_epoch_wasserstein(ax, optim, filename):
     a.legend()
 
     
-''' ---------------------------------------------------------------------------------- '''
-def generate_samples_OLD(params, G, dtypef, n):
-
-    z_dim = params['z_dim']
-    x_mean = params['x_mean']
-    x_std = params['x_std']
-    z = Variable(torch.randn(n, z_dim)).type(dtypef)
-    fake = G(z)
-    fake = fake.cpu().data.numpy()
-    fake = (fake*x_std)+x_mean
-
-    return fake
-
-
-''' ---------------------------------------------------------------------------------- '''
-def generate_samples_torch_OLD(params, G, dtypef, n):
-
-    z_dim = params['z_dim']
-    x_mean = params['x_mean']
-    x_std = params['x_std']
-    z = Variable(torch.randn(n, z_dim)).type(dtypef)
-    fake = G(z)
-
-    x_mean = Variable(torch.from_numpy(x_mean)).type(dtypef)
-    x_std = Variable(torch.from_numpy(x_std)).type(dtypef)
-    #fake = fake.cpu().data.numpy()
-    fake = (fake*x_std)+x_mean
-
-    return fake
-
-
-''' ---------------------------------------------------------------------------------- '''
+# ----------------------------------------------------------------------------
 def generate_samples2(params, G, n, batch_size=-1, normalize=False, to_numpy=False):
 
     z_dim = params['z_dim']
@@ -329,7 +298,7 @@ def generate_samples2(params, G, n, batch_size=-1, normalize=False, to_numpy=Fal
     return Variable(torch.from_numpy(rfake)).type(dtypef)
 
 
-''' ---------------------------------------------------------------------------------- '''
+# ----------------------------------------------------------------------------
 def fig_plot_marginal(x, k, keys, ax, i, nb_bins, color, r=''):
     a = phsp.fig_get_sub_fig(ax,i)
     index = keys.index(k)
@@ -357,7 +326,7 @@ def fig_plot_marginal(x, k, keys, ax, i, nb_bins, color, r=''):
     a.legend()
 
 
-''' ---------------------------------------------------------------------------------- '''
+# ----------------------------------------------------------------------------
 def fig_plot_marginal_2d(x, k1, k2, keys, ax, i, nbins, color):
     a = phsp.fig_get_sub_fig(ax,i)
     index1 = keys.index(k1)
@@ -399,7 +368,7 @@ def fig_plot_marginal_2d(x, k1, k2, keys, ax, i, nbins, color):
     a.set_ylabel(k2)
 
 
-''' ---------------------------------------------------------------------------------- '''
+# ----------------------------------------------------------------------------
 def fig_plot_diff_2d(x, y, keys, kk, ax, fig, nb_bins):
     k1 = kk[0]
     k2 = kk[1]
@@ -429,7 +398,7 @@ def fig_plot_diff_2d(x, y, keys, kk, ax, fig, nb_bins):
     ax.set_ylabel(k2)
     
 
-''' ---------------------------------------------------------------------------------- '''
+# ----------------------------------------------------------------------------
 def Jensen_Shannon_divergence(x, y, bins, margin=0):
 
     #margin = 0#.01 # 5%
@@ -448,7 +417,7 @@ def Jensen_Shannon_divergence(x, y, bins, margin=0):
 
 
 
-''' ---------------------------------------------------------------------------------- '''
+# ----------------------------------------------------------------------------
 def sliced_wasserstein(x, y, l, p=1):
     l = int(l)
     ndim = len(x[0])
@@ -491,7 +460,7 @@ def sliced_wasserstein(x, y, l, p=1):
     d = d.data.cpu().numpy()
     return d
 
-''' ---------------------------------------------------------------------------------- '''
+# ----------------------------------------------------------------------------
 def wasserstein1D(x, y, p=1):
     sx, indices = torch.sort(x)
     sy, indices = torch.sort(y)
