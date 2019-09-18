@@ -11,7 +11,7 @@ import datetime
 import copy
 from tqdm import tqdm
 import random
-import phsp
+import gatetools.phsp as phsp
 from matplotlib import pyplot as plt
 import matplotlib.animation as animation
 

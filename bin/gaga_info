@@ -12,13 +12,13 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 @click.command(context_settings=CONTEXT_SETTINGS)
 @click.argument('pth_filename', nargs=-1)
 @click.option('--plot/--no-plot', default=False)
-@click.option('--add_energy', default=float(-1))
+@click.option('--add_energy', default=float(-1),
+              help='Add the key Ekine with the given value in the parameters of the pth file')
 def gaga_info(pth_filename, plot, add_energy):
     '''
     \b
-    Print info about a trained GAN-PTH (Phase Space File)
-
-    If plot option: plot the loss wrt epoch
+    Print information about a trained GAN phase space.
+    If --plot option: plot the loss wrt epoch
 
     \b
     <PTH_FILENAME> : input PTH file (.pth)
@@ -26,7 +26,7 @@ def gaga_info(pth_filename, plot, add_energy):
 
     if plot:
         fig, ax = plt.subplots(1, 3, figsize=(16,5))
-    
+
     for f in pth_filename:
         params, G, D, optim, dtypef = gaga.load(f)
         gaga.print_info(params, optim)
@@ -44,7 +44,6 @@ def gaga_info(pth_filename, plot, add_energy):
             print('Cannot add_energy to several pth_filename')
             exit(0)
         f = pth_filename[0]
-        print('add energy', add_energy)
         params['Ekine'] = add_energy
         if params['current_gpu']:
             nn = torch.load(f)
@@ -53,9 +52,8 @@ def gaga_info(pth_filename, plot, add_energy):
         nn['params'] = params
         copyfile(f, f+'.save')
         torch.save(nn, f)
-        
+
 
 # --------------------------------------------------------------------------
 if __name__ == '__main__':
     gaga_info()
-

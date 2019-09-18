@@ -4,7 +4,7 @@ from torch.autograd import Variable
 import gaga
 import datetime
 import os
-import phsp
+import gatetools.phsp as phsp
 from scipy.stats import kde
 from matplotlib import pyplot as plt
 from matplotlib.colors import LogNorm
@@ -92,7 +92,7 @@ def print_info(params, optim):
     # print parameters
     for e in params:
         if (e[0] != '#') and (e != 'x_mean') and (e != 'x_std'):
-            print('   {:20s} {}'.format(e, str(params[e])))
+            print('   {:22s} {}'.format(e, str(params[e])))
 
     # additional info
     try:
@@ -102,14 +102,14 @@ def print_info(params, optim):
         start = 0
         end = 0
     delta = end-start
-    print('   {:20s} {}'.format('Duration', delta))
+    print('   {:22s} {}'.format('Duration', delta))
 
     d_loss_real = np.asarray(optim['d_loss_real'][-1])
     d_loss_fake = np.asarray(optim['d_loss_fake'][-1])
     d_loss = d_loss_real + d_loss_fake
     g_loss = np.asarray(optim['g_loss'][-1])
-    print('   {:20s} {}'.format('Final d_loss', d_loss))
-    print('   {:20s} {}'.format('Final g_loss', g_loss))
+    print('   {:22s} {}'.format('Final d_loss', d_loss))
+    print('   {:22s} {}'.format('Final g_loss', g_loss))
 
 
 ''' ---------------------------------------------------------------------------------- '''
@@ -179,10 +179,8 @@ def get_min_max_constraints(params):
     x_std = params['x_std']
     x_mean = params['x_mean']
     
-    print(cmin, cmax)
     cmin = (cmin-x_mean)/x_std
     cmax = (cmax-x_mean)/x_std
-    print(cmin, cmax)
 
     return cmin, cmax
     
@@ -242,6 +240,8 @@ def plot_epoch_wasserstein(ax, optim, filename):
 
     y = np.asarray(optim['w_value'])
     x = np.asarray(optim['w_epoch'])
+    if len(x) < 1:
+        return
 
     a = ax[0].twinx()
     a.plot(x, y, '-', color='r', label='W')
