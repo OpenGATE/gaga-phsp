@@ -21,6 +21,10 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 @click.argument('json_filename',
                 type=click.Path(exists=True, file_okay=True, dir_okay=False))
 @click.argument('output_filename')
+@click.option('--epoch', '-e',
+              help='Number of epoch (overwrite the epoch value of the json file)',
+              type=int,
+              default=None)
 @click.option('--progress-bar/--no-progress-bar', default=True)
 @click.option('--plot/--no-plot', default=False)
 @click.option('--plot-every-epoch', default=400)
@@ -34,18 +38,21 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 @click.option('--validation-dataset',
               default=None, help='Validation dataset filename, to compute loss per epoch',
               type=click.Path(exists=True, file_okay=True, dir_okay=False))
-@click.option('--validation-every-epoch', '--vd-e', 
+@click.option('--validation-every-epoch',
               default=400, help='Compute loss on validation dataset every epoch')
+@click.option('--start-pth', default=None, help='Start from already computed G and D, read in the given file')
 def gaga_train(phsp_filename,
                json_filename,
                output_filename,
+               epoch,
                progress_bar,
                plot,
                plot_every_epoch,
                w_e, w_n, w_l, w_p,
                keys,
                validation_dataset,
-               validation_every_epoch):
+               validation_every_epoch,
+               start_pth):
     '''
     \b
     Train GAN to learn a PHSP (Phase Space File)
@@ -60,7 +67,7 @@ def gaga_train(phsp_filename,
     init()
     pkeys = keys
     # fd = "%Y-%m-%d %H:%M:%S"
-   
+
     # read parameters
     param_file = open(json_filename).read()
     params = json.loads(param_file)
@@ -77,7 +84,10 @@ def gaga_train(phsp_filename,
     params['w_n'] = int(w_n)
     params['w_l'] = int(w_l)
     params['w_p'] = int(w_p)
-    
+    params['start_pth'] = start_pth
+    if epoch:
+        params['epoch'] = epoch
+
     # read input training dataset
     print(Fore.CYAN +"Loading training dataset ... "+phsp_filename+Style.RESET_ALL)
     x, read_keys, m = phsp.load(phsp_filename)
@@ -95,8 +105,8 @@ def gaga_train(phsp_filename,
     else:
         keys = read_keys
 
-    # maybe should I suffle the input x ? 
-        
+    # maybe should I suffle the input x ?
+
     params['training_size'] = len(x)
     params['keys'] = keys
     params['x_dim'] = len(keys)
@@ -107,7 +117,7 @@ def gaga_train(phsp_filename,
     params['x_mean'] = x_mean
     params['x_std'] = x_std
     x = (x-x_mean)/x_std
-    
+
     # print parameters
     for e in params:
         if (e[0] != '#'):
@@ -119,7 +129,7 @@ def gaga_train(phsp_filename,
     print(Fore.CYAN +'Start training ...'+Style.RESET_ALL)
     optim = gan.train()
 
-    # save 
+    # save
     stop = datetime.datetime.now()
     params['end date'] = stop.strftime(gaga.date_format)
     output = dict()
@@ -136,4 +146,3 @@ def gaga_train(phsp_filename,
 # --------------------------------------------------------------------------
 if __name__ == '__main__':
     gaga_train()
-

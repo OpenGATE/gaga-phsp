@@ -58,7 +58,7 @@ def gaga_plot(phsp_filename, pth_filename, n, nb_bins, toggle, radius, s2d, quan
     # print(r_keys)
 
     # load pth
-    params, G, optim, dtypef= gaga.load(pth_filename)
+    params, G, D, optim, dtypef= gaga.load(pth_filename)
     f_keys = params['keys']
     keys = f_keys.copy()
     # print(keys)

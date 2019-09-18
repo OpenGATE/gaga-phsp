@@ -179,10 +179,10 @@ def get_min_max_constraints(params):
     x_std = params['x_std']
     x_mean = params['x_mean']
     
-    #print(cmin, cmax)
+    print(cmin, cmax)
     cmin = (cmin-x_mean)/x_std
     cmax = (cmax-x_mean)/x_std
-    #print(cmin, cmax)
+    print(cmin, cmax)
 
     return cmin, cmax
     

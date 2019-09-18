@@ -32,11 +32,11 @@ class Discriminator(nn.Module):
     Discriminator: D(x, θD) -> probability that x is real data
     or with Wasserstein GAN :
     Discriminator is the Critic D(x, θD) -> Wasserstein distance
-    
+
     The discriminator takes in both real and fake input data and returns
     probabilities, a number between 0 and 1, with 1 representing a prediction
     of authenticity and 0 representing fake.
-    
+
     At Nash equilibrium, half of input will be real, half fake: D(x) = 1/2
     '''
 
@@ -51,8 +51,8 @@ class Discriminator(nn.Module):
         x_dim = params['x_dim']
         d_dim = params['d_dim']
         self.d_layers = params['d_layers']
-        self.wasserstein = (params['type'] == 'wasserstein') or (params['type'] == 'gradient_penalty') 
-        
+        self.wasserstein = (params['type'] == 'wasserstein') or (params['type'] == 'gradient_penalty')
+
         self.map1 = nn.Linear(x_dim, d_dim)
         self.maps = nn.ModuleList()
         self.norms = nn.ModuleList()
@@ -64,7 +64,7 @@ class Discriminator(nn.Module):
         for i in range(self.d_layers):
             self.maps.append(nn.Linear(d_dim,d_dim))
             self.norms.append(nn.LayerNorm(d_dim))
-            
+
         self.map3 = nn.Linear(d_dim, 1)
 
         # FIXME --> initialisation
@@ -97,11 +97,11 @@ class Discriminator(nn.Module):
 class Generator(nn.Module):
     '''
     Generator: G(z, θG) -> x fake samples
-    
+
     Create samples that are intended to come from the same distrib than the
     training dataset. May have several z input at different layers.
     '''
-    
+
     #def __init__(self, z_dim, x_dim, g_hidden_dim, g_layers):
     def __init__(self, params, cmin, cmax):
         super(Generator, self).__init__()
@@ -113,13 +113,13 @@ class Generator(nn.Module):
         self.g_layers = self.params['g_layers']
         self.cmin = cmin
         self.cmax = cmax
-        
+
         self.map1 = nn.Linear(z_dim, g_dim)
         self.maps = nn.ModuleList()
 
         for i in range(self.g_layers):
             self.maps.append(nn.Linear(g_dim, g_dim))
-            
+
         self.map3 = nn.Linear(g_dim, self.x_dim)
 
         self.activ = F.relu
@@ -137,7 +137,7 @@ class Generator(nn.Module):
         x = self.activ(self.map1(x))
         for i in range(self.g_layers-1):
             x = self.activ(self.maps[i](x))
-            
+
         x = self.maps[self.g_layers-1](x)  # last one
         x = torch.sigmoid(x) # to output probability within [0-1]
         #x = self.activ(x)
@@ -146,7 +146,7 @@ class Generator(nn.Module):
         # clamp values
         x = torch.max(x, self.cmin)
         x = torch.min(x, self.cmax)
-        
+
         return x
 
 
@@ -198,9 +198,16 @@ class Gan(object):
         cmin = torch.from_numpy(cmin).type(self.dtypef)
         cmax = torch.from_numpy(cmax).type(self.dtypef)
 
-        # init G and D        
-        self.D = Discriminator(params)
-        self.G = Generator(params, cmin, cmax)
+        # init G and D
+        if ('start_pth' not in self.params) or (params['start_pth'] == None):
+            self.D = Discriminator(params)
+            self.G = Generator(params, cmin, cmax)
+        else:
+            f = params['start_pth']
+            print('Loading ', f)
+            start_params, start_G, start_D, start_optim, start_dtypef = gaga.load(f)
+            self.D = start_D
+            self.G = start_G
 
         # init optimizer
         d_learning_rate = params['d_learning_rate']
@@ -224,7 +231,7 @@ class Gan(object):
                                                 weight_decay=g_weight_decay,
                                                 betas=[beta1,beta2],
                                                 lr=g_learning_rate)
-            
+
         if (params['optimiser'] == 'RMSprop'):
             self.d_optimizer = torch.optim.RMSprop(self.D.parameters(), lr=d_learning_rate)
             self.g_optimizer = torch.optim.RMSprop(self.G.parameters(), lr=g_learning_rate)
@@ -294,48 +301,50 @@ class Gan(object):
             s = self.params['label_smoothing']
             real_labels = Variable((1.0-s)+s*torch.rand(batch_size, 1)).type(self.dtypef)
             fake_labels = Variable(s*torch.rand(batch_size, 1)).type(self.dtypef)
-            
+
         # Sampler
         loader = DataLoader(self.x,
                             batch_size=batch_size,
                             num_workers=1,
-                            # pin_memory=True,
+                            pin_memory=True,
                             # https://discuss.pytorch.org/t/what-is-the-disadvantage-of-using-pin-memory/1702/4
                             shuffle=self.params['shuffle'],  ## if false ~20% faster, seems identical
                             #shuffle=False,  ## if false ~20% faster, seems identical
                             drop_last=True)
 
-        # Sampler for wasserstein distance 
+        # Sampler for wasserstein distance
         loader_w = DataLoader(self.x,
                               batch_size=int(self.params['w_n']),
-                              num_workers=1,
+                              num_workers=3,
                               # pin_memory=True,
                               # https://discuss.pytorch.org/t/what-is-the-disadvantage-of-using-pin-memory/1702/4
                               shuffle=False,
                               drop_last=True)
-        
-        # Sampler for validation 
+
+        # Sampler for validation
         vdfn = self.params['validation_filename']
         print(vdfn)
         if vdfn != None:
-            self.validation_x, validation_read_keys, m = phsp.load(vdfn)            
-            print('validation keys', validation_read_keys, len(self.validation_x))
+            self.validation_x, validation_read_keys, m = phsp.load(vdfn)
+            print('keys', validation_read_keys, len(self.validation_x), len(self.validation_x[0]))
+            self.validation_x = phsp.select_keys(self.validation_x, validation_read_keys, self.params['keys'])
+            print('validation keys', self.params['keys'], len(self.validation_x), len(self.validation_x[0]))
 
             # normalisation
             x_mean = self.params['x_mean']
             x_std = self.params['x_std']
             self.validation_x = (self.validation_x-x_mean)/x_std
             print('normalisation', x_mean)
-            
+
             loader_validation = DataLoader(self.validation_x,
                                            batch_size=batch_size,
-                                           num_workers=1,
-                                           # pin_memory=True,
+                                           num_workers=2, # faster if diff from main loader num_workers=1
+                                           pin_memory=True,
                                            # https://discuss.pytorch.org/t/what-is-the-disadvantage-of-using-pin-memory/1702/4
                                            shuffle=False,
                                            drop_last=True)
-            print('done')
-            
+            print('validation loader done')
+
 
         # Start training
         epoch = 0
@@ -345,8 +354,7 @@ class Gan(object):
         while (epoch < self.params['epoch']):
 
             for batch_idx, data in enumerate(loader):
-                # print('idx',batch_idx, len(data))
-                
+
                 # Clamp D if wasserstein mode (not in gradient_penalty mode)
                 if (self.params['type'] == 'wasserstein'):
                     clamp_lower = self.params['clamp_lower']
@@ -358,7 +366,7 @@ class Gan(object):
                 for _ in range(self.params['d_nb_update']):
                     # the input data
                     x = Variable(data).type(self.dtypef)
-                    
+
                     # get decision from the discriminator
                     d_real_decision = self.D(x)
 
@@ -377,7 +385,7 @@ class Gan(object):
 
                     # get the fake decision on the fake data
                     d_fake_decision = self.D(d_fake_data)
-                    
+
                     # compute loss between fake decision and vector of zeros
                     if (self.wasserstein_loss):
                         d_fake_loss = torch.mean(d_fake_decision)
@@ -425,11 +433,11 @@ class Gan(object):
                     self.g_optimizer.step()
 
                 # Housekeeping
-                self.D.zero_grad() # FIXME not needed ? 
-                self.G.zero_grad() # FIXME to put before g backward ? 
+                self.D.zero_grad() # FIXME not needed ?
+                self.G.zero_grad() # FIXME to put before g backward ?
 
                 # print info sometimes
-                if (epoch) % 100 == 0:
+                if (epoch) % 500 == 0:
                     tqdm.write('Epoch %d d_loss: %.5f   g_loss: %.5f     d_real_loss: %.5f  d_fake_loss: %.5f'
                                %(epoch,
                                  d_loss.data.item(),
@@ -441,13 +449,13 @@ class Gan(object):
                 if (self.params['plot']):
                     if (epoch) % int(self.params['plot_every_epoch']) == 0:
                         self.plot_epoch(self.params['keys'], epoch)
-                    
-                # save loss value 
+
+                # save loss value
                 optim['d_loss_real'].append(d_real_loss.data.item())
                 optim['d_loss_fake'].append(d_fake_loss.data.item())
                 optim['d_loss'].append(d_loss.data.item())
                 optim['g_loss'].append(g_loss.data.item())
-                
+
                 # dump sometimes
                 if (epoch>self.params['dump_epoch_start']):
                     should_dump1 = (epoch-self.params['dump_epoch_start']) % self.params['dump_epoch_every']
@@ -468,8 +476,8 @@ class Gan(object):
                     real = next(iter(loader_w))
                     real = Variable(real).type(self.dtypef)
                     z = Variable(torch.randn(n, z_dim)).type(self.dtypef)
-                    fake = self.G(z)                 
-                    d = gaga.sliced_wasserstein(real, fake, l, p)                    
+                    fake = self.G(z)
+                    d = gaga.sliced_wasserstein(real, fake, l, p)
                     optim['w_value'].append(d)
                     optim['w_epoch'].append(epoch)
                     tqdm.write('Epoch {} wasserstein: {:5f}'.format(epoch, d))
@@ -478,54 +486,56 @@ class Gan(object):
                 vdfn = self.params['validation_filename']
                 vde = self.params['validation_every_epoch']
                 if (vdfn != None) and (epoch % vde == 0):
-                    # print('VALIDATION ', vdfn, epoch, vde)                                     
-                    # print('validation keys', validation_read_keys, len(self.validation_x))
-                    
-                    #for batch_idx_v, data_v in enumerate(loader_validation):
-                    #print('idx',batch_idx_v, len(data_v))
-                    data_v = next(iter(loader_validation))
-                    # print('len ',len(data_v))
 
-                    x = Variable(data_v).type(self.dtypef)
-                    dv_real_decision = self.D(x)
-                    if (self.wasserstein_loss):
-                        dv_real_loss = -torch.mean(dv_real_decision)
-                    else:
-                        dv_real_loss = self.criterion(dv_real_decision, real_labels)
-                    z = Variable(torch.randn(batch_size, z_dim)).type(self.dtypef)
-                    dv_fake_data = self.G(z) # .detach()
-                    dv_fake_decision = self.D(dv_fake_data)
-                    if (self.wasserstein_loss):
-                        dv_fake_loss = torch.mean(dv_fake_decision)
-                    else:
-                        dv_fake_loss = self.criterion(dv_fake_decision, fake_labels)
-                    # sum of loss
-                    if (self.params['type'] == 'gradient_penalty'):
-                        gradient_penalty = self.compute_gradient_penalty(x, dv_fake_data)
-                        dv_loss = dv_real_loss + dv_fake_loss + self.params['gp_weight']*gradient_penalty
-                    else:
-                        dv_loss = dv_real_loss + dv_fake_loss
+                    with torch.set_grad_enabled(False):
+                        # print('VALIDATION ', vdfn, epoch, vde)
+                        # print('validation keys', validation_read_keys, len(self.validation_x))
 
-                    z = Variable(torch.randn(batch_size, z_dim)).type(self.dtypef)
-                    gv_fake_data = self.G(z)#.detach()
-                    gv_fake_decision = self.D(gv_fake_data)
-                    if (self.wasserstein_loss):
-                        gv_loss = -torch.mean(gv_fake_decision)
-                    else:
-                        gv_loss = self.criterion(gv_fake_decision, real_labels)
+                        #for batch_idx_v, data_v in enumerate(loader_validation):
+                        #print('idx',batch_idx_v, len(data_v))
+                        data_v = next(iter(loader_validation)) ## FIXME SLOW ??? better if num_workers=2
+                        # print('len ',len(data_v))
 
-                    optim['validation_d_loss_real'].append(dv_real_loss.data.item())
-                    optim['validation_d_loss_fake'].append(dv_fake_loss.data.item())
-                    optim['validation_d_loss'].append(dv_loss.data.item())
-                    optim['validation_g_loss'].append(gv_loss.data.item())
-                    optim['validation_epoch'].append(epoch)
-                    # tqdm.write('Epoch {} validation: D {:5f}   G {:5f}   /   D {:5f}   G {:5f} '
-                    #            .format(epoch, dv_loss.data.item(), gv_loss.data.item(),
-                    #                    d_loss.data.item(),
-                    #                    g_loss.data.item()))
-                    #break
+                        xx = Variable(data_v).type(self.dtypef)
+                        dv_real_decision = self.D(xx).detach()                    
+                        if (self.wasserstein_loss):
+                            dv_real_loss = -torch.mean(dv_real_decision)
+                        else:
+                            dv_real_loss = self.criterion(dv_real_decision, real_labels)
+
+                        zz = Variable(torch.randn(batch_size, z_dim)).type(self.dtypef)
+                        dv_fake_data = self.G(zz).detach()
+                        dv_fake_decision = self.D(dv_fake_data).detach()
+                        if (self.wasserstein_loss):
+                            dv_fake_loss = torch.mean(dv_fake_decision)
+                        else:
+                            dv_fake_loss = self.criterion(dv_fake_decision, fake_labels)
+                        if (self.params['type'] == 'gradient_penalty'):
+                            gradient_penalty = self.compute_gradient_penalty(xx, dv_fake_data)
+                            dv_loss = dv_real_loss + dv_fake_loss + self.params['gp_weight']*gradient_penalty
+                        else:
+                            dv_loss = dv_real_loss + dv_fake_loss
+                            
+                        # G
+                        zz = Variable(torch.randn(batch_size, z_dim)).type(self.dtypef)
+                        gv_fake_data = self.G(zz).detach()
+                        gv_fake_decision = self.D(gv_fake_data).detach()
+                        if (self.wasserstein_loss):
+                            gv_loss = -torch.mean(gv_fake_decision)
+                        else:
+                            gv_loss = self.criterion(gv_fake_decision, real_labels)
                         
-                    
+                        optim['validation_d_loss_real'].append(dv_real_loss.data.item())
+                        optim['validation_d_loss_fake'].append(dv_fake_loss.data.item())
+                        optim['validation_d_loss'].append(dv_loss.data.item())
+                        optim['validation_g_loss'].append(gv_loss.data.item())
+                        optim['validation_epoch'].append(epoch)
+
+                        tqdm.write('Epoch {} validation: G {:5f} vs {:5f} '
+                                   .format(epoch, g_loss.data.item(), gv_loss.data.item()))
+                        #break
+
+
                 # update loop
                 pbar.update(1)
                 epoch += 1
@@ -542,14 +552,14 @@ class Gan(object):
         print('End time      = ', stop.strftime(gaga.date_format))
         print('Duration time = ', (stop-start))
         return optim
-    
+
 
     ''' ----------------------------------------------------------------------------- '''
     def compute_gradient_penalty(self, real_data, fake_data):
         #https://github.com/EmilienDupont/wgan-gp/blob/master/training.py
         #https://github.com/caogang/wgan-gp/blob/master/gan_toy.py
         gpu = (str(self.device) != 'cpu')
-        
+
         # alpha
         alpha = torch.rand(self.batch_size, 1)#, 1, 1)
         alpha = alpha.expand_as(real_data)
@@ -588,11 +598,11 @@ class Gan(object):
         # E((|∇f(αx_real −(1−α)x_fake)|−1)²)
         # by
         # (max(|∇f|−1,0))²
-        #        
-        
+        #
+
         return gradient_penalty
 
-    
+
     ''' ----------------------------------------------------------------------------- '''
     def plot_epoch(self, keys, epoch):
         '''
@@ -601,7 +611,7 @@ class Gan(object):
 
         n = int(1e5)
         nb_bins = 200
-        
+
         # create fig
         nrow, ncol = phsp.fig_get_nb_row_col(len(keys))
         f, ax = plt.subplots(nrow, ncol, figsize=(25,10))
@@ -611,7 +621,7 @@ class Gan(object):
         start = random.randint(0,len(x)-n)
         real = x[start:start+n,:]
         real = (real*self.x_std)+self.x_mean
-        
+
         # generate z noise (latent) and fake real
         #fake = generate_samples(self.params, self.G, self.dtypef, n)
         z_dim = self.params['z_dim']
@@ -621,7 +631,7 @@ class Gan(object):
         fake = self.G(z)
         fake = fake.cpu().data.numpy()
         fake = (fake*x_std)+x_mean
-        
+
         # plot all keys for real data
         i = 0
         for k in keys:
@@ -633,7 +643,7 @@ class Gan(object):
         for k in keys:
             gaga.fig_plot_marginal(fake, k, keys, ax, i, nb_bins, 'r')
             i = i+1
-            
+
         # remove empty plot
         phsp.fig_rm_empty_plot(len(keys), ax)
         #plt.show()
@@ -643,7 +653,7 @@ class Gan(object):
         # ani = animation.FuncAnimation(fig,update_img,300,interval=30)
         # writer = animation.writers['ffmpeg'](fps=30)
         # ani.save('demo.mp4',writer=writer,dpi=dpi)
-        
+
         plt.suptitle('Epoch '+str(epoch))
         plt.tight_layout()
         plt.subplots_adjust(top=0.9)

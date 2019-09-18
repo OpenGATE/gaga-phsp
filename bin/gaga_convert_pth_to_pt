@@ -14,14 +14,17 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 @click.option('--output', '-o', default='auto', help="If 'auto', use filename.pt and filename.json")
 @click.option('--gpu/--no-gpu', default=False)
 @click.option('--verbose/--no-verbose', '-v', default=False)
-def gaga_convert_pth_to_pt(pth_filename, output, gpu, verbose):
+@click.option('--keys', '-k', type=(str, float), multiple=True)
+def gaga_convert_pth_to_pt(pth_filename, output, gpu, verbose, keys):
     '''
     \b
-    Convert a .pth file to a .pt (used by libtorch in Gate)
+    Convert a .pth file from gaga to a .pt and a .json files (used by libtorch in Gate)
 
     \b
-    <PTH_FILENAME>    : input GAN PTH file (.pth)
+    <PTH_FILENAME> : input GAN PTH file (.pth)
     '''
+
+    # FIXME Harmonize with create_pt for GARF
 
     # output filename
     if output == 'auto':
@@ -38,16 +41,17 @@ def gaga_convert_pth_to_pt(pth_filename, output, gpu, verbose):
         gpu = 'false'
 
     # load pth
-    params, G, optim, dtypef= gaga.load(pth_filename, gpu, verbose)
+    params, G, D, optim, dtypef= gaga.load(pth_filename, gpu, verbose)
         
     b = 10
     z_dim = params['z_dim']
     z = Variable(torch.randn(b, z_dim)).type(dtypef)
-    
+
+    # generate trace
     traced_script_module = torch.jit.trace(G, z)
+    traced_script_module.save(output_pt)
     if verbose:
         print('Writing ', output_pt)
-    traced_script_module.save(output_pt)
 
     #Save dict nn into json
     p = {}
@@ -55,6 +59,10 @@ def gaga_convert_pth_to_pt(pth_filename, output, gpu, verbose):
     params["x_std"] = params["x_std"][0].tolist()
     params['d_nb_weights'] = int(params['d_nb_weights'])
     params['g_nb_weights'] = int(params['g_nb_weights'])
+
+    for k in keys:
+        params[k[0]] = k[1];
+    
     outfile = open(output_json, 'w')
     if verbose:
         print('Writing ', output_json)
