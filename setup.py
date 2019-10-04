@@ -5,7 +5,7 @@ with open("readme.md", "r") as fh:
 
 setuptools.setup(
     name="gaga",
-    version="0.1",
+    version="1.0",
     author="David Sarrut",
     author_email="david.sarrut@creatis.insa-lyon.fr",
     description="Python tools for GATE GAN simulations",
@@ -22,21 +22,14 @@ setuptools.setup(
     ),
     install_requires=[
         'tqdm',
-        'json_tricks',
         'colorama',
-        'pykeops',
-        'geomloss',
-        'seaborn'
+        'click'
       ],
     scripts=[
         'bin/gaga_train',
         'bin/gaga_info',
         'bin/gaga_plot',
-        'bin/gaga_jsd',
         'bin/gaga_generate',
         'bin/gaga_convert_pth_to_pt',
-        'bin/gaga_wasserstein',
-        'bin/test_wasserstein',
-        'bin/test_wasserstein_pytorch',
     ]
 )

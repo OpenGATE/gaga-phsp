@@ -8,7 +8,6 @@ import gatetools.phsp as phsp
 from scipy.stats import kde
 from matplotlib import pyplot as plt
 from matplotlib.colors import LogNorm
-import seaborn as sns
 from scipy.stats import entropy
 
 
