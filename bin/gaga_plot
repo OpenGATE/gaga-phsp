@@ -56,7 +56,7 @@ def gaga_plot(phsp_filename, pth_filename, n, nb_bins,
 
     real, r_keys = phsp.add_missing_angle(real, r_keys, keys, radius)
     fake, f_keys = phsp.add_missing_angle(fake, f_keys, keys, radius)
-        
+
     real = phsp.select_keys(real, r_keys, keys)
     fake = phsp.select_keys(fake, f_keys, keys)
 
@@ -74,26 +74,27 @@ def gaga_plot(phsp_filename, pth_filename, n, nb_bins,
 
     # plot all keys for real data
     i = 0
-    
+
+    q = {}
     for k in keys:
         index = keys.index(k)
         d = real[:,index]
         q1 = quantile
         q2 = 1.0-quantile
-        q = (np.quantile(d, q1), np.quantile(d, q2))        
-        gaga.fig_plot_marginal(real, k, keys, ax, i, nb_bins, 'g', q)
+        q[k] = (np.quantile(d, q1), np.quantile(d, q2))
+        gaga.fig_plot_marginal(real, k, keys, ax, i, nb_bins, 'g', q[k])
         i = i+1
 
     # plot all keys for fake data
     i = 0
-    for k in keys:    
+    for k in keys:
         index = keys.index(k)
         d = real[:,index]
-        q1 = quantile
-        q2 = 1.0-quantile
-        q = (np.quantile(d, q1), np.quantile(d, q2)) 
-        # print(q)
-        gaga.fig_plot_marginal(fake, k, keys, ax, i, nb_bins, 'r', q)
+        #q1 = quantile
+        #q2 = 1.0-quantile
+        #q = (np.quantile(d, q1), np.quantile(d, q2))
+        #print(q)
+        gaga.fig_plot_marginal(fake, k, keys, ax, i, nb_bins, 'r', q[k])
         i = i+1
 
 
@@ -103,7 +104,7 @@ def gaga_plot(phsp_filename, pth_filename, n, nb_bins,
         for kk in keys_2d:
             gaga.fig_plot_marginal_2d(real, kk[0], kk[1], keys, ax, i, nb_bins, 'g')
             i = i+1
-        
+
         # plot 2D distribution
         i = starti
         for kk in keys_2d:
@@ -115,11 +116,11 @@ def gaga_plot(phsp_filename, pth_filename, n, nb_bins,
                 a = phsp.fig_get_sub_fig(ax,i)
                 gaga.fig_plot_diff_2d(real, fake, keys, kk, a, fig, nb_bins)
                 i = i+1
-    
-     
+
+
     # remove empty plot
     phsp.fig_rm_empty_plot(nb_fig, ax)
-    
+
     plt.suptitle(pth_filename)
     plt.tight_layout()
     plt.subplots_adjust(top=0.9)
@@ -132,4 +133,3 @@ def gaga_plot(phsp_filename, pth_filename, n, nb_bins,
 # --------------------------------------------------------------------------
 if __name__ == '__main__':
     gaga_plot()
-
