@@ -50,11 +50,12 @@ def init_pytorch_cuda(gpu_mode, verbose=False):
     if (verbose):
         if (str(device) != 'cpu'):
             print('GPU is enabled')
-            # print('CUDA version: ', torch.version.cuda)
-            # print('CUDA device name:', torch.cuda.get_device_name(0))
-            # print('CUDA current device: ', torch.cuda.current_device())
-            # print('CUDA device:', torch.cuda.device(0))
-            # print('CUDA device counts: ', torch.cuda.device_count())
+            print('CUDA version:        ', torch.version.cuda)
+            print('CUDA device counts:  ', torch.cuda.device_count())
+            print('CUDA current device: ', torch.cuda.current_device())
+            n = torch.cuda.current_device()
+            print('CUDA device name:    ', torch.cuda.get_device_name(n))
+            print('CUDA device ad:      ', torch.cuda.device(n))
         else:
             print('CPU only (no GPU)')
 
@@ -308,7 +309,7 @@ def fig_plot_marginal(x, k, keys, ax, i, nb_bins, color, r=''):
     label = ' {} $\mu$={:.2f} $\sigma$={:.2f}'.format(k, np.mean(d), np.std(d))
     if r != '':
         a.hist(d, nb_bins,
-               # density=True,
+               density=True,
                histtype='stepfilled',
                facecolor=color,
                alpha=0.5,
@@ -316,7 +317,7 @@ def fig_plot_marginal(x, k, keys, ax, i, nb_bins, color, r=''):
                label=label)
     else:
         a.hist(d, nb_bins,
-               # density=True,
+               density=True,
                histtype='stepfilled',
                facecolor=color,
                alpha=0.5,
