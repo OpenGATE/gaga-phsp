@@ -23,7 +23,9 @@ setuptools.setup(
     install_requires=[
         'tqdm',
         'colorama',
-        'click'
+        'click',
+        'scipy',
+        #'torch'   # better to install torch manually to match cuda version
       ],
     scripts=[
         'bin/gaga_train',
