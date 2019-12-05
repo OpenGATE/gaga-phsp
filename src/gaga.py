@@ -46,7 +46,6 @@ class Discriminator(nn.Module):
         x_dim = params['x_dim']
         d_dim = params['d_dim']
         self.d_layers = params['d_layers']
-        self.wasserstein = (params['type'] == 'wasserstein') or (params['type'] == 'gradient_penalty')
 
         self.map1 = nn.Linear(x_dim, d_dim)
         self.maps = nn.ModuleList()
@@ -72,7 +71,7 @@ class Discriminator(nn.Module):
             for i in range(self.d_layers):
                 x = self.activ(self.maps[i](x))
 
-        if (self.wasserstein):
+        if self.params['loss_type'] == 'wasserstein':
             # NO SIGMOID with Wasserstein
             # https://paper.dropbox.com/doc/Wasserstein-GAN--AZxqBJuXjF5jf3zyCdJAVqEMAg-GvU0p2V9ThzdwY3BbhoP7
             x = self.map3(x)
@@ -170,7 +169,8 @@ class Gan(object):
         d_layers = params['d_layers']
         x_std = params['x_std']
         x_mean = params['x_mean']
-        self.wasserstein_loss = (params['type'] == 'wasserstein') or (params['type'] == 'gradient_penalty')
+
+        # debug wasserstein
         if 'dump_wasserstein_every' not in self.params:
             self.params['dump_wasserstein_every'] = -1
         if 'w_n' not in self.params:
@@ -220,17 +220,20 @@ class Gan(object):
                                                 betas=[beta1,beta2],
                                                 lr=g_learning_rate)
 
-        if (params['optimiser'] == 'RMSprop'):
+        if params['optimiser'] == 'RMSprop':
             self.d_optimizer = torch.optim.RMSprop(self.D.parameters(), lr=d_learning_rate)
             self.g_optimizer = torch.optim.RMSprop(self.G.parameters(), lr=g_learning_rate)
-
+            
         # auto decreasing learning_rate
-        # self.g_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.g_optimizer,
-        #                                                          'min', verbose=True, patience=200)
-        # self.d_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.d_optimizer,
-        #                                                          'min', verbose=True, patience=200)
+        if 'scheduler_patience' in params:
+            p = params['scheduler_patience']
+            print('Scheduler Patience ', p)
+            self.g_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.g_optimizer,
+                                                                          'min', verbose=True, patience=p)
+            self.d_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.d_optimizer,
+                                                                          'min', verbose=True, patience=p)
 
-        # criterion init
+        # criterion init  ######################## FIXME --> add other loss here 
         if (str(self.device) != 'cpu'):
             self.G.cuda()
             self.D.cuda()
@@ -279,6 +282,8 @@ class Gan(object):
         optim['validation_epoch'] = []
         si = 0 # nb of stored epoch
 
+        penalty_fct, penalty_weight = self.set_penalty(self.params)
+
         # Real/Fake labels (1/0)
         self.batch_size = self.params['batch_size']
         batch_size = self.batch_size
@@ -289,6 +294,15 @@ class Gan(object):
             s = self.params['label_smoothing']
             real_labels = Variable((1.0-s)+s*torch.rand(batch_size, 1)).type(self.dtypef)
             fake_labels = Variable(s*torch.rand(batch_size, 1)).type(self.dtypef)
+
+
+        # Allocate noise if needed
+        if params['r_instance_noise_sigma']>0:
+            print('Allocate noise')
+            #self.noise = Variable(torch.zeros(shape,shape).type(self.dtypef))
+            print(self.device)
+            self.noise = torch.tensor(0).to(self.device)
+            print('self.noise', self.noise);
 
         # Sampler
         loader = DataLoader(self.x,
@@ -301,13 +315,14 @@ class Gan(object):
                             drop_last=True)
 
         # Sampler for wasserstein distance
-        loader_w = DataLoader(self.x,
-                              batch_size=int(self.params['w_n']),
-                              num_workers=3,
-                              # pin_memory=True,
-                              # https://discuss.pytorch.org/t/what-is-the-disadvantage-of-using-pin-memory/1702/4
-                              shuffle=False,
-                              drop_last=True)
+        if self.params['dump_wasserstein_every'] != -1:
+            loader_w = DataLoader(self.x,
+                                  batch_size=int(self.params['w_n']),
+                                  num_workers=3,
+                                  # pin_memory=True,
+                                  # https://discuss.pytorch.org/t/what-is-the-disadvantage-of-using-pin-memory/1702/4
+                                  shuffle=False,
+                                  drop_last=True)
 
         # Sampler for validation
         vdfn = self.params['validation_filename']
@@ -335,6 +350,7 @@ class Gan(object):
 
 
         # Start training
+        loss_is_wasserstein = (self.params['loss_type'] == 'wasserstein')
         epoch = 0
         start = datetime.datetime.now()
         pbar = tqdm(total=self.params['epoch'], disable=not self.params['progress_bar'])
@@ -344,7 +360,7 @@ class Gan(object):
             for batch_idx, data in enumerate(loader):
 
                 # Clamp D if wasserstein mode (not in gradient_penalty mode)
-                if (self.params['type'] == 'wasserstein'):
+                if (self.params['penalty_type'] == 'clamp_penalty'):
                     clamp_lower = self.params['clamp_lower']
                     clamp_upper = self.params['clamp_upper']
                     for p in self.D.parameters():
@@ -355,11 +371,14 @@ class Gan(object):
                     # the input data
                     x = Variable(data).type(self.dtypef)
 
+                    # FIXME -------------------------------------------------------> ADD INSTANCE NOISE real HERE
+                    x = self.add_Gaussian_noise(x, self.params['r_instance_noise_sigma'])
+
                     # get decision from the discriminator
                     d_real_decision = self.D(x)
 
                     # compute loss BCELoss between decision and vector of ones (y_real_)
-                    if (self.wasserstein_loss):
+                    if loss_is_wasserstein:
                         d_real_loss = -torch.mean(d_real_decision)
                     else:
                         d_real_loss = self.criterion(d_real_decision, real_labels)
@@ -371,11 +390,14 @@ class Gan(object):
                     # (detach to avoid training G on these labels (?))
                     d_fake_data = self.G(z).detach()
 
+                    # FIXME -------------------------------------------------------> ADD INSTANCE NOISE fake HERE 
+                    d_fake_data = self.add_Gaussian_noise(d_fake_data, self.params['f_instance_noise_sigma'])
+
                     # get the fake decision on the fake data
                     d_fake_decision = self.D(d_fake_data)
 
                     # compute loss between fake decision and vector of zeros
-                    if (self.wasserstein_loss):
+                    if loss_is_wasserstein:
                         d_fake_loss = torch.mean(d_fake_decision)
                     else:
                         d_fake_loss = self.criterion(d_fake_decision, fake_labels)
@@ -383,16 +405,18 @@ class Gan(object):
                     # FIXME NOT OK for non-saturating version ? -> BCE is negative
 
                     # sum of loss
-                    if (self.params['type'] == 'gradient_penalty'):
-                        gradient_penalty = self.compute_gradient_penalty(x, d_fake_data)
-                        d_loss = d_real_loss + d_fake_loss + self.params['gp_weight']*gradient_penalty
-                    else:
-                        d_loss = d_real_loss + d_fake_loss
+                    penalty = penalty_fct(x, d_fake_data)
+                    d_loss = d_real_loss + d_fake_loss + penalty_weight * penalty
 
                     # backprop + optimize
                     self.D.zero_grad()
                     d_loss.backward()
                     self.d_optimizer.step()
+                    
+                    # scheduler
+                    if 'scheduler_patience' in self.params:
+                        self.d_scheduler.step(d_loss)
+
 
                 # PART 2 : G
                 for _ in range(self.params['g_nb_update']):
@@ -403,11 +427,14 @@ class Gan(object):
                     # generate the fake data
                     g_fake_data = self.G(z)#.detach()
 
+                    # FIXME -------------------------------------------------------> ADD INSTANCE NOISE fake HERE 
+                    g_fake_data = self.add_Gaussian_noise(g_fake_data, self.params['f_instance_noise_sigma'])
+
                     # get the fake decision
                     g_fake_decision = self.D(g_fake_data)
 
                     # compute loss
-                    if (self.wasserstein_loss):
+                    if loss_is_wasserstein:
                         g_loss = -torch.mean(g_fake_decision)
                     else:
                         # this is the non-saturated version (see Fedus2018)
@@ -419,6 +446,10 @@ class Gan(object):
                     # Backprop + Optimize
                     g_loss.backward()
                     self.g_optimizer.step()
+                    
+                    # scheduler
+                    if 'scheduler_patience' in self.params:
+                        self.g_scheduler.step(g_loss)
 
                 # Housekeeping
                 self.D.zero_grad() # FIXME not needed ?
@@ -473,14 +504,14 @@ class Gan(object):
                 # compute loss on validation dataset sometimes
                 vdfn = self.params['validation_filename']
                 vde = self.params['validation_every_epoch']
-                if (vdfn != None) and (epoch % vde == 0):
+                if (vdfn != None) and (epoch % vde == 0):  ## <------------- FIXME duplicate code to change. 
 
                     with torch.set_grad_enabled(False):
                         data_v = next(iter(loader_validation)) ## FIXME SLOW ??? better if num_workers=2
 
                         xx = Variable(data_v).type(self.dtypef)
                         dv_real_decision = self.D(xx).detach()                    
-                        if (self.wasserstein_loss):
+                        if loss_is_wasserstein:
                             dv_real_loss = -torch.mean(dv_real_decision)
                         else:
                             dv_real_loss = self.criterion(dv_real_decision, real_labels)
@@ -488,21 +519,19 @@ class Gan(object):
                         zz = Variable(torch.randn(batch_size, z_dim)).type(self.dtypef)
                         dv_fake_data = self.G(zz).detach()
                         dv_fake_decision = self.D(dv_fake_data).detach()
-                        if (self.wasserstein_loss):
+                        if loss_is_wasserstein:
                             dv_fake_loss = torch.mean(dv_fake_decision)
                         else:
                             dv_fake_loss = self.criterion(dv_fake_decision, fake_labels)
-                        if (self.params['type'] == 'gradient_penalty'):
-                            gradient_penalty = self.compute_gradient_penalty(xx, dv_fake_data)
-                            dv_loss = dv_real_loss + dv_fake_loss + self.params['gp_weight']*gradient_penalty
-                        else:
-                            dv_loss = dv_real_loss + dv_fake_loss
+
+                        penalty = penalty_fct(xx, dv_fake_data)
+                        dv_loss = dv_real_loss + dv_fake_loss + penalty_weight * penalty
                             
                         # G
                         zz = Variable(torch.randn(batch_size, z_dim)).type(self.dtypef)
                         gv_fake_data = self.G(zz).detach()
                         gv_fake_decision = self.D(gv_fake_data).detach()
-                        if (self.wasserstein_loss):
+                        if loss_is_wasserstein:
                             gv_loss = -torch.mean(gv_fake_decision)
                         else:
                             gv_loss = self.criterion(gv_fake_decision, real_labels)
@@ -516,7 +545,6 @@ class Gan(object):
                         tqdm.write('Epoch {} validation: G {:5f} vs {:5f} '
                                    .format(epoch, g_loss.data.item(), gv_loss.data.item()))
                         #break
-
 
                 # update loop
                 pbar.update(1)
@@ -536,8 +564,147 @@ class Gan(object):
         return optim
 
 
+
+
     ''' ----------------------------------------------------------------------------- '''
-    def compute_gradient_penalty(self, real_data, fake_data):
+    def set_penalty(self, params):
+        t = params['penalty_type']
+        print(t)
+        penalty_fct = self.zero_penalty
+        
+        if t == 'gradient_penalty':
+            print('Penalty is: gradient_penalty')
+            penalty_fct = self.gradient_penalty
+            
+        if t == 'gradient_penalty_max':
+            print('Penalty is: gradient_penalty_max')
+            penalty_fct = self.gradient_penalty_max
+            
+        if penalty_fct == self.zero_penalty:
+            print('Penalty is: None')
+
+        penalty_weight = self.params['gp_weight']
+        print(f'Penalty weight {penalty_weight}')
+        return penalty_fct, penalty_weight
+
+
+    ''' ----------------------------------------------------------------------------- '''
+    def zero_penalty(self, real_data, fake_data):
+        return 0
+    
+        
+    ''' ----------------------------------------------------------------------------- '''
+    def get_interpolated_gradient(self, real_data, fake_data):
+        '''
+        Common function to gradient penalty functions
+        '''
+        alpha = torch.rand(self.batch_size, 1)#, 1, 1)
+        alpha = alpha.expand_as(real_data)
+        alpha = alpha.cuda()
+
+        # interpolated
+        interpolated = alpha * real_data + (1 - alpha) * fake_data
+        interpolated = Variable(interpolated, requires_grad=True)
+        interpolated = interpolated.cuda()
+
+        # Calculate probability of interpolated examples
+        prob_interpolated = self.D(interpolated)
+
+        # gradient
+        gradients = torch_grad(outputs=prob_interpolated,
+                               inputs=interpolated,
+                               grad_outputs=torch.ones(prob_interpolated.size()).cuda(),
+                               create_graph=True, # needed ?
+                               retain_graph=True, # needed ?
+                               only_inputs=True)[0]
+        return gradients
+
+        
+        
+    ''' ----------------------------------------------------------------------------- '''
+    def OLD_gradient_penalty_previous(self, real_data, fake_data):
+        '''
+        Compared to zero_penalty, seems 1.5x slower !?
+        '''
+        #https://github.com/EmilienDupont/wgan-gp/blob/master/training.py
+        #https://github.com/caogang/wgan-gp/blob/master/gan_toy.py
+
+        # gradient
+        gradients = self.get_interpolated_gradient(real_data, fake_data)
+        
+        # norm
+        #LAMBDA = .1  # Smaller lambda seems to help for toy tasks specifically
+        #gradient_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean() * LAMBDA
+        gradients_norm = torch.sqrt(torch.sum(gradients ** 2, dim=1) + 1e-12)
+
+        # Two sides penalty
+        #gradient_penalty = ((gradients_norm - 1) ** 2).mean()
+
+        # one side penalty
+        a = torch.max(gradients_norm - 1, torch.zeros_like(gradients_norm))
+        gradient_penalty = (a** 2).mean()
+
+        # one side gradient penalty
+        # replace
+        # E((|∇f(αx_real −(1−α)x_fake)|−1)²)
+        # by
+        # (max(|∇f|−1,0))²
+        #
+
+        return gradient_penalty
+
+
+
+    ''' ----------------------------------------------------------------------------- '''
+    # https://github.com/EmilienDupont/wgan-gp/blob/master/training.py
+    # https://github.com/caogang/wgan-gp/blob/master/gan_toy.py
+    ''' ----------------------------------------------------------------------------- '''
+
+    
+    ''' ----------------------------------------------------------------------------- '''
+    def gradient_penalty(self, real_data, fake_data):
+        '''
+        Gulrajani2017 $(||\nabla_a D(a)||_2 - 1)^2$
+        with a = interpolated samples.
+        Called two-sided penalty.
+        '''
+
+        # gradient
+        gradients = self.get_interpolated_gradient(real_data, fake_data)
+        
+        # norm
+        #gradients_norm = torch.sqrt(torch.sum(gradients ** 2, dim=1) + 1e-12)
+        gradients_norm = gradients.norm(2,dim=1)
+
+        # Two sides penalty
+        gradient_penalty = ((gradients_norm - 1) ** 2).mean()
+
+        return gradient_penalty
+
+    ''' ----------------------------------------------------------------------------- '''
+    def gradient_penalty_max(self, real_data, fake_data):
+        '''
+        Petzka2018 $(max||\nabla_a D(a)||_2 - 1)^2$
+        with a = interpolated samples.
+        '''
+
+        # gradient
+        gradients = self.get_interpolated_gradient(real_data, fake_data)
+        
+        # norm
+        #gradients_norm = torch.sqrt(torch.sum(gradients ** 2, dim=1) + 1e-12)
+        gradients_norm = gradients.norm(2,dim=1)
+
+        # max
+        gradient_penalty = (torch.max(gradients_norm - 1, torch.zeros_like(gradients_norm))**2).mean()
+
+        return gradient_penalty
+
+    ''' ----------------------------------------------------------------------------- '''
+    def compute_gradient_penalty_old(self, real_data, fake_data):
+        '''
+        Previous version for reference
+        '''
         #https://github.com/EmilienDupont/wgan-gp/blob/master/training.py
         #https://github.com/caogang/wgan-gp/blob/master/gan_toy.py
         gpu = (str(self.device) != 'cpu')
@@ -584,6 +751,25 @@ class Gan(object):
 
         return gradient_penalty
 
+
+    ''' ----------------------------------------------------------------------------- '''
+    def add_Gaussian_noise(self, x, sigma):
+        '''
+        Add Gaussian noise to x. Do nothing is sigma<0
+        https://discuss.pytorch.org/t/writing-a-simple-gaussian-noise-layer-in-pytorch/4694/4
+        '''
+
+        if sigma<0:
+            return x
+
+        print(x.shape sigma)
+
+        scale = sigma * x
+        #self.noise = Variable(torch.zeros(shape,shape).cuda())
+        sampled_noise = self.noise.repeat(*x.size()).normal_() * scale
+        x = x + sampled_noise
+        return x
+        
 
     ''' ----------------------------------------------------------------------------- '''
     def plot_epoch(self, keys, epoch):

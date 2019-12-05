@@ -5,13 +5,13 @@ with open("readme.md", "r") as fh:
 
 setuptools.setup(
     name="gaga",
-    version="1.0",
+    version="0.5xxx",
     author="David Sarrut",
     author_email="david.sarrut@creatis.insa-lyon.fr",
     description="Python tools for GATE GAN simulations",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://gitlab.in2p3.fr/davidsarrut/gaga",
+    url="https://github.com/dsarrut/gaga",
     package_dir={'':'src'},
     packages=setuptools.find_packages('gaga'),
     #packages=['pygan'],
