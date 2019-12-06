@@ -4,7 +4,7 @@ with open("readme.md", "r") as fh:
     long_description = fh.read()
 
 setuptools.setup(
-    name="gaga",
+    name="gaga-phsp",
     version="0.5",
     author="David Sarrut",
     author_email="david.sarrut@creatis.insa-lyon.fr",
@@ -13,7 +13,7 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     url="https://github.com/dsarrut/gaga",
     package_dir={'':'src'},
-    packages=setuptools.find_packages('gaga'),
+    packages=setuptools.find_packages('gaga-phsp'),
     #packages=['pygan'],
     classifiers=(
         "Programming Language :: Python :: 3",
