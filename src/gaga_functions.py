@@ -42,6 +42,14 @@ def zero_penalty(self, real_data, fake_data):
     return 0
 
 
+# -----------------------------------------------------------------------------
+def clamp_parameters(self):
+    '''
+    Clamp
+    '''
+    for p in self.D.parameters():
+        p.data.clamp_(self.clamp_lower, self.clamp_upper)
+
 
 # -----------------------------------------------------------------------------
 def get_interpolated_gradient(self, real_data, fake_data):
@@ -110,4 +118,5 @@ def gradient_penalty_max(self, real_data, fake_data):
     gradient_penalty = (torch.max(gradients_norm - 1, torch.zeros_like(gradients_norm))**2).mean()
 
     return gradient_penalty
+
 

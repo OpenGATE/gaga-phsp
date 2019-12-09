@@ -60,6 +60,9 @@ class Gan(object):
         # init gpu
         self.dtypef, self.device = init_pytorch_cuda(self.params['gpu_mode'], True)
 
+        # store some members (needed in get_interpolated_gradient for example)
+        self.batch_size = self.params['batch_size']
+
         # init model
         self.init_model()
 
@@ -72,17 +75,10 @@ class Gan(object):
         # init penality function        
         self.init_penalty_functions()
 
-        # init G and D parameters
-        x_dim = params['x_dim']
-        g_dim = params['g_dim']
-        d_dim = params['d_dim']
-        z_dim = params['z_dim']
-        g_layers = params['g_layers']
-        d_layers = params['d_layers']
-        # x_std = params['x_std']
-        # x_mean = params['x_mean']
+        # init labels
+        self.init_labels()
 
-        # nb of weights
+        # compute and store nb of weights
         d_param = filter(lambda p: p.requires_grad, self.D.parameters())
         params['d_nb_weights'] = sum([np.prod(p.size()) for p in d_param])
         g_param = filter(lambda p: p.requires_grad, self.G.parameters())
@@ -197,54 +193,55 @@ class Gan(object):
         '''
         t = self.params['penalty_type']
         self.penalty_fct = gaga.zero_penalty
-
-        if t == 'gradient_penalty':
-            print('Penalty is: gradient_penalty')
-            self.penalty_fct = gaga.gradient_penalty
-
-        if t == 'gradient_penalty_max':
-            print('Penalty is: gradient_penalty_max')
-            self.penalty_fct = gaga.gradient_penalty_max
-
-        if self.penalty_fct == gaga.zero_penalty:
-            print('Penalty is: None')
-
         self.penalty_weight = self.params['gp_weight']
         print(f'Penalty weight {self.penalty_weight}')
+        print(f'Penalty is: {t}')
+        
+        if t == 'gradient_penalty':
+            self.penalty_fct = gaga.gradient_penalty
+            return
+
+        if t == 'gradient_penalty_max':
+            self.penalty_fct = gaga.gradient_penalty_max
+            return
+
+        if t == 'clamp_penalty':
+            self.penalty_fct = gaga.zero_penalty
+            self.clamp_lower = self.params['clamp_lower']
+            self.clamp_upper = self.params['clamp_upper']
+            return
+
+        if t == 'zero_penalty':
+            self.penalty_fct = gaga.zero_penalty
+            return
+
+        print(f'Error, cannot set penalty {t}')
+        exit(0)
 
 
     # --------------------------------------------------------------------------
-    # --------------------------------------------------------------------------
-    # Below : main train function
-    # --------------------------------------------------------------------------
-    # --------------------------------------------------------------------------
-
-    def train(self, x):
+    def init_labels(self):
         '''
-        Train the GAN
+        Helper to init the Real=1.0 and Fake=0.0 labels. May be smoothed.
+        '''
+        
+        # Real/Fake labels (1/0)
+        batch_size = self.params['batch_size']
+        self.real_labels = Variable(torch.ones(batch_size, 1)).type(self.dtypef)
+        self.fake_labels = Variable(torch.zeros(batch_size, 1)).type(self.dtypef)
+        # One-sided label smoothing
+        if ('label_smoothing' in self.params):
+            s = self.params['label_smoothing']
+            self.real_labels = Variable((1.0-s)+s*torch.rand(batch_size, 1)).type(self.dtypef)
+            self.fake_labels = Variable(s*torch.rand(batch_size, 1)).type(self.dtypef)
+
+
+    # --------------------------------------------------------------------------
+    def init_optim_data(self):
+        '''
+        Allocate the optim data structure that store information of the training process
         '''
 
-        # normalisation
-        x, x_mean, x_std = gaga.normalize_data(x)
-        # x_mean = np.mean(x, 0, keepdims=True)
-        # x_std = np.std(x, 0, keepdims=True)
-        self.params['x_mean'] = x_mean
-        self.params['x_std'] = x_std
-        # x = (x-x_mean)/x_std
-
-        # main dataset
-        self.x = x;
-
-        # get mean/std of input data for normalisation
-        # self.x_mean = np.mean(self.x, 0, keepdims=True)
-        # self.x_std = np.std(self.x, 0, keepdims=True)
-        # self.params['x_mean'] = self.x_mean
-        # self.params['x_std'] = self.x_std
-        # self.x = (self.x-self.x_mean)/self.x_std
-        self.x_mean = self.params['x_mean']
-        self.x_std = self.params['x_std']
-
-        # save optim epoch values
         optim = {}
         optim['g_loss'] = []
         optim['d_loss'] = []
@@ -259,196 +256,204 @@ class Gan(object):
         optim['validation_d_loss'] = []
         optim['validation_g_loss'] = []
         optim['validation_epoch'] = []
+        
+        return optim
+                
+    # -----------------------------------------------------------------------------
+    def add_Gaussian_noise(self, x, sigma):
+        '''
+        Add Gaussian noise to x. Do nothing is sigma<0
+        https://discuss.pytorch.org/t/writing-a-simple-gaussian-noise-layer-in-pytorch/4694/4
+        '''
+
+        if sigma<=0:
+            return x
+
+        s = torch.std(x,0)
+        sampled_noise = torch.randn(*x.size(), requires_grad=False).cuda() * sigma * s
+        # nrow, ncol = phsp.fig_get_nb_row_col(1)
+        # f, ax = plt.subplots(nrow, ncol, figsize=(25,10))
+        # d = x.cpu()[:,0]
+        # ax.hist(d, 100,
+        #         density=True,
+        #         histtype='stepfilled',
+        #         alpha=0.5, label='x')
+        
+        x = x + sampled_noise * sigma
+
+        # d = x.cpu()[:,0]
+        # ax.hist(d, 100,
+        #         density=True,
+        #         histtype='stepfilled',
+        #         alpha=0.5, label='smooth')
+        # ax.legend()
+        # plt.show()
+        
+        return x
+        
+
+    # --------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
+    # Below : main train function
+    # --------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
+
+    def train(self, x):
+        '''
+        Train the GAN
+        '''
+
+        # normalisation
+        x, x_mean, x_std = gaga.normalize_data(x)
+        self.params['x_mean'] = x_mean
+        self.params['x_std'] = x_std
+
+        # main dataset
+        self.x = x;
+
+        # initialise the data structure that will store info during training
+        optim = self.init_optim_data()
         si = 0 # nb of stored epoch
 
-        #penalty_fct, penalty_weight = self.set_penalty(self.params)
-
-        # Real/Fake labels (1/0)
-        self.batch_size = self.params['batch_size']
-        batch_size = self.batch_size
-        real_labels = Variable(torch.ones(batch_size, 1)).type(self.dtypef)
-        fake_labels = Variable(torch.zeros(batch_size, 1)).type(self.dtypef)
-        # One-sided label smoothing
-        if ('label_smoothing' in self.params):
-            s = self.params['label_smoothing']
-            real_labels = Variable((1.0-s)+s*torch.rand(batch_size, 1)).type(self.dtypef)
-            fake_labels = Variable(s*torch.rand(batch_size, 1)).type(self.dtypef)
-
-
-        # Allocate noise if needed
-        if self.params['r_instance_noise_sigma']>0:
-            print('Allocate noise')
-            #self.noise = Variable(torch.zeros(shape,shape).type(self.dtypef))
-            print(self.device)
-            self.noise = torch.tensor(0).to(self.device)
-            print('self.noise', self.noise);
-
         # Sampler
+        batch_size = self.params['batch_size']
         loader = DataLoader(self.x,
                             batch_size=batch_size,
                             num_workers=1,
                             pin_memory=True,
                             # https://discuss.pytorch.org/t/what-is-the-disadvantage-of-using-pin-memory/1702/4
-                            shuffle=self.params['shuffle'],  ## if false ~20% faster, seems identical
+                            shuffle=self.params['shuffle'],
                             #shuffle=False,  ## if false ~20% faster, seems identical
                             drop_last=True)
 
-
-        # Sampler for validation
-        vdfn = self.params['validation_filename']
-        if vdfn != None:
-            print('Validation file:', vdfn)
-            self.validation_x, validation_read_keys, m = phsp.load(vdfn)
-            print('Validation read keys', validation_read_keys, len(self.validation_x), len(self.validation_x[0]))
-            self.validation_x = phsp.select_keys(self.validation_x, validation_read_keys, self.params['keys'])
-            print('Validation selected keys', self.params['keys'], len(self.validation_x), len(self.validation_x[0]))
-
-            # normalisation
-            x_mean = self.params['x_mean']
-            x_std = self.params['x_std']
-            self.validation_x = (self.validation_x-x_mean)/x_std
-            print('Validation normalisation', x_mean)
-
-            loader_validation = DataLoader(self.validation_x,
-                                           batch_size=batch_size,
-                                           num_workers=2, # faster if diff from main loader num_workers=1
-                                           pin_memory=True,
-                                           # https://discuss.pytorch.org/t/what-is-the-disadvantage-of-using-pin-memory/1702/4
-                                           shuffle=False,
-                                           drop_last=True)
-            print('Validation loader done')
-
-
         # Start training
         epoch = 0
+        real_labels = self.real_labels
+        fake_labels = self.fake_labels
         start = datetime.datetime.now()
         pbar = tqdm(total=self.params['epoch'], disable=not self.params['progress_bar'])
         z_dim = self.params['z_dim']
-        while (epoch < self.params['epoch']):
+      
+        for batch_idx, data in enumerate(loader):
 
-            for batch_idx, data in enumerate(loader):
+            # Clamp D if needed
+            if (self.params['penalty_type'] == 'clamp_penalty'):
+                gaga.clamp_parameters(self)
 
-                # Clamp D if wasserstein mode (not in gradient_penalty mode)
-                if (self.params['penalty_type'] == 'clamp_penalty'):
-                    clamp_lower = self.params['clamp_lower']
-                    clamp_upper = self.params['clamp_upper']
-                    for p in self.D.parameters():
-                        p.data.clamp_(clamp_lower, clamp_upper)
+            # PART 1 : D
+            for _ in range(self.params['d_nb_update']):
+                # the input data
+                x = Variable(data).type(self.dtypef)
 
-                # PART 1 : D
-                for _ in range(self.params['d_nb_update']):
-                    # the input data
-                    x = Variable(data).type(self.dtypef)
+                # add instance noise
+                x = self.add_Gaussian_noise(x, self.params['r_instance_noise_sigma'])
 
-                    # FIXME -------------------------------------------------------> ADD INSTANCE NOISE real HERE
-                    x = self.add_Gaussian_noise(x, self.params['r_instance_noise_sigma'])
+                # get decision from the discriminator
+                d_real_decision = self.D(x)
 
-                    # get decision from the discriminator
-                    d_real_decision = self.D(x)
+                # compute loss Loss between decision and vector of ones (y_real_)
+                d_real_loss = self.criterion_r(d_real_decision, real_labels)
 
-                    # compute loss Loss between decision and vector of ones (y_real_)
-                    d_real_loss = self.criterion_r(d_real_decision, real_labels)
+                # generate z noise (latent)
+                z = Variable(torch.randn(batch_size, z_dim)).type(self.dtypef)
 
-                    # generate z noise (latent)
-                    z = Variable(torch.randn(batch_size, z_dim)).type(self.dtypef)
+                # generate fake data
+                # (detach to avoid training G on these labels (?))
+                d_fake_data = self.G(z).detach()
 
-                    # generate fake data
-                    # (detach to avoid training G on these labels (?))
-                    d_fake_data = self.G(z).detach()
+                # add instance noise
+                d_fake_data = self.add_Gaussian_noise(d_fake_data, self.params['f_instance_noise_sigma'])
 
-                    # FIXME -------------------------------------------------------> ADD INSTANCE NOISE fake HERE
-                    d_fake_data = self.add_Gaussian_noise(d_fake_data, self.params['f_instance_noise_sigma'])
+                # get the fake decision on the fake data
+                d_fake_decision = self.D(d_fake_data)
 
-                    # get the fake decision on the fake data
-                    d_fake_decision = self.D(d_fake_data)
+                # compute loss between fake decision and vector of zeros
+                d_fake_loss = self.criterion_f(d_fake_decision, fake_labels)
 
-                    # compute loss between fake decision and vector of zeros
-                    d_fake_loss = self.criterion_f(d_fake_decision, fake_labels)
+                # FIXME NOT OK for non-saturating version ? -> BCE is negative
 
-                    # FIXME NOT OK for non-saturating version ? -> BCE is negative
+                # sum of loss
+                penalty = self.penalty_fct(self, x, d_fake_data)
+                d_loss = d_real_loss + d_fake_loss + self.penalty_weight * penalty
 
-                    # sum of loss
-                    penalty = self.penalty_fct(self, x, d_fake_data)
-                    d_loss = d_real_loss + d_fake_loss + self.penalty_weight * penalty
+                # backprop + optimize
+                self.D.zero_grad()
+                d_loss.backward()
+                self.d_optimizer.step()
 
-                    # backprop + optimize
-                    self.D.zero_grad()
-                    d_loss.backward()
-                    self.d_optimizer.step()
-
-                    # scheduler
-                    if 'scheduler_patience' in self.params:
-                        self.d_scheduler.step(d_loss)
+                # scheduler
+                if 'scheduler_patience' in self.params:
+                    self.d_scheduler.step(d_loss)
 
 
-                # PART 2 : G
-                for _ in range(self.params['g_nb_update']):
+            # PART 2 : G
+            for _ in range(self.params['g_nb_update']):
 
-                    # generate z noise (latent)
-                    z = Variable(torch.randn(batch_size, z_dim)).type(self.dtypef)
+                # generate z noise (latent)
+                z = Variable(torch.randn(batch_size, z_dim)).type(self.dtypef)
 
-                    # generate the fake data
-                    g_fake_data = self.G(z)#.detach()
+                # generate the fake data
+                g_fake_data = self.G(z)#.detach()
 
-                    # FIXME -------------------------------------------------------> ADD INSTANCE NOISE fake HERE
-                    g_fake_data = self.add_Gaussian_noise(g_fake_data, self.params['f_instance_noise_sigma'])
+                # add instance noise
+                g_fake_data = self.add_Gaussian_noise(g_fake_data, self.params['f_instance_noise_sigma'])
 
-                    # get the fake decision
-                    g_fake_decision = self.D(g_fake_data)
+                # get the fake decision
+                g_fake_decision = self.D(g_fake_data)
 
-                    # compute loss
-                    g_loss = self.criterion_r(g_fake_decision, real_labels)
+                # compute loss
+                g_loss = self.criterion_r(g_fake_decision, real_labels)
 
-                    # Backprop + Optimize
-                    g_loss.backward()
-                    self.g_optimizer.step()
+                # Backprop + Optimize
+                g_loss.backward()
+                self.g_optimizer.step()
 
-                    # scheduler
-                    if 'scheduler_patience' in self.params:
-                        self.g_scheduler.step(g_loss)
+                # scheduler
+                if 'scheduler_patience' in self.params:
+                    self.g_scheduler.step(g_loss)
 
-                # Housekeeping
-                self.D.zero_grad() # FIXME not needed ?
-                self.G.zero_grad() # FIXME to put before g backward ?
+            # Housekeeping
+            self.D.zero_grad() # FIXME not needed ?
+            self.G.zero_grad() # FIXME to put before g backward ?
 
-                # print info sometimes
-                if (epoch) % 500 == 0:
-                    tqdm.write('Epoch %d d_loss: %.5f   g_loss: %.5f     d_real_loss: %.5f  d_fake_loss: %.5f'
-                               %(epoch,
-                                 d_loss.data.item(),
-                                 g_loss.data.item(),
-                                 d_real_loss.data.item(),
-                                 d_fake_loss.data.item()))
+            # print info sometimes
+            if (epoch) % 500 == 0:
+                tqdm.write('Epoch %d d_loss: %.5f   g_loss: %.5f     d_real_loss: %.5f  d_fake_loss: %.5f'
+                           %(epoch,
+                             d_loss.data.item(),
+                             g_loss.data.item(),
+                             d_real_loss.data.item(),
+                             d_fake_loss.data.item()))
 
-                # plot sometimes
-                if (self.params['plot']):
-                    if (epoch) % int(self.params['plot_every_epoch']) == 0:
-                        self.plot_epoch(self.params['keys'], epoch)
+            # plot sometimes
+            if (self.params['plot']):
+                if (epoch) % int(self.params['plot_every_epoch']) == 0:
+                    self.plot_epoch(self.params['keys'], epoch)
 
-                # save loss value
-                optim['d_loss_real'].append(d_real_loss.data.item())
-                optim['d_loss_fake'].append(d_fake_loss.data.item())
-                optim['d_loss'].append(d_loss.data.item())
-                optim['g_loss'].append(g_loss.data.item())
+            # save loss value
+            optim['d_loss_real'].append(d_real_loss.data.item())
+            optim['d_loss_fake'].append(d_fake_loss.data.item())
+            optim['d_loss'].append(d_loss.data.item())
+            optim['g_loss'].append(g_loss.data.item())
 
-                # dump sometimes
-                if (epoch>self.params['dump_epoch_start']):
-                    should_dump1 = (epoch-self.params['dump_epoch_start']) % self.params['dump_epoch_every']
-                    should_dump1 = (should_dump1 == 0)
-                    should_dump2 = self.params['epoch']-epoch < self.params['dump_last_n_epoch']
-                    if should_dump1 or should_dump2:
-                        state = copy.deepcopy(self.G.state_dict())
-                        optim['g_model_state'].append(state)
-                        optim['current_epoch'].append(epoch)
-                        si = si+1
-                        
-                # update loop
-                pbar.update(1)
-                epoch += 1
+            # dump sometimes
+            if (epoch>self.params['dump_epoch_start']):
+                should_dump1 = (epoch-self.params['dump_epoch_start']) % self.params['dump_epoch_every']
+                should_dump1 = (should_dump1 == 0)
+                should_dump2 = self.params['epoch']-epoch < self.params['dump_last_n_epoch']
+                if should_dump1 or should_dump2:
+                    state = copy.deepcopy(self.G.state_dict())
+                    optim['g_model_state'].append(state)
+                    optim['current_epoch'].append(epoch)
+                    si = si+1
 
-                # should we stop ?
-                if (epoch > self.params['epoch']):
-                    break
+            # update loop
+            pbar.update(1)
+            epoch += 1
+
+            # should we stop ?
+            if (epoch > self.params['epoch']):
+                break
 
         # end of training
         pbar.close()
@@ -474,25 +479,6 @@ class Gan(object):
         output['d_model_state'] = state
         torch.save(output, filename)
 
-
-
-    ''' ----------------------------------------------------------------------------- '''
-    def add_Gaussian_noise(self, x, sigma):
-        '''
-        Add Gaussian noise to x. Do nothing is sigma<0
-        https://discuss.pytorch.org/t/writing-a-simple-gaussian-noise-layer-in-pytorch/4694/4
-        '''
-
-        if sigma<0:
-            return x
-
-        print(x.shape, sigma)
-
-        scale = sigma * x
-        #self.noise = Variable(torch.zeros(shape,shape).cuda())
-        sampled_noise = self.noise.repeat(*x.size()).normal_() * scale
-        x = x + sampled_noise
-        return x
 
 
     ''' ----------------------------------------------------------------------------- '''
