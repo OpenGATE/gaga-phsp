@@ -19,6 +19,30 @@ date_format = "%Y-%m-%d %H:%M:%S"
 
 
 # ----------------------------------------------------------------------------
+def select_keys(x, params, read_keys):
+    '''
+    Return the selected keys
+    '''
+    if not 'keys' in params:
+        return read_keys, x
+    
+    keys = params['keys']
+    keys = phsp.str_keys_to_array_keys(keys)
+    x = phsp.select_keys(x, read_keys, keys)
+
+    return keys, x
+
+# ----------------------------------------------------------------------------
+def normalize_data(x):
+    '''
+    Consider the input vector mean and std and normalize it
+    '''
+    x_mean = np.mean(x, 0, keepdims=True)
+    x_std = np.std(x, 0, keepdims=True)
+    x = (x-x_mean)/x_std
+    return x, x_mean, x_std
+
+# ----------------------------------------------------------------------------
 def init_pytorch_cuda(gpu_mode, verbose=False):
     '''
     Test if pytorch use CUDA. Return type and device
@@ -50,12 +74,12 @@ def init_pytorch_cuda(gpu_mode, verbose=False):
     if (verbose):
         if (str(device) != 'cpu'):
             print('GPU is enabled')
-            print('CUDA version:        ', torch.version.cuda)
-            print('CUDA device counts:  ', torch.cuda.device_count())
-            print('CUDA current device: ', torch.cuda.current_device())
+            print('CUDA version         ', torch.version.cuda)
+            print('CUDA device counts   ', torch.cuda.device_count())
+            print('CUDA current device  ', torch.cuda.current_device())
             n = torch.cuda.current_device()
-            print('CUDA device name:    ', torch.cuda.get_device_name(n))
-            print('CUDA device ad:      ', torch.cuda.device(n))
+            print('CUDA device name     ', torch.cuda.get_device_name(n))
+            print('CUDA device address  ', torch.cuda.device(n))
         else:
             print('CPU only (no GPU)')
 
@@ -137,10 +161,10 @@ def load(filename, gpu_mode='auto', verbose=False):
     D_state = nn['d_model_state']
 
     # create the Generator
-    cmin, cmax = gaga.get_min_max_constraints(params)
-    cmin = torch.from_numpy(cmin).type(dtypef)
-    cmax = torch.from_numpy(cmax).type(dtypef)
-    G = gaga.Generator(params, cmin, cmax)
+    # cmin, cmax = gaga.get_min_max_constraints(params)
+    # cmin = torch.from_numpy(cmin).type(dtypef)
+    # cmax = torch.from_numpy(cmax).type(dtypef)
+    G = gaga.Generator(params)
     D = gaga.Discriminator(params)
     
     if (str(device) != 'cpu'):
