@@ -297,7 +297,7 @@ class Gan(object):
 
 
         # Allocate noise if needed
-        if params['r_instance_noise_sigma']>0:
+        if self.params['r_instance_noise_sigma']>0:
             print('Allocate noise')
             #self.noise = Variable(torch.zeros(shape,shape).type(self.dtypef))
             print(self.device)
@@ -762,7 +762,7 @@ class Gan(object):
         if sigma<0:
             return x
 
-        print(x.shape sigma)
+        print(x.shape, sigma)
 
         scale = sigma * x
         #self.noise = Variable(torch.zeros(shape,shape).cuda())
