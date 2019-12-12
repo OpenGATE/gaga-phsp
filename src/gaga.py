@@ -2,10 +2,11 @@ from gaga_helpers import *
 from gaga_functions import *
 from gaga_model import Discriminator, Generator
 import torch.nn as nn
-from torch.utils.data import DataLoader
+from torch.utils.data import TensorDataset, DataLoader
 from tqdm import tqdm
 from torch.autograd import grad as torch_grad
 import copy
+from torch.utils.tensorboard import SummaryWriter
 
 # import numpy as np
 # import torch
@@ -72,11 +73,18 @@ class Gan(object):
         # init loss functions
         self.init_loss_functions()
 
-        # init penality function        
+        # init penality function
         self.init_penalty_functions()
 
         # init labels
         self.init_labels()
+
+        # check instance noise
+        try:
+            print(f"Instance Noise : {self.params['r_instance_noise_sigma']} {self.params['f_instance_noise_sigma']}")
+        except:
+            self.params['r_instance_noise_sigma'] = 0.0
+            self.params['f_instance_noise_sigma'] = 0.0
 
         # compute and store nb of weights
         d_param = filter(lambda p: p.requires_grad, self.D.parameters())
@@ -103,12 +111,14 @@ class Gan(object):
         if ('start_pth' not in p) or (p['start_pth'] == None):
             self.D = Discriminator(p)
             self.G = Generator(p)
+            self.params['start_epoch'] = 0
         else:
             f = p['start_pth']
             print('Loading ', f)
             start_params, start_G, start_D, start_optim, start_dtypef = gaga.load(f)
             self.D = start_D
             self.G = start_G
+            self.params['start_epoch'] = start_optim['current_epoch'][-1]
 
         if (str(self.device) != 'cpu'):
             print('Set model to GPU')
@@ -185,7 +195,7 @@ class Gan(object):
         print(f'Error, cannot set loss {loss}')
         exit(0)
 
-                
+
     # --------------------------------------------------------------------------
     def init_penalty_functions(self):
         '''
@@ -193,10 +203,10 @@ class Gan(object):
         '''
         t = self.params['penalty_type']
         self.penalty_fct = gaga.zero_penalty
-        self.penalty_weight = self.params['gp_weight']
+        self.penalty_weight = self.params['penalty_weight']
         print(f'Penalty weight {self.penalty_weight}')
         print(f'Penalty is: {t}')
-        
+
         if t == 'gradient_penalty':
             self.penalty_fct = gaga.gradient_penalty
             return
@@ -224,7 +234,7 @@ class Gan(object):
         '''
         Helper to init the Real=1.0 and Fake=0.0 labels. May be smoothed.
         '''
-        
+
         # Real/Fake labels (1/0)
         batch_size = self.params['batch_size']
         self.real_labels = Variable(torch.ones(batch_size, 1)).type(self.dtypef)
@@ -256,9 +266,9 @@ class Gan(object):
         optim['validation_d_loss'] = []
         optim['validation_g_loss'] = []
         optim['validation_epoch'] = []
-        
+
         return optim
-                
+
     # -----------------------------------------------------------------------------
     def add_Gaussian_noise(self, x, sigma):
         '''
@@ -269,8 +279,15 @@ class Gan(object):
         if sigma<=0:
             return x
 
-        s = torch.std(x,0)
-        sampled_noise = torch.randn(*x.size(), requires_grad=False).cuda() * sigma * s
+        if (str(self.device) != 'cpu'):
+            s = torch.std(x,0).cuda()
+            sampled_noise = torch.randn(*x.size(), requires_grad=False).cuda() * sigma * s
+        else:
+            s = torch.std(x,0)
+            sampled_noise = torch.randn(*x.size(), requires_grad=False) * sigma * s
+
+        x = x + sampled_noise * sigma
+
         # nrow, ncol = phsp.fig_get_nb_row_col(1)
         # f, ax = plt.subplots(nrow, ncol, figsize=(25,10))
         # d = x.cpu()[:,0]
@@ -278,8 +295,7 @@ class Gan(object):
         #         density=True,
         #         histtype='stepfilled',
         #         alpha=0.5, label='x')
-        
-        x = x + sampled_noise * sigma
+
 
         # d = x.cpu()[:,0]
         # ax.hist(d, 100,
@@ -288,9 +304,9 @@ class Gan(object):
         #         alpha=0.5, label='smooth')
         # ax.legend()
         # plt.show()
-        
+
         return x
-        
+
 
     # --------------------------------------------------------------------------
     # --------------------------------------------------------------------------
@@ -303,6 +319,9 @@ class Gan(object):
         Train the GAN
         '''
 
+        # tensorboard
+        writer = SummaryWriter()
+
         # normalisation
         x, x_mean, x_std = gaga.normalize_data(x)
         self.params['x_mean'] = x_mean
@@ -313,13 +332,14 @@ class Gan(object):
 
         # initialise the data structure that will store info during training
         optim = self.init_optim_data()
-        si = 0 # nb of stored epoch
+        self.optim = optim
 
         # Sampler
         batch_size = self.params['batch_size']
+        # ds = TensorDataset(torch.from_numpy(x))
         loader = DataLoader(self.x,
                             batch_size=batch_size,
-                            num_workers=1,
+                            num_workers=4, # no gain if larger than 2
                             pin_memory=True,
                             # https://discuss.pytorch.org/t/what-is-the-disadvantage-of-using-pin-memory/1702/4
                             shuffle=self.params['shuffle'],
@@ -327,22 +347,33 @@ class Gan(object):
                             drop_last=True)
 
         # Start training
-        epoch = 0
+        epoch = self.params['start_epoch']
+        self.params['end_epoch'] = epoch + self.params['epoch']
+        print(f"Epoch from {self.params['start_epoch']} to {self.params['end_epoch']} (total = {self.params['epoch']})")
         real_labels = self.real_labels
         fake_labels = self.fake_labels
         start = datetime.datetime.now()
         pbar = tqdm(total=self.params['epoch'], disable=not self.params['progress_bar'])
         z_dim = self.params['z_dim']
-      
-        for batch_idx, data in enumerate(loader):
+
+        it = iter(loader)
+        for batch_idx in range(self.params['epoch']): ##, data in enumerate(loader):
 
             # Clamp D if needed
             if (self.params['penalty_type'] == 'clamp_penalty'):
                 gaga.clamp_parameters(self)
 
-            # PART 1 : D
+            # PART 1 : D -------------------------------------------------------
             for _ in range(self.params['d_nb_update']):
+
                 # the input data
+                #https://github.com/pytorch/pytorch/issues/1917
+                try:
+                    data = next(it)
+                except StopIteration:
+                    print('stoploader?')
+                    it = iter(loader)
+                    data = next(it)
                 x = Variable(data).type(self.dtypef)
 
                 # add instance noise
@@ -370,14 +401,11 @@ class Gan(object):
                 # compute loss between fake decision and vector of zeros
                 d_fake_loss = self.criterion_f(d_fake_decision, fake_labels)
 
-                # FIXME NOT OK for non-saturating version ? -> BCE is negative
-
                 # sum of loss
                 penalty = self.penalty_fct(self, x, d_fake_data)
                 d_loss = d_real_loss + d_fake_loss + self.penalty_weight * penalty
 
                 # backprop + optimize
-                self.D.zero_grad()
                 d_loss.backward()
                 self.d_optimizer.step()
 
@@ -386,14 +414,14 @@ class Gan(object):
                     self.d_scheduler.step(d_loss)
 
 
-            # PART 2 : G
+            # PART 2 : G -------------------------------------------------------
             for _ in range(self.params['g_nb_update']):
 
                 # generate z noise (latent)
                 z = Variable(torch.randn(batch_size, z_dim)).type(self.dtypef)
 
                 # generate the fake data
-                g_fake_data = self.G(z)#.detach()
+                g_fake_data = self.G(z)
 
                 # add instance noise
                 g_fake_data = self.add_Gaussian_noise(g_fake_data, self.params['f_instance_noise_sigma'])
@@ -412,23 +440,15 @@ class Gan(object):
                 if 'scheduler_patience' in self.params:
                     self.g_scheduler.step(g_loss)
 
-            # Housekeeping
-            self.D.zero_grad() # FIXME not needed ?
-            self.G.zero_grad() # FIXME to put before g backward ?
+            # housekeeping (to not accumulate gradient)
+            # https://stackoverflow.com/questions/48001598/why-do-we-need-to-call-zero-grad-in-pytorch
+            self.D.zero_grad()
+            self.G.zero_grad()
 
-            # print info sometimes
-            if (epoch) % 500 == 0:
-                tqdm.write('Epoch %d d_loss: %.5f   g_loss: %.5f     d_real_loss: %.5f  d_fake_loss: %.5f'
-                           %(epoch,
-                             d_loss.data.item(),
-                             g_loss.data.item(),
-                             d_real_loss.data.item(),
-                             d_fake_loss.data.item()))
-
-            # plot sometimes
-            if (self.params['plot']):
-                if (epoch) % int(self.params['plot_every_epoch']) == 0:
-                    self.plot_epoch(self.params['keys'], epoch)
+            self.d_loss = d_loss
+            self.g_loss = g_loss
+            self.d_real_loss = d_real_loss
+            self.d_fake_loss = d_fake_loss
 
             # save loss value
             optim['d_loss_real'].append(d_real_loss.data.item())
@@ -436,27 +456,30 @@ class Gan(object):
             optim['d_loss'].append(d_loss.data.item())
             optim['g_loss'].append(g_loss.data.item())
 
-            # dump sometimes
-            if (epoch>self.params['dump_epoch_start']):
-                should_dump1 = (epoch-self.params['dump_epoch_start']) % self.params['dump_epoch_every']
-                should_dump1 = (should_dump1 == 0)
-                should_dump2 = self.params['epoch']-epoch < self.params['dump_last_n_epoch']
-                if should_dump1 or should_dump2:
-                    state = copy.deepcopy(self.G.state_dict())
-                    optim['g_model_state'].append(state)
-                    optim['current_epoch'].append(epoch)
-                    si = si+1
+            # sometimes: dump, plot, store
+            self.epoch_dump(epoch)
+            self.epoch_plot(epoch)
+            self.epoch_store(epoch)
+
+            # DEBUG tensorboard
+            writer.add_scalar('d_loss', d_loss.data.item(), epoch)
+
+            # plot sometimes
+            if (self.params['plot']):
+                if (epoch) % int(self.params['plot_every_epoch']) == 0:
+                    self.plot_epoch(self.params['keys'], epoch)
 
             # update loop
             pbar.update(1)
             epoch += 1
 
             # should we stop ?
-            if (epoch > self.params['epoch']):
+            if (epoch > self.params['end_epoch']):
                 break
 
         # end of training
         pbar.close()
+        writer.close()
         stop = datetime.datetime.now()
         print('Training completed epoch = ', epoch)
         print('Start time    = ', start.strftime(gaga.date_format))
@@ -478,6 +501,59 @@ class Gan(object):
         state = copy.deepcopy(self.D.state_dict())
         output['d_model_state'] = state
         torch.save(output, filename)
+
+
+   # --------------------------------------------------------------------------
+    def epoch_dump(self, epoch):
+        '''
+        Dump during training
+        '''
+
+        try:
+            n = self.params['epoch_dump']
+        except:
+            n = 500
+
+        if epoch % n != 0:
+            return
+
+        tqdm.write('Epoch %d d_loss: %.5f   g_loss: %.5f     d_real_loss: %.5f  d_fake_loss: %.5f'
+                   %(epoch,
+                     self.d_loss.data.item(),
+                     self.g_loss.data.item(),
+                     self.d_real_loss.data.item(),
+                     self.d_fake_loss.data.item()))
+
+
+   # --------------------------------------------------------------------------
+    def epoch_plot(self, epoch):
+        '''
+        Plot during training
+        '''
+        # LATER
+
+
+   # --------------------------------------------------------------------------
+    def epoch_store(self, epoch):
+        '''
+        Store during training
+        '''
+
+        try:
+            n = self.params['epoch_store_model_every']
+        except:
+            n = -1
+
+        if epoch % n != 0:
+            return
+
+        state = copy.deepcopy(self.G.state_dict())
+        self.optim['g_model_state'].append(state)
+        self.optim['current_epoch'].append(epoch)
+
+
+
+
 
 
 

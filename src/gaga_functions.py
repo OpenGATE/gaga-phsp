@@ -58,20 +58,27 @@ def get_interpolated_gradient(self, real_data, fake_data):
     '''
     alpha = torch.rand(self.batch_size, 1)#, 1, 1)
     alpha = alpha.expand_as(real_data)
-    alpha = alpha.cuda()
+    if (str(self.device) != 'cpu'):
+        alpha = alpha.cuda()
     
     # interpolated
     interpolated = alpha * real_data + (1 - alpha) * fake_data
     interpolated = Variable(interpolated, requires_grad=True)
-    interpolated = interpolated.cuda()
+    if (str(self.device) != 'cpu'):
+        interpolated = interpolated.cuda()
 
     # Calculate probability of interpolated examples
     prob_interpolated = self.D(interpolated)
     
     # gradient
+    if (str(self.device) != 'cpu'):
+        ones = torch.ones(prob_interpolated.size()).cuda()
+    else:
+        ones = torch.ones(prob_interpolated.size())
+        
     gradients = torch_grad(outputs=prob_interpolated,
                            inputs=interpolated,
-                           grad_outputs=torch.ones(prob_interpolated.size()).cuda(),
+                           grad_outputs=ones,
                            create_graph=True, # needed ?
                            retain_graph=True, # needed ?
                            only_inputs=True)[0]
