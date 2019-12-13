@@ -40,7 +40,7 @@ def gaga_plot(phsp_filename, pth_filename, n, nb_bins,
         keys_2d = []
 
     # load phsp
-    real, r_keys, m = phsp.load(phsp_filename, n)
+    real, r_keys, m = phsp.load(phsp_filename, n, shuffle=True)
 
     # load pth
     params, G, D, optim, dtypef= gaga.load(pth_filename)

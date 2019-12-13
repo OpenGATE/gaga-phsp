@@ -118,7 +118,10 @@ class Gan(object):
             start_params, start_G, start_D, start_optim, start_dtypef = gaga.load(f)
             self.D = start_D
             self.G = start_G
-            self.params['start_epoch'] = start_optim['current_epoch'][-1]
+            try:
+                self.params['start_epoch'] = start_optim['last_epoch']
+            except:
+                self.params['start_epoch'] = start_optim['current_epoch'][-1]
 
         if (str(self.device) != 'cpu'):
             print('Set model to GPU')
@@ -161,13 +164,17 @@ class Gan(object):
             self.g_optimizer = torch.optim.RMSprop(self.G.parameters(), lr=g_learning_rate)
 
         # auto decreasing learning_rate
-        if 'scheduler_patience' in p:
-            p = p['scheduler_patience']
-            print('Scheduler Patience ', p)
-            self.g_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.g_optimizer,
-                                                                          'min', verbose=True, patience=p)
-            self.d_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.d_optimizer,
-                                                                          'min', verbose=True, patience=p)
+        self.is_scheduler_enabled = False
+        try:
+            step_size = p['schedule_learning_rate_step']
+            gamma = p['schedule_learning_rate_gamma']
+            print('Scheduler is enabled ' , step_size, gamma)
+            # WARNING step_size is not nb of epoch but nb of optimiser.step (nb of D update per epoch)
+            self.g_scheduler = torch.optim.lr_scheduler.StepLR(self.g_optimizer, step_size=step_size, gamma=gamma)
+            self.d_scheduler = torch.optim.lr_scheduler.StepLR(self.d_optimizer, step_size=step_size, gamma=gamma)
+            self.is_scheduler_enabled = True
+        except:
+            print('Scheduler is disabled')
 
 
     # --------------------------------------------------------------------------
@@ -339,7 +346,7 @@ class Gan(object):
         # ds = TensorDataset(torch.from_numpy(x))
         loader = DataLoader(self.x,
                             batch_size=batch_size,
-                            num_workers=4, # no gain if larger than 2
+                            num_workers=2, # no gain if larger than 2
                             pin_memory=True,
                             # https://discuss.pytorch.org/t/what-is-the-disadvantage-of-using-pin-memory/1702/4
                             shuffle=self.params['shuffle'],
@@ -410,8 +417,8 @@ class Gan(object):
                 self.d_optimizer.step()
 
                 # scheduler
-                if 'scheduler_patience' in self.params:
-                    self.d_scheduler.step(d_loss)
+                if self.is_scheduler_enabled:
+                    self.d_scheduler.step()
 
 
             # PART 2 : G -------------------------------------------------------
@@ -437,8 +444,9 @@ class Gan(object):
                 self.g_optimizer.step()
 
                 # scheduler
-                if 'scheduler_patience' in self.params:
-                    self.g_scheduler.step(g_loss)
+                if self.is_scheduler_enabled:
+                    self.g_scheduler.step()
+
 
             # housekeeping (to not accumulate gradient)
             # https://stackoverflow.com/questions/48001598/why-do-we-need-to-call-zero-grad-in-pytorch
@@ -481,6 +489,7 @@ class Gan(object):
         pbar.close()
         writer.close()
         stop = datetime.datetime.now()
+        optim['last_epoch'] = epoch
         print('Training completed epoch = ', epoch)
         print('Start time    = ', start.strftime(gaga.date_format))
         print('End time      = ', stop.strftime(gaga.date_format))
@@ -550,8 +559,6 @@ class Gan(object):
         state = copy.deepcopy(self.G.state_dict())
         self.optim['g_model_state'].append(state)
         self.optim['current_epoch'].append(epoch)
-
-
 
 
 
