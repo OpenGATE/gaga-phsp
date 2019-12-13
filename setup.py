@@ -5,7 +5,7 @@ with open("readme.md", "r") as fh:
 
 setuptools.setup(
     name="gaga-phsp",
-    version="0.5",
+    version="0.5.1",
     author="David Sarrut",
     author_email="david.sarrut@creatis.insa-lyon.fr",
     description="Python tools for GATE GAN simulations",
@@ -25,6 +25,7 @@ setuptools.setup(
         'colorama',
         'click',
         'scipy',
+        'gatetools',
         #'torch'   # better to install torch manually to match cuda version
       ],
     scripts=[
