@@ -1,7 +1,7 @@
 
 GAGA = GAN for GATE
 
-```pip install gaga```
+```pip install gaga-phsp```
 
 Scripts associated with the publication :
 Phys Med Biol. 2019 doi: https://doi.org/10.1088/1361-6560/ab3fc1
