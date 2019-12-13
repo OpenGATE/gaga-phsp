@@ -137,7 +137,7 @@ def print_info(params, optim):
 
 
 # ----------------------------------------------------------------------------
-def load(filename, gpu_mode='auto', verbose=False):
+def load(filename, gpu_mode='auto', verbose=False, epoch=-1):
     '''
     Load a GAN-PHSP
     Output params   = dict with all parameters
@@ -157,8 +157,17 @@ def load(filename, gpu_mode='auto', verbose=False):
         optim = nn['model'] ## FIXME compatibility --> to remove
     else:
         optim =  nn['optim']
-    G_state = nn['g_model_state']
+
     D_state = nn['d_model_state']
+    if epoch == -1:
+        G_state = nn['g_model_state']
+    else:
+        try:
+            index = optim['current_epoch'].index(epoch)
+        except:
+            print(f"Epoch {epoch} is not in the list : {optim['current_epoch']}")
+            exit(0)
+        G_state = optim['g_model_state'][index]
 
     # create the Generator
     # cmin, cmax = gaga.get_min_max_constraints(params)

@@ -15,7 +15,8 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 @click.option('--gpu/--no-gpu', default=False)
 @click.option('--verbose/--no-verbose', '-v', default=False)
 @click.option('--keys', '-k', type=(str, float), multiple=True)
-def gaga_convert_pth_to_pt(pth_filename, output, gpu, verbose, keys):
+@click.option('--epoch', '-e', default=-1, help='Load the G net at the given epoch (-1 for last stored epoch)')
+def gaga_convert_pth_to_pt(pth_filename, output, gpu, verbose, keys, epoch):
     '''
     \b
     Convert a .pth file from gaga to a .pt and a .json files (used by libtorch in Gate)
@@ -41,8 +42,8 @@ def gaga_convert_pth_to_pt(pth_filename, output, gpu, verbose, keys):
         gpu = 'false'
 
     # load pth
-    params, G, D, optim, dtypef= gaga.load(pth_filename, gpu, verbose)
-        
+    params, G, D, optim, dtypef= gaga.load(pth_filename, gpu, verbose, epoch=epoch)
+
     b = 10
     z_dim = params['z_dim']
     z = Variable(torch.randn(b, z_dim)).type(dtypef)

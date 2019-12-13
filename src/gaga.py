@@ -170,8 +170,10 @@ class Gan(object):
             gamma = p['schedule_learning_rate_gamma']
             print('Scheduler is enabled ' , step_size, gamma)
             # WARNING step_size is not nb of epoch but nb of optimiser.step (nb of D update per epoch)
-            self.g_scheduler = torch.optim.lr_scheduler.StepLR(self.g_optimizer, step_size=step_size, gamma=gamma)
-            self.d_scheduler = torch.optim.lr_scheduler.StepLR(self.d_optimizer, step_size=step_size, gamma=gamma)
+            d_ss = step_size * self.params['d_nb_update']
+            g_ss = step_size * self.params['g_nb_update']
+            self.g_scheduler = torch.optim.lr_scheduler.StepLR(self.g_optimizer, step_size=d_ss, gamma=gamma)
+            self.d_scheduler = torch.optim.lr_scheduler.StepLR(self.d_optimizer, step_size=g_ss, gamma=gamma)
             self.is_scheduler_enabled = True
         except:
             print('Scheduler is disabled')
@@ -378,7 +380,7 @@ class Gan(object):
                 try:
                     data = next(it)
                 except StopIteration:
-                    print('stoploader?')
+                    print('stoploader?') # restart from zero
                     it = iter(loader)
                     data = next(it)
                 x = Variable(data).type(self.dtypef)

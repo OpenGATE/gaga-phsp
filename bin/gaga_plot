@@ -21,8 +21,9 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 @click.option('--plot2d',
               type=(str, str),
               help='Add 2D plots (key1,key2), such as --plot2d X Ekine --plot2d X Y ', multiple=True)
+@click.option('--epoch', '-e', default=-1, help='Load the G net at the given epoch (-1 for last stored epoch)')
 def gaga_plot(phsp_filename, pth_filename, n, nb_bins,
-              toggle, radius, quantile, plot2d):
+              toggle, radius, quantile, plot2d, epoch):
     '''
     \b
     Plot marginal distributions from a GAN-PHSP
@@ -43,7 +44,7 @@ def gaga_plot(phsp_filename, pth_filename, n, nb_bins,
     real, r_keys, m = phsp.load(phsp_filename, n, shuffle=True)
 
     # load pth
-    params, G, D, optim, dtypef= gaga.load(pth_filename)
+    params, G, D, optim, dtypef= gaga.load(pth_filename, epoch=epoch)
     f_keys = params['keys']
     keys = f_keys.copy()
 
