@@ -172,8 +172,10 @@ class Gan(object):
             # WARNING step_size is not nb of epoch but nb of optimiser.step (nb of D update per epoch)
             d_ss = step_size * self.params['d_nb_update']
             g_ss = step_size * self.params['g_nb_update']
-            self.g_scheduler = torch.optim.lr_scheduler.StepLR(self.g_optimizer, step_size=d_ss, gamma=gamma)
-            self.d_scheduler = torch.optim.lr_scheduler.StepLR(self.d_optimizer, step_size=g_ss, gamma=gamma)
+            print(step_size, gamma)
+            print(d_ss, g_ss)
+            self.d_scheduler = torch.optim.lr_scheduler.StepLR(self.d_optimizer, step_size=d_ss, gamma=gamma)
+            self.g_scheduler = torch.optim.lr_scheduler.StepLR(self.g_optimizer, step_size=g_ss, gamma=gamma)
             self.is_scheduler_enabled = True
         except:
             print('Scheduler is disabled')

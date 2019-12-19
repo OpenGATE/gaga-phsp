@@ -34,5 +34,6 @@ setuptools.setup(
         'bin/gaga_generate',
         'bin/gaga_convert_pth_to_pt',
         'bin/gaga_wasserstein',
+        'bin/gaga_garf_generate_img'
     ]
 )
