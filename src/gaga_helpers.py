@@ -1,4 +1,5 @@
 import numpy as np
+# import cupy as cp
 import torch
 from torch.autograd import Variable
 import gaga
@@ -9,6 +10,9 @@ from scipy.stats import kde
 from matplotlib import pyplot as plt
 from matplotlib.colors import LogNorm
 from scipy.stats import entropy
+from scipy.spatial.transform import Rotation
+import logging
+logger=logging.getLogger(__name__)
 
 
 # ----------------------------------------------------------------------------
@@ -500,3 +504,178 @@ def wasserstein1D(x, y, p=1):
     z = (sx-sy)
     return torch.sum(torch.pow(torch.abs(z), p))/len(z)
 
+
+# ----------------------------------------------------------------------------
+def init_plane(n, radius):
+    '''
+    plane_U, plane_V, plane_point, plane_normal
+    '''
+
+    n = int(n)
+    logger.info(f'Initialisation of plane with radius {radius} ')
+    plane_U = np.array([1,0,0])
+    plane_V = np.array([0,1,0])
+    r = Rotation.from_euler('x', 90, degrees=True)
+    plane_U = r.apply(plane_U)
+    plane_V = r.apply(plane_V)
+
+    # normal vector is the cross product of two direction vectors on the plane
+    plane_normal = np.cross(plane_U, plane_V)
+    plane_normal = np.array([plane_normal]*n)
+
+    center = np.array([0,0,radius])
+    center = r.apply(center)
+    plane_point = np.array([center,]*n)
+ 
+    plane = { 'plane_U': plane_U,
+              'plane_V': plane_V,
+              'rotation': r,
+              'plane_normal': plane_normal,
+              'plane_point': plane_point }
+    
+    return plane    
+
+    
+
+# ----------------------------------------------------------------------------
+def project_on_plane(x, plane, image_plane_size_mm, debug=False):
+    '''
+    Project the x points (Ekine X Y Z dX dY dZ)
+    on the image plane defined by plane_U, plane_V, plane_point, plane_normal
+    '''
+
+    logger.info(f'Projection of {len(x)} particles on the plane')
+    # FIXME print plane rotation
+    logger.info(f'Plane size is {image_plane_size_mm} mm')
+
+    # shorter variable
+    n = plane['plane_normal']
+    v0 = plane['plane_point']
+    r = plane['rotation']
+
+    ## Point and direction
+    p = x[:, 1:4]
+    u = x[:, 4:7]
+
+    ## vector from point to plane point
+    w = p - v0
+
+    # project to plane
+    ## dot : out = (x*y).sum(-1)
+    # https://rosettacode.org/wiki/Find_the_intersection_of_a_line_with_a_plane#Python
+    # http://geomalgorithms.com/a05-_intersect-1.html
+    # https://github.com/pytorch/pytorch/issues/18027
+    # ndotu = planeNormal.dot(rayDirection)
+    # si = -planeNormal.dot(w) / ndotu
+    # Psi = w + si * rayDirection + planePoint
+    ndotu = (n*u).sum(-1)                 # dot product between normal plane and direction
+    si = -(n*w).sum(-1) / ndotu           # dot product between normal lane and vector from plane to point (w)
+
+    # only positive (direction to the plane, not opposite)
+    logger.info(f'si max/min/mean : {si.max()} {si.min()} {si.mean()}')
+    mask = si>0
+    mw = w[mask]
+    mu = u[mask]
+    mv0 = v0[mask]
+    mn = n[mask]
+    mx = x[mask]
+    mp = p[mask]
+    msi = si[mask]
+    mnb = len(msi)
+    logger.info(f'Remove negative direction, remains {mnb}/{len(x)}')
+
+    # si is a (nb) size vector, expand to (nb x 3)
+    # si = si.expand(3, nb).T
+    msi = np.array([msi]*3).T
+
+    psi = mp + msi*mu # intersection between point-direction and plane
+
+    # in plane coordinate
+    psip = r.apply(psi) - r.apply(mv0) ## plane rotation and translation
+
+    # remove out of plane (needed ??)
+    sizex = image_plane_size_mm[0]/2.0
+    sizey = image_plane_size_mm[1]/2.0
+    mask1 = psip[:,0]<sizex
+    mask2 = psip[:,0]>-sizex
+    mask3 = psip[:,1]<sizey
+    mask4 = psip[:,1]>-sizey
+    m = mask1 & mask2 & mask3 & mask4
+    psip = psip[m]
+    psi = psi[m]
+    mp = mp[m]
+    mu = mu[m]
+    mx = mx[m]
+    mv0 = mv0[m]
+    nb = len(psip)
+    logger.info(f'Remove out of detector, remains {nb}/{len(x)}')
+
+    # reshape results
+    pu = psip[:, 0].reshape((nb, 1)) # u
+    pv = psip[:, 1].reshape((nb, 1)) # v
+    y =  np.concatenate((pu, pv), axis=1) 
+
+    mup = r.apply(mu) # rotate direction according to the plane
+    norm = np.linalg.norm(mup, axis=1, keepdims=True)
+    mup = mup / norm
+    dx = mup[:,0]
+    dy = mup[:,1]
+
+    # FIXME -> clip arcos -1;1 ?
+    # dx = np.clip(dx, -1, 1)
+    # dy = np.clip(dy, -1, 1)
+    
+    theta = np.degrees(np.arccos(dy)).reshape((nb, 1))
+    phi = np.degrees(np.arccos(dx)).reshape((nb, 1))
+    y = np.concatenate((y, theta), axis=1) # v
+    y = np.concatenate((y, phi), axis=1) # v
+
+    E = mx[:,0].reshape((nb, 1))
+    data = np.concatenate((y, E), axis=1) # v
+
+    debug=True
+    if debug:
+        n = 50
+        # initial 3D points with direction
+        # plane
+        # final 3D points in 3D with direction
+        # final 2D points
+        f = open('debug.txt', 'w')
+        d = np.concatenate((mp, mu, psi, mu, psip, mup, y), axis=1)
+        for i in range(n):
+            v = d[i]
+            for j in range(len(d[0])):
+                f.write(f'{v[j]} ')
+            f.write('\n')
+
+    return data
+
+
+# ----------------------------------------------------------------------------
+def fig_plot_projected(data):
+    '''
+    Debug plot
+    '''
+
+    b = 100
+    x = data[:,0]
+    y = data[:,1]
+    theta = data[:,2]
+    phi = data[:,3]
+    E = data[:,4]
+
+    f, ax = plt.subplots(2, 2, figsize=(10,10))
+
+    n, bins, patches = ax[0,0].hist(theta, b, density=True, facecolor='g', alpha=0.35)
+    n, bins, patches = ax[0,1].hist(phi, b, density=True, facecolor='g', alpha=0.35)
+    n, bins, patches = ax[1,0].hist(E*1000, b, density=True, facecolor='b', alpha=0.35)
+    ax[1,1].scatter(x, y, color='r', alpha=0.35, s=1)
+
+    ax[0,0].set_xlabel('Theta angle (deg)')
+    ax[0,1].set_xlabel('Phi angle (deg)')
+    ax[1,0].set_xlabel('Energy (keV)')
+    ax[1,1].set_xlabel('X')
+    ax[1,1].set_ylabel('Y')
+
+    plt.tight_layout()
+    plt.show()

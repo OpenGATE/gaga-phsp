@@ -5,20 +5,32 @@ import click
 import gaga
 import garf
 import gatetools.phsp as phsp
+import gatetools as gt
 import torch
 import os
 import numpy as np
+# import cupy as np
 from torch.autograd import Variable
 from matplotlib import pyplot as plt
-from scipy.spatial.transform import Rotation
+import SimpleITK as sitk
+import time
+from tqdm import tqdm
+import logging
+logger=logging.getLogger(__name__)
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 @click.command(context_settings=CONTEXT_SETTINGS)
 @click.argument('gan_pth_filename')
 @click.argument('garf_pth_filename')
 @click.option('--n', '-n', default=1e5, help='Number of samples to generate')
-@click.option('--output', '-o', default='a.mhd', help='FIXME ')
-def gaga_garf_generate_img(gan_pth_filename, garf_pth_filename, n, output):
+@click.option('--output', '-o', required=True, help='Output filename.mhd ')
+@click.option('--scale', '-s',
+              default=float(1),
+              help='Scale the final image by s. Useful to provide ratio emitted/detected')
+@click.option('--debug', '-d', default=False, is_flag=True, 
+              help='Debug: dump txt files with histogram of events hitting the detector plane')
+@gt.add_options(gt.common_options)
+def gaga_garf_generate_img(gan_pth_filename, garf_pth_filename, n, scale, output, debug, **kwargs):
     '''
     \b
     FIXME
@@ -28,212 +40,91 @@ def gaga_garf_generate_img(gan_pth_filename, garf_pth_filename, n, output):
     <GARF_PTH_FILENAME>   : input GARF PTH file (.pth)
     '''
 
+    # logger
+    gt.logging_conf(**kwargs)
+
+    # input number of events
     n = int(n)
-    print(n)
 
     # load gan pth
+    logger.info(f'Reading GAN-PHSP from {gan_pth_filename}')
     gan_params, G, D, optim, dtypef= gaga.load(gan_pth_filename)
-    #print(gan_params)
 
     # load garf pth
+    logger.info(f'Reading GARF from {gan_pth_filename}')
     garf_nn, garf_model = garf.load_nn(garf_pth_filename, verbose=False)
 
+    # -------------------------------------  ONE SINGLE PLANE FOR THE MOMENT
+
+    # initialisation
+    batch_size = 1e6
+    t0 = time.time()
+
+    # initialisation plane
+    radius = 180
+    image_plane_size_mm = [576, 446]
+    plane = gaga.init_plane(batch_size, radius=radius)
+
+    # initialisation garf
+    garf_param = {}
+    garf_param['gpu_batch_size'] = int(1e5) # float(gpu_batch_size))
+    garf_param['size'] = 128
+    garf_param['spacing'] = 4.41806
+    garf_param['length'] = 99
+    garf_param['N_scale'] = scale # 0.6890382     # ratio emitted/detected
+    garf_param['N_dataset'] = n
+    size_mm = garf_param['size']*garf_param['spacing']/2.0
+
     # generate samples
-    batch_size = 1e5
-    print('Generating ...')
-    x = gaga.generate_samples2(gan_params, G, n, batch_size, normalize=False, to_numpy=True)
-    print(x.shape)
+    gan_batch_size = 1e5
+    ev = 0
+    images = []
+    pbar = tqdm(total=n)
+    while ev<n:
 
-    # plane description
-    # isocenter = world in GATE, GAN
-    # in gate, gan is attached to phantom, translation at isocenter
-    # assume in world coord system
-    # setRotationAroundPixelIsoCenter = true ?
+        # Step 1 : GAN
+        t1 = time.time()
+        logger.info(f'Generating {batch_size} events')
+        x = gaga.generate_samples2(gan_params, G, batch_size, gan_batch_size, normalize=False, to_numpy=True)
+        logger.info('Computation time: {0:.3f} sec'.format(time.time()-t1))
 
-    # plane Y axis
-    # radius 18 cm
-    # taille = 128 x 4.41806
-    print(gan_params['keys']) # FIXME --> MUST BE ['Ekine', 'X', 'Y', 'Z', 'dX', 'dY', 'dZ']
+        # Step 2 : Projection
+        t1 = time.time()
+        px = gaga.project_on_plane(x, plane, image_plane_size_mm=image_plane_size_mm, debug=debug)
+        logger.info('Computation time: {0:.3f} sec'.format(time.time()-t1))
 
-    ## PLANE parametrisation
-    print('----------------------------------------------------------------')
-    plane_U = np.array([1,0,0])
-    plane_V = np.array([0,1,0])
-    r = Rotation.from_euler('x', 90, degrees=True)
-    plane_U = r.apply(plane_U)
-    plane_V = r.apply(plane_V)
-    print('plane UV', plane_U, plane_V)
-    # normal vector is the cross product of two direction vectors on the plane
-    n = np.cross(plane_U, plane_V)
-    n = np.array([n]*len(x))
-    print('n = plane_norm', n.shape)
-    #print(n)
-    # torch: torch.tensor(dd).type(dtypef)
+        # (debug)
+        # gaga.fig_plot_projected(px)
 
-    v0 = np.array([[0,180,0],]*len(x))
-    print('v0 = plane_point', v0.shape)
-    #print(v0)
+        # Step3 : GARF
+        t1 = time.time()
+        logger.info(f'Building image with {len(px)} particles')
+        img, sq_img = garf.build_arf_image_with_nn(garf_nn, garf_model, px,
+                                                   garf_param, verbose=False, debug=debug)
+        images.append(img)
+        logger.info('Computation time: {0:.3f} sec'.format(time.time()-t1))
 
+        ev += batch_size
+        pbar.update(batch_size)
+        ev = min(ev,n)
+        logger.info('')
 
+    pbar.close()
 
-    ## Point and direction
-    print('----------------------------------------------------------------')
-    p = x[:, 1:4]
-    print('p', p.shape)
-    u = x[:, 4:7]
-    print('u', u.shape)
-    ## vector from point to plane point
-    w =  p - v0
-    print('w', w.shape)
+    # sum images
+    im_iter = iter(images)
+    im = next(im_iter)
+    data = sitk.GetArrayFromImage(im)
+    for im in im_iter:
+        d = sitk.GetArrayViewFromImage(im)
+        data += d
 
-    # project to plane
-    # https://rosettacode.org/wiki/Find_the_intersection_of_a_line_with_a_plane#Python
-    # http://geomalgorithms.com/a05-_intersect-1.html
-    # https://github.com/pytorch/pytorch/issues/18027
-    # ndotu = planeNormal.dot(rayDirection)
-    # si = -planeNormal.dot(w) / ndotu
-    # Psi = w + si * rayDirection + planePoint
-    ## dot : out = (x*y).sum(-1) ???
+    img = sitk.GetImageFromArray(data)
+    img.CopyInformation(images[0])
 
-    ndotu = (n*u).sum(-1)
-    print('ndotu', ndotu.shape)
-
-    si = -(n*w).sum(-1) / ndotu
-    print('si', si.shape)
-
-    # only positive (direction to the plane, not opposite)
-    print('----------------------------------------------------------------')
-    mask = si>0
-    w = w[mask]
-    u = u[mask]
-    v0 = v0[mask]
-    n = n[mask]
-    x = x[mask]
-    p = p[mask]
-    si = si[mask]
-    nb = len(si)
-    print('remove negative direction')
-    print('si', si.shape)
-
-    # si is a (nb) size vector, expand to (nb x 3)
-    # si = si.expand(3, nb).T
-    si = np.array([si]*3).T
-    print('si', si.shape)
-
-    psi = p + si*u
-    print('psi', psi.shape)
-
-    # in plane coord, spacing
-    size = 128.0
-    psi = r.apply(psi) - r.apply(v0) ## ???
-    #psi = psi / 4.41806 + size/2.0
-    #psi = psi + size*4.41806/2.0
-    print('psi', psi.shape)
-
-    print('max x', np.max(psi[:,0]))
-    print('max y', np.max(psi[:,1]))
-    print('mean x', np.mean(psi[:,0]))
-    print('mean y', np.mean(psi[:,1]))
-    print('min x', np.min(psi[:,0]))
-    print('min y', np.min(psi[:,1]))
-
-    # size = size*4.41806
-    size = 300
-    # print(size)
-    mask1 = psi[:,0]<size
-    mask2 = psi[:,0]>-size
-    mask3 = psi[:,1]<size
-    mask4 = psi[:,1]>-size
-    m = mask1 & mask2 & mask3 & mask4
-    # m = psi[:,0]<1e6
-    psi = psi[m]
-    u = u[m]
-    x = x[m]
-    nb = len(psi)
-    print('remove out of image plane')
-    print(psi.shape)
-    print('----------------------------------------------------------------')
-
-    ## reshape : u v theta phi E
-    pu = psi[:, 0].reshape((nb, 1)) # u
-    pv = psi[:, 1].reshape((nb, 1)) # u
-    print('pu pv', pu.shape, pv.shape)
-    y =  np.concatenate((pu, pv), axis=1) # v
-    print('y', y.shape)
-
-    # fig = plt.figure()
-    # s = plt.scatter(pu,pv,s=1)
-    # plt.show()
-
-    # u = u.cpu().numpy()
-    u = r.apply(u)
-    dx = u[:,0]
-    dy = u[:,1]
-    theta = np.degrees(np.arccos(dy)).reshape((nb, 1))
-    phi = np.degrees(np.arccos(dx)).reshape((nb, 1))
-    y = np.concatenate((y, theta), axis=1) # v
-    print('y', y.shape)
-    y = np.concatenate((y, phi), axis=1) # v
-    print('y', y.shape)
-
-    # print('x', x)
-    #E = x[:,0].cpu().numpy().reshape((nb, 1))
-    E = x[:,0].reshape((nb, 1))
-    data = np.concatenate((y, E), axis=1) # v
-    # print('y', y.shape)
-    # print('y', y)
-
-    # fig = plt.figure()
-    # s = plt.hist(E, 100)
-    # plt.show()
-
-    # fig = plt.figure()
-    # s = plt.hist(pu, 100)
-    # s = plt.hist(pv, 100)
-    # plt.show()
-
-    # fig = plt.figure()
-    # s = plt.hist(theta, 100)
-    # s = plt.hist(phi, 100)
-    # plt.show()
-
-    ## histo binning
-    
-    # b = 100
-    # x = data[:,0]
-    # y = data[:,1]
-    # theta = data[:,2]
-    # phi = data[:,3]
-    # xE = data[:,4]
-
-    # f, ax = plt.subplots(2, 2, figsize=(10,10))
-
-    # n, bins, patches = ax[0,0].hist(theta, b, density=True, facecolor='g', alpha=0.35)
-    # n, bins, patches = ax[0,1].hist(phi, b, density=True, facecolor='g', alpha=0.35)
-    # n, bins, patches = ax[1,0].hist(E*1000, b, density=True, facecolor='b', alpha=0.35)
-    # ax[1,1].scatter(x, y, color='r', alpha=0.35, s=1)
-
-    # ax[0,0].set_xlabel('Theta angle (deg)')
-    # ax[0,1].set_xlabel('Phi angle (deg)')
-    # ax[1,0].set_xlabel('Energy (keV)')
-    # ax[1,1].set_xlabel('X')
-    # ax[1,1].set_ylabel('Y')
-
-    # plt.tight_layout()
-    # plt.show()
-
-
-
-    param = {}
-    param['gpu_batch_size'] = int(1e5) # float(gpu_batch_size))
-    param['size'] = 128
-    param['spacing'] = 4.41806
-    param['length'] = 99
-    param['N_scale'] = 1 # events
-    param['N_dataset'] = len(data)
-    print(param)
-
-    garf.build_arf_image_with_nn(garf_nn, garf_model, data, output, param, verbose=True)
+    # dump final results
+    print('Computation time: {0:.3f} sec'.format(time.time()-t0))
+    sitk.WriteImage(img, output)
 
 
 
