@@ -25,6 +25,9 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
               help='Number of epoch (overwrite the epoch value of the json file)',
               type=int,
               default=None)
+@click.option('--lr', 
+              help='Learning rate (overwrite the values of the json file)',
+              default=None)
 @click.option('--progress-bar/--no-progress-bar', default=True)
 @click.option('--start-pth', default=None,
               help='Start from already computed G and D, read in the given file')
@@ -32,6 +35,7 @@ def gaga_train(phsp_filename,
                json_filename,
                output_filename,
                epoch,
+               lr,
                progress_bar,
                start_pth):
     '''
@@ -61,6 +65,9 @@ def gaga_train(phsp_filename,
     params['start_pth'] = start_pth
     if epoch:
         params['epoch'] = epoch
+    if lr:
+        params['d_learning_rate'] = float(lr)
+        params['g_learning_rate'] = float(lr)
 
     # read input training dataset
     print(Fore.CYAN +"Loading training dataset ... "+phsp_filename+Style.RESET_ALL)
