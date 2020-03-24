@@ -24,7 +24,7 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 @click.argument('garf_pth_filename')
 @click.option('--n', '-n', default=1e5, help='Number of samples to generate')
 @click.option('--output', '-o', required=True, help='Output filename.mhd ')
-@click.option('--radius', '-d', default=float(180), help='Radius in mm')
+@click.option('--radius', '-r', default=float(180), help='Radius in mm')
 @click.option('--start_angle', '-s', default=float(0), help='Starting angle (in deg)')
 @click.option('--stop_angle', default=float(1), help='Stop angle (in deg)')
 @click.option('--step_angle', default=float(1), help='Step angle (in deg)')
@@ -110,12 +110,16 @@ def gaga_garf_generate_img(gan_pth_filename, garf_pth_filename,
         plane = gaga.init_plane(batch_size, angle=angle, radius=radius)
         # print(plane)
         p["plane"] = plane
-        image = gaga.gaga_garf_generate_image(p)
+        image, sq_image = gaga.gaga_garf_generate_image(p)
 
         # save image
         b, extension = os.path.splitext(output)
         out = f'{b}_{str(a).zfill(3)}{extension}'
         sitk.WriteImage(image, out)
+
+        # save image
+        out = f'{b}_{str(a).zfill(3)}-Squared{extension}'
+        sitk.WriteImage(sq_image, out)
 
         ev += batch_size
         # pbar.update(batch_size)

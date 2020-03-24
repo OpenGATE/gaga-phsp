@@ -6,7 +6,7 @@ from torch.utils.data import TensorDataset, DataLoader
 from tqdm import tqdm
 from torch.autograd import grad as torch_grad
 import copy
-from torch.utils.tensorboard import SummaryWriter
+#from torch.utils.tensorboard import SummaryWriter
 
 # import numpy as np
 # import torch
@@ -277,6 +277,8 @@ class Gan(object):
         optim['validation_d_loss'] = []
         optim['validation_g_loss'] = []
         optim['validation_epoch'] = []
+        optim['d_best_loss'] = 1e9
+        optim['d_best_epoch'] = 0
 
         return optim
 
@@ -331,7 +333,7 @@ class Gan(object):
         '''
 
         # tensorboard
-        writer = SummaryWriter()
+        #writer = SummaryWriter()
 
         # normalisation
         x, x_mean, x_std = gaga.normalize_data(x)
@@ -366,6 +368,8 @@ class Gan(object):
         start = datetime.datetime.now()
         pbar = tqdm(total=self.params['epoch'], disable=not self.params['progress_bar'])
         z_dim = self.params['z_dim']
+        self.d_best_loss = 1e9
+        self.d_best_epoch = 0
 
         it = iter(loader)
         for batch_idx in range(self.params['epoch']): ##, data in enumerate(loader):
@@ -474,12 +478,23 @@ class Gan(object):
             self.epoch_store(epoch)
 
             # DEBUG tensorboard
-            writer.add_scalar('d_loss', d_loss.data.item(), epoch)
+            # writer.add_scalar('d_loss', d_loss.data.item(), epoch)
 
             # plot sometimes
             if (self.params['plot']):
                 if (epoch) % int(self.params['plot_every_epoch']) == 0:
                     self.plot_epoch(self.params['keys'], epoch)
+
+            # Keep best G and D
+            d_loss_current = -d_loss.data.item()
+            if d_loss_current < 0:
+                d_loss_current = -d_loss_current
+            if d_loss_current < self.d_best_loss and epoch > 500:
+                #print(f'Current d_loss {d_loss_current} at epoch {epoch} is the best one (previous {self.d_best_loss})')
+                self.d_best_loss = d_loss_current
+                self.d_best_epoch = epoch
+                self.d_best_G_state = copy.deepcopy(self.G.state_dict())
+                self.d_best_D_state = copy.deepcopy(self.D.state_dict())
 
             # update loop
             pbar.update(1)
@@ -491,7 +506,7 @@ class Gan(object):
 
         # end of training
         pbar.close()
-        writer.close()
+        # writer.close()
         stop = datetime.datetime.now()
         optim['last_epoch'] = epoch
         print('Training completed epoch = ', epoch)
@@ -508,10 +523,15 @@ class Gan(object):
         '''
         output = dict()
         output['params'] = self.params
+        optim['d_best_loss'] = self.d_best_loss
+        optim['d_best_epoch'] = self.d_best_epoch
         output['optim'] = optim
-        state = copy.deepcopy(self.G.state_dict())
+        print(f'Best loss {self.d_best_loss} at epoch {self.d_best_epoch}')
+        #state = copy.deepcopy(self.G.state_dict())
+        state = self.d_best_G_state
         output['g_model_state'] = state
-        state = copy.deepcopy(self.D.state_dict())
+        #state = copy.deepcopy(self.D.state_dict())
+        state = self.d_best_D_state
         output['d_model_state'] = state
         torch.save(output, filename)
 

@@ -141,7 +141,9 @@ def print_info(params, optim):
     g_loss = np.asarray(optim['g_loss'][-1])
     print('   {:22s} {}'.format('Final d_loss', d_loss))
     print('   {:22s} {}'.format('Final g_loss', g_loss))
-
+    if 'd_best_loss' in optim:
+        print('   {:22s} {}'.format('d_best_loss', optim['d_best_loss']))
+        print('   {:22s} {}'.format('d_best_epoch', optim['d_best_epoch']))
 
 # ----------------------------------------------------------------------------
 def load(filename, gpu_mode='auto', verbose=False, epoch=-1):
@@ -234,12 +236,13 @@ def plot_epoch(ax, params, optim, filename):
 
     x1 = np.asarray(optim['d_loss_real'])
     x2 = np.asarray(optim['d_loss_fake'])
-    x = -np.add(x1,x2)
+    #x = -np.add(x1,x2)
+    x = -np.asarray(optim['d_loss']) # with grad penalty
 
     epoch = np.arange(params['start_epoch'], params['end_epoch'], 1)    
     a = ax#[0]
     l = filename
-    a.plot(epoch, x, '-', label='D_loss '+l)
+    a.plot(epoch, x, '-', label='D_loss (GP) '+l)
     z = np.zeros_like(x)
     a.set_xlabel('epoch')
     a.plot(epoch, z, '--')
@@ -520,28 +523,28 @@ def init_plane(n, angle, radius):
     logger.info(f'Initialisation of plane with radius {radius} ')
     plane_U = np.array([1,0,0])
     plane_V = np.array([0,1,0])
-    print('UV1', plane_U, plane_V)
+    # print('UV1', plane_U, plane_V)
     r1 = Rotation.from_euler('x', 00, degrees=True)
     plane_U = r1.apply(plane_U)
     plane_V = r1.apply(plane_V)
-    print('UV2', plane_U, plane_V)
+    # print('UV2', plane_U, plane_V)
     r2 = Rotation.from_euler('y', angle, degrees=True)
     plane_U = r2.apply(plane_U)
     plane_V = r2.apply(plane_V)
-    print('UV3', plane_U, plane_V)
+    # print('UV3', plane_U, plane_V)
 
     # normal vector is the cross product of two direction vectors on the plane
     plane_normal = np.cross(plane_U, plane_V)
-    print('normal', plane_normal)
+    # print('normal', plane_normal)
     plane_normal = np.array([plane_normal]*n)
 
     center = np.array([0,0,radius])
-    print('center1', center)
+    # print('center1', center)
     center = r2.apply(center)
-    print('center2', center)
+    # print('center2', center)
     center = r1.apply(center)
     plane_center = np.array([center,]*n)
-    print('center3', center)
+    # print('center3', center)
     #print('point', plane_center)
 
     r = r2*r1
@@ -747,6 +750,7 @@ def gaga_garf_generate_image(p):
 
     ev = 0
     images = []
+    sq_images = []
     while ev<n:
 
         # Step 1 : GAN
@@ -756,15 +760,15 @@ def gaga_garf_generate_image(p):
         # logger.info('Computation time: {0:.3f} sec'.format(time.time()-t1))
 
         # DEBUG 
-        print(x.shape)
-        p = x[:, 1:4]
-        u = x[:, 4:7]
-        rr = Rotation.from_euler('x', -90, degrees=True)
-        p = rr.apply(p)
-        u = rr.apply(u)
-        x[:, 1:4] = p
-        x[:, 4:7] = u
-        print(x.shape)
+        # print(x.shape)
+        # p = x[:, 1:4]
+        # u = x[:, 4:7]
+        # rr = Rotation.from_euler('x', 90, degrees=True)
+        # p = rr.apply(p)
+        # u = rr.apply(u)
+        # x[:, 1:4] = p
+        # x[:, 4:7] = u
+        # print(x.shape)
 
         # Step 2 : Projection
         # t1 = time.time()
@@ -780,6 +784,7 @@ def gaga_garf_generate_image(p):
         img, sq_img = garf.build_arf_image_with_nn(garf_nn, garf_model, px,
                                                    garf_param, verbose=False, debug=debug)
         images.append(img)
+        sq_images.append(sq_img)
         # logger.info('Computation time: {0:.3f} sec'.format(time.time()-t1))
 
         ev += batch_size
@@ -794,8 +799,17 @@ def gaga_garf_generate_image(p):
     for im in im_iter:
         d = sitk.GetArrayViewFromImage(im)
         data += d
-
     img = sitk.GetImageFromArray(data)
     img.CopyInformation(images[0])
 
-    return img
+    # sum images
+    im_iter = iter(sq_images)
+    im = next(im_iter)
+    data = sitk.GetArrayFromImage(im)
+    for im in im_iter:
+        d = sitk.GetArrayViewFromImage(im)
+        data += d
+    sq_img = sitk.GetImageFromArray(data)
+    sq_img.CopyInformation(sq_images[0])
+
+    return img, sq_img
