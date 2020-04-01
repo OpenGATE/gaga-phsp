@@ -163,6 +163,10 @@ class Gan(object):
             self.d_optimizer = torch.optim.RMSprop(self.D.parameters(), lr=d_learning_rate)
             self.g_optimizer = torch.optim.RMSprop(self.G.parameters(), lr=g_learning_rate)
 
+        if p['optimiser'] == 'SGD':
+            self.d_optimizer = torch.optim.SGD(self.D.parameters(), lr=d_learning_rate)
+            self.g_optimizer = torch.optim.SGD(self.G.parameters(), lr=g_learning_rate)
+
         # auto decreasing learning_rate
         self.is_scheduler_enabled = False
         try:
@@ -203,6 +207,10 @@ class Gan(object):
                 self.criterion_f = nn.BCELoss()
             return
 
+        if loss == 'relativistic':
+            print('Loss relativistic (TEST IN PROGRESS)')
+            return
+
         print(f'Error, cannot set loss {loss}')
         exit(0)
 
@@ -220,6 +228,10 @@ class Gan(object):
 
         if t == 'gradient_penalty':
             self.penalty_fct = gaga.gradient_penalty
+            return
+
+        if t == 'gradient_penalty_centered':
+            self.penalty_fct = gaga.gradient_penalty_centered
             return
 
         if t == 'gradient_penalty_max':
@@ -397,9 +409,6 @@ class Gan(object):
                 # get decision from the discriminator
                 d_real_decision = self.D(x)
 
-                # compute loss Loss between decision and vector of ones (y_real_)
-                d_real_loss = self.criterion_r(d_real_decision, real_labels)
-
                 # generate z noise (latent)
                 z = Variable(torch.randn(batch_size, z_dim)).type(self.dtypef)
 
@@ -413,12 +422,24 @@ class Gan(object):
                 # get the fake decision on the fake data
                 d_fake_decision = self.D(d_fake_data)
 
-                # compute loss between fake decision and vector of zeros
-                d_fake_loss = self.criterion_f(d_fake_decision, fake_labels)
-
-                # sum of loss
+                # some penalty (like WGAN-GP, gradient penalty)
                 penalty = self.penalty_fct(self, x, d_fake_data)
-                d_loss = d_real_loss + d_fake_loss + self.penalty_weight * penalty
+
+                #### Relativistic ?
+                if self.params['loss_type'] == 'relativistic':
+                    d_loss = -torch.mean(d_real_decision - d_fake_decision) + self.penalty_weight * penalty
+                    d_real_loss = d_loss
+                    d_fake_loss = d_loss
+                else:
+                    # compute loss between decision on real and vector of ones (real_labels)
+                    d_real_loss = self.criterion_r(d_real_decision, real_labels)
+
+                    # compute loss between decision on fake and vector of zeros (fake_labels)
+                    d_fake_loss = self.criterion_f(d_fake_decision, fake_labels)
+
+                    # sum of loss
+                    d_loss = d_real_loss + d_fake_loss + self.penalty_weight * penalty
+                
 
                 # backprop + optimize
                 d_loss.backward()
@@ -444,8 +465,21 @@ class Gan(object):
                 # get the fake decision
                 g_fake_decision = self.D(g_fake_data)
 
-                # compute loss
-                g_loss = self.criterion_r(g_fake_decision, real_labels)
+                #### Relativistic ?
+                if self.params['loss_type'] == 'relativistic':
+                    try:
+                        data = next(it)
+                    except StopIteration:
+                        print('dataset empty, restartfrom zero') # restart from zero
+                        it = iter(loader)
+                        data = next(it)
+                    x = Variable(data).type(self.dtypef)
+                    x = self.add_Gaussian_noise(x, self.params['r_instance_noise_sigma'])
+                    g_real_decision = self.D(x)
+                    g_loss = -torch.mean(g_fake_decision - g_real_decision)
+                else:
+                    # compute loss
+                    g_loss = self.criterion_r(g_fake_decision, real_labels)
 
                 # Backprop + Optimize
                 g_loss.backward()
@@ -489,7 +523,7 @@ class Gan(object):
             d_loss_current = -d_loss.data.item()
             if d_loss_current < 0:
                 d_loss_current = -d_loss_current
-            if d_loss_current < self.d_best_loss and epoch > 500:
+            if False and d_loss_current < self.d_best_loss and epoch > 500:
                 #print(f'Current d_loss {d_loss_current} at epoch {epoch} is the best one (previous {self.d_best_loss})')
                 self.d_best_loss = d_loss_current
                 self.d_best_epoch = epoch
@@ -526,13 +560,16 @@ class Gan(object):
         optim['d_best_loss'] = self.d_best_loss
         optim['d_best_epoch'] = self.d_best_epoch
         output['optim'] = optim
-        print(f'Best loss {self.d_best_loss} at epoch {self.d_best_epoch}')
-        #state = copy.deepcopy(self.G.state_dict())
-        state = self.d_best_G_state
-        output['g_model_state'] = state
-        #state = copy.deepcopy(self.D.state_dict())
-        state = self.d_best_D_state
-        output['d_model_state'] = state
+        if self.d_best_epoch == 0:
+            print(f'Best loss {self.d_best_loss} at epoch {self.d_best_epoch}')
+            state_g = copy.deepcopy(self.G.state_dict())
+            state_d = copy.deepcopy(self.D.state_dict())
+        else:
+            print(f'Best loss is last one')
+            state_g = self.d_best_G_state
+            state_d = self.d_best_D_state
+        output['g_model_state'] = state_g
+        output['d_model_state'] = state_d
         torch.save(output, filename)
 
 

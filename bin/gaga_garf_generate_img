@@ -13,6 +13,7 @@ import numpy as np
 from torch.autograd import Variable
 from matplotlib import pyplot as plt
 import SimpleITK as sitk
+import itk
 import time
 from tqdm import tqdm
 import logging
@@ -33,11 +34,13 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
               help='Scale the final image by s. Useful to provide ratio emitted/detected')
 @click.option('--debug', '-d', default=False, is_flag=True, 
               help='Debug: dump txt files with histogram of events hitting the detector plane')
+@click.option('--sigma', default=False, is_flag=True, 
+              help='Compute and dump sigma (uncertainty) image')
 @gt.add_options(gt.common_options)
 def gaga_garf_generate_img(gan_pth_filename, garf_pth_filename,
                            radius, n, scale, 
                            start_angle, stop_angle, step_angle,
-                           output, debug, **kwargs):
+                           output, debug, sigma, **kwargs):
     '''
     \b
     FIXME
@@ -69,6 +72,7 @@ def gaga_garf_generate_img(gan_pth_filename, garf_pth_filename,
 
     # initialisation plane
     # radius = 180
+    print('FIXME : image_plane_size_mm')
     image_plane_size_mm = [576, 446]
     #image_plane_size_mm = [446, 576]
     # plane = gaga.init_plane(batch_size, angle=start_angle, radius=radius)
@@ -118,8 +122,25 @@ def gaga_garf_generate_img(gan_pth_filename, garf_pth_filename,
         sitk.WriteImage(image, out)
 
         # save image
-        out = f'{b}_{str(a).zfill(3)}-Squared{extension}'
-        sitk.WriteImage(sq_image, out)
+        sout = f'{b}_{str(a).zfill(3)}-Squared{extension}'
+        sitk.WriteImage(sq_image, sout)
+
+        # with sigma
+        # gt_image_uncertainty proj/sph_test60_40k_1e8_000.mhd -s
+        # --not-counts -n 1e8 -v --sigma -o
+        # proj/sph_test60_40k_1e8_000_sigma.mhd
+        if sigma:
+            filenames = []
+            sfilenames = []
+            filenames.append(out)
+            sfilenames.append(sout)
+            sigout = f'{b}_{str(a).zfill(3)}_sigma{extension}'
+            nevents = n
+            sigma_flag = True
+            threshold = 0
+            print(filenames, sfilenames, nevents)
+            uncertainty, m, nb = gt.image_uncertainty_by_slice(filenames, sfilenames, nevents, sigma_flag, threshold)
+            itk.imwrite(uncertainty, sigout)
 
         ev += batch_size
         # pbar.update(batch_size)

@@ -92,17 +92,39 @@ def gradient_penalty(self, real_data, fake_data):
     Gulrajani2017 $(||\nabla_a D(a)||_2 - 1)^2$
     with a = interpolated samples.
     Called two-sided penalty.
+    1-GP = one centered GP.
     '''
 
     # gradient
     gradients = get_interpolated_gradient(self, real_data, fake_data)
 
     # norm
-    #gradients_norm = torch.sqrt(torch.sum(gradients ** 2, dim=1) + 1e-12)
+    # gradients_norm = torch.sqrt(torch.sum(gradients ** 2, dim=1) + 1e-12)
     gradients_norm = gradients.norm(2,dim=1)
 
     # Two sides penalty
     gradient_penalty = ((gradients_norm - 1) ** 2).mean()
+
+    return gradient_penalty
+
+
+# -----------------------------------------------------------------------------
+def gradient_penalty_centered(self, real_data, fake_data):
+    '''
+    Thanh-Tung2019 $(||\nabla_a D(a)||_2)^2$
+    with a = interpolated samples.
+    0-GP = zero centered GP.
+    '''
+
+    # gradient
+    gradients = get_interpolated_gradient(self, real_data, fake_data)
+
+    # norm
+    # gradients_norm = torch.sqrt(torch.sum(gradients ** 2, dim=1) + 1e-12)
+    gradients_norm = gradients.norm(2,dim=1)
+
+    # Two sides penalty
+    gradient_penalty = ((gradients_norm) ** 2).mean()
 
     return gradient_penalty
 
