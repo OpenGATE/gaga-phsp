@@ -3,7 +3,7 @@
 
 import click
 import gaga
-import phsp
+import gatetools.phsp as phsp
 import torch
 import os
 import numpy as np
