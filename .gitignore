@@ -10,5 +10,7 @@ gaga.srctrldb
 gaga.srctrldb_tmp
 gaga.srctrlprj
 src.save/
-
-notes-push-to-pypi.txt
+bin/gaga_garf_generate_img.save
+bin/gaga_garf_generate_img_old
+src/gaga.save.py
+src/gaga.save2.py
