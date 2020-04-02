@@ -16,6 +16,7 @@ import SimpleITK as sitk
 import itk
 import time
 from tqdm import tqdm
+from box import Box
 import logging
 logger=logging.getLogger(__name__)
 
@@ -26,7 +27,7 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 @click.option('--n', '-n', default=1e5, help='Number of samples to generate')
 @click.option('--output', '-o', required=True, help='Output filename.mhd ')
 @click.option('--radius', '-r', default=float(180), help='Radius in mm')
-@click.option('--start_angle', '-s', default=float(0), help='Starting angle (in deg)')
+@click.option('--start_angle', default=float(0), help='Starting angle (in deg)')
 @click.option('--stop_angle', default=float(1), help='Stop angle (in deg)')
 @click.option('--step_angle', default=float(1), help='Step angle (in deg)')
 @click.option('--scale', '-s',
@@ -36,11 +37,18 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
               help='Debug: dump txt files with histogram of events hitting the detector plane')
 @click.option('--sigma', default=False, is_flag=True, 
               help='Compute and dump sigma (uncertainty) image')
+
+@click.option('--debug_events', default=None, help='Input rootevents filenames ')
+@click.option('--debug_arf', default=None, help='Input root arf filenames ')
+
 @gt.add_options(gt.common_options)
 def gaga_garf_generate_img(gan_pth_filename, garf_pth_filename,
                            radius, n, scale, 
                            start_angle, stop_angle, step_angle,
-                           output, debug, sigma, **kwargs):
+                           output, debug, sigma,
+                           debug_events,
+                           debug_arf,
+                           **kwargs):
     '''
     \b
     FIXME
@@ -53,6 +61,10 @@ def gaga_garf_generate_img(gan_pth_filename, garf_pth_filename,
     # logger
     gt.logging_conf(**kwargs)
 
+    # FIMXE 
+    np.set_printoptions(precision=2)
+
+    
     # input number of events
     n = int(n)
 
@@ -106,10 +118,37 @@ def gaga_garf_generate_img(gan_pth_filename, garf_pth_filename,
           "garf_model": garf_model,
           "pbar": pbar,
           "n": n,
+          "debug_p": None,
           "garf_param": garf_param}
+
+    if debug_events: # FIXME DEBUG
+        p["debug_p"] = Box
+        debug_p = p["debug_p"]
+        data, k, m = phsp.load(debug_events)
+        debug_p.events_data = data
+        debug_p.events_k = k
+        debug_p.events_m = m
+        print('Reading debug events.root', debug_p.events_k, debug_p.events_data.shape)
+        debug_p.arf_data, debug_p.arf_x, debug_p.arf_y,debug_p.arf_theta, debug_p.arf_phi, debug_p.arf_E = garf.load_test_dataset(debug_arf)
+        print('Reading arf data', debug_p.arf_data.shape)
+        batch_size = len(debug_p.events_data)
+        print('Batch_Size changed to ', batch_size)
+        print('deb', p["debug_p"])
+        #print('first points ', debug_p.arf_data[:5,:])
+           
     while angle<stop_angle:
         print('angle', angle)
         ev = 0
+
+        ## FIXME 
+        debug_id = 97
+        print('Point 3D initial = ', debug_p.events_data[debug_id, 1:4])
+        print('Dir   3D initial = ', debug_p.events_data[debug_id, 4:7])
+        idx = np.where(debug_p.arf_data[:,5] == debug_id)[0]
+        print('Point 2D final   = ', debug_p.arf_data[idx, 0:2])
+        print('Dir   2D final   = ', debug_p.arf_data[idx, 2:4])
+        print('Dir   2D final   = ', np.deg2rad(debug_p.arf_data[idx, 2:4]))
+        
 
         plane = gaga.init_plane(batch_size, angle=angle, radius=radius)
         # print(plane)
