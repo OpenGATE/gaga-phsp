@@ -584,7 +584,6 @@ def project_on_plane(x, plane, image_plane_size_mm, debug=False):
     si = -(n*w).sum(-1) / ndotu       # dot product between normal plane and vector from plane to point (w)
 
     # only positive (direction to the plane)
-    logger.info(f'si max/min/mean : {si.max()} {si.min()} {si.mean()}')
     mask = si > 0
     mw = w[mask]
     mu = u[mask]
@@ -607,16 +606,13 @@ def project_on_plane(x, plane, image_plane_size_mm, debug=False):
     psip = ri.apply(psi) #- offset
 
     # remove out of plane (needed ??)
-    sizex = image_plane_size_mm[0]/2.0 #+ 100
-    sizey = image_plane_size_mm[1]/2.0 #+ 100
-    print('sizes : ', sizex, sizey)
+    sizex = image_plane_size_mm[0]/2.0
+    sizey = image_plane_size_mm[1]/2.0
     mask1 = psip[:,0]<sizex
     mask2 = psip[:,0]>-sizex
     mask3 = psip[:,1]<sizey
     mask4 = psip[:,1]>-sizey
-    #maskt = psip[:,1]<1e12 ### FIXME 
     m = mask1 & mask2 & mask3 & mask4
-    #m = maskt ### FIXME 
     psip = psip[m]
     psi = psi[m]
     mp = mp[m]
@@ -624,30 +620,33 @@ def project_on_plane(x, plane, image_plane_size_mm, debug=False):
     mx = mx[m]
     mc0 = mc0[m]
     nb = len(psip)
-    logger.info(f'Remove out of detector, remains {nb}/{len(x)}')
+    logger.info(f'Remove points that are out of detector, remains {nb}/{len(x)}')
 
     # reshape results
     pu = psip[:, 0].reshape((nb, 1)) # u
     pv = psip[:, 1].reshape((nb, 1)) # v
     y =  np.concatenate((pu, pv), axis=1) 
 
-    mup = ri.apply(mu) # rotate direction according to the plane
+    # rotate direction according to the plane
+    mup = ri.apply(mu) 
     norm = np.linalg.norm(mup, axis=1, keepdims=True)
     mup = mup / norm
     dx = mup[:,0]
     dy = mup[:,1]
 
     # FIXME -> clip arcos -1;1 ?
-    # dx = np.clip(dx, -1, 1)
-    # dy = np.clip(dy, -1, 1)
-    
+
+    # convert direction into theta/phi
+    # theta is acos(dy)
+    # phi is acos(dx)
     theta = np.degrees(np.arccos(dy)).reshape((nb, 1))
     phi = np.degrees(np.arccos(dx)).reshape((nb, 1))
-    y = np.concatenate((y, theta), axis=1) # v
-    y = np.concatenate((y, phi), axis=1) # v
+    y = np.concatenate((y, theta), axis=1)
+    y = np.concatenate((y, phi), axis=1)
 
+    # concat the E
     E = mx[:,0].reshape((nb, 1))
-    data = np.concatenate((y, E), axis=1) # v
+    data = np.concatenate((y, E), axis=1)
 
     return data
 
@@ -705,43 +704,29 @@ def gaga_garf_generate_image(p):
     while ev<n:
 
         # Step 1 : GAN
-        # t1 = time.time()
-        # logger.info(f'Generating {batch_size} events')
+        t1 = time.time()
+        logger.info(f'Generating {batch_size} events')
         x = gaga.generate_samples2(gan_params, G, batch_size, gan_batch_size, normalize=False, to_numpy=True)
-        # logger.info('Computation time: {0:.3f} sec'.format(time.time()-t1))
-
-        # DEBUG 
-        print(x.shape)
-        # p = x[:, 1:4]
-        # u = x[:, 4:7]
-        # rr = Rotation.from_euler('x', 90, degrees=True)
-        # p = rr.apply(p)
-        # u = rr.apply(u)
-        # x[:, 1:4] = p
-        # x[:, 4:7] = u
-        # print(x.shape)
+        logger.info('Computation time: {0:.3f} sec'.format(time.time()-t1))
 
         # Step 2 : Projection
-        # t1 = time.time()
+        t1 = time.time()
         px = gaga.project_on_plane(x, plane, image_plane_size_mm=image_plane_size_mm, debug=debug)
-        # logger.info('Computation time: {0:.3f} sec'.format(time.time()-t1))
-
-        # (debug)
-        # gaga.fig_plot_projected(px)
+        logger.info('Computation time: {0:.3f} sec'.format(time.time()-t1))
 
         # Step3 : GARF
-        # t1 = time.time()
-        # logger.info(f'Building image with {len(px)} particles')
+        t1 = time.time()
+        logger.info(f'Building image with {len(px)} particles')
         img, sq_img = garf.build_arf_image_with_nn(garf_nn, garf_model, px,
                                                    garf_param, verbose=False, debug=debug)
         images.append(img)
         sq_images.append(sq_img)
-        # logger.info('Computation time: {0:.3f} sec'.format(time.time()-t1))
+        logger.info('Computation time: {0:.3f} sec'.format(time.time()-t1))
 
         ev += batch_size
         pbar.update(batch_size)
         ev = min(ev,n)
-        # logger.info('')
+        logger.info('')
     
     # sum images
     im_iter = iter(images)
@@ -765,52 +750,3 @@ def gaga_garf_generate_image(p):
 
     return img, sq_img
 
-
-def debug_compare_planar_points(debug_p, px):
-    print('DEBUG compare')
-
-    p_ref = debug_p.arf_data
-    p_comp = px
-    print(f'points ref      {p_ref.shape}')
-    print(f'points computed {p_comp.shape}')
-
-    print(f'first ref   \n{p_ref[:5]}')
-    print(f'first comp  \n{p_comp[:5]}')
-
-    nb = 0
-    for c in p_comp:
-        eid = c[5]
-        index = np.where(p_ref[:,5] == eid)[0]
-        #print(index, index[0], index[0]>=0)
-        if len(index) == 0:
-            #print('here', index)
-            if nb<3:
-                print(nb, c)
-            nb = nb +1
-    print(nb)
-
-    f, ax = plt.subplots(1, 1, figsize=(10,10))
-    a = ax#[0,0]
-    n = 100
-    x = p_ref[:n,0]
-    y = p_ref[:n,1]
-    a.scatter(x, y, color='r', alpha=0.35, s=10)
-    for i, txt in enumerate(x):
-        s = '('+str(i)+')' + ' ' + str(int(p_ref[i,5]))
-        a.annotate(s, (x[i], y[i]), color='r')
-    a.plot([282.7,282.7],[282.7,-282.7], color='k')
-    a.plot([282.7,-282.7],[-282.7,-282.7], color='k')
-    a.plot([-282.7,-282.7],[-282.7,282.7], color='k')
-    a.plot([-282.7,282.7],[282.7,282.7], color='k')
-
-    x = p_comp[:n,0]
-    y = p_comp[:n,1]
-    a.scatter(x, y, color='g', alpha=0.8, s=1)
-    for i, txt in enumerate(x):
-        s = '('+str(i)+')' + ' ' + str(int(p_comp[i,5]))
-        offset = -10
-        a.annotate(s, (x[i]+offset, y[i]+offset), color='g')
-
-    plt.tight_layout()
-    plt.show()
-    
