@@ -106,11 +106,10 @@ def gaga_garf_generate_img(gan_pth_filename, garf_pth_filename,
           "garf_param": garf_param}
 
     while angle<stop_angle:
-        print('angle', angle)
+        tqdm.write(f'Angle {angle} deg')
         ev = 0
 
         plane = gaga.init_plane(batch_size, angle=angle, radius=radius)
-        # print(plane)
         p["plane"] = plane
         image, sq_image = gaga.gaga_garf_generate_image(p)
 
@@ -123,10 +122,7 @@ def gaga_garf_generate_img(gan_pth_filename, garf_pth_filename,
         sout = f'{b}_{str(a).zfill(3)}-Squared{extension}'
         sitk.WriteImage(sq_image, sout)
 
-        # with sigma
-        # gt_image_uncertainty proj/sph_test60_40k_1e8_000.mhd -s
-        # --not-counts -n 1e8 -v --sigma -o
-        # proj/sph_test60_40k_1e8_000_sigma.mhd
+        # compute sigma if needed
         if sigma:
             filenames = []
             sfilenames = []
@@ -145,59 +141,7 @@ def gaga_garf_generate_img(gan_pth_filename, garf_pth_filename,
         angle += step_angle
         a = a+1
     
-    
-    # # generate samples
-    # gan_batch_size = 1e5
-    # ev = 0
-    # images = []
-    # pbar = tqdm(total=n)
-    # while ev<n:
-
-    #     # Step 1 : GAN
-    #     #print('nb', len(images))
-    #     t1 = time.time()
-    #     logger.info(f'Generating {batch_size} events')
-    #     x = gaga.generate_samples2(gan_params, G, batch_size, gan_batch_size, normalize=False, to_numpy=True)
-    #     logger.info('Computation time: {0:.3f} sec'.format(time.time()-t1))
-
-    #     # Step 2 : Projection
-    #     t1 = time.time()
-    #     px = gaga.project_on_plane(x, plane, image_plane_size_mm=image_plane_size_mm, debug=debug)
-    #     logger.info('Computation time: {0:.3f} sec'.format(time.time()-t1))
-
-    #     # (debug)
-    #     # gaga.fig_plot_projected(px)
-
-    #     # Step3 : GARF
-    #     t1 = time.time()
-    #     logger.info(f'Building image with {len(px)} particles')
-    #     img, sq_img = garf.build_arf_image_with_nn(garf_nn, garf_model, px,
-    #                                                garf_param, verbose=False, debug=debug)
-    #     images.append(img)
-    #     logger.info('Computation time: {0:.3f} sec'.format(time.time()-t1))
-
-    #     ev += batch_size
-    #     pbar.update(batch_size)
-    #     ev = min(ev,n)
-    #     logger.info('')
-
     pbar.close()
-
-    # # sum images
-    # im_iter = iter(images)
-    # im = next(im_iter)
-    # data = sitk.GetArrayFromImage(im)
-    # for im in im_iter:
-    #     d = sitk.GetArrayViewFromImage(im)
-    #     data += d
-
-    # img = sitk.GetImageFromArray(data)
-    # img.CopyInformation(images[0])
-
-    # # dump final results
-    # print('Computation time: {0:.3f} sec'.format(time.time()-t0))
-    # sitk.WriteImage(img, output)
-
 
 
 # --------------------------------------------------------------------------

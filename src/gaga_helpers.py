@@ -524,39 +524,23 @@ def init_plane(n, angle, radius):
     logger.info(f'Initialisation of plane with radius {radius} ')
     plane_U = np.array([1,0,0])
     plane_V = np.array([0,1,0])
-    # print('UV1', plane_U, plane_V)
-    r1 = Rotation.from_euler('x', 00, degrees=True)
-    plane_U = r1.apply(plane_U)
-    plane_V = r1.apply(plane_V)
-    # print('UV2', plane_U, plane_V)
-    r2 = Rotation.from_euler('y', angle, degrees=True)
-    plane_U = r2.apply(plane_U)
-    plane_V = r2.apply(plane_V)
-    # print('UV3', plane_U, plane_V)
+    r = Rotation.from_euler('y', angle, degrees=True)
+    plane_U = r.apply(plane_U)
+    plane_V = r.apply(plane_V)
 
     # normal vector is the cross product of two direction vectors on the plane
     plane_normal = np.cross(plane_U, plane_V)
-    # print('normal', plane_normal)
     plane_normal = np.array([plane_normal]*n)
 
     center = np.array([0,0,-radius])
-    # print('center1', center)
-    center = r2.apply(center)
-    # print('center2', center)
-    center = r1.apply(center)
+    center = r.apply(center)
     plane_center = np.array([center,]*n)
-    # print('center3', center)
-    #print('point', plane_center)
-
-    r = r2*r1
 
     plane = { 'plane_U': plane_U,
               'plane_V': plane_V,
               'rotation': r,
               'plane_normal': plane_normal,
               'plane_center': plane_center }
-    #print(plane)
-    
     return plane    
 
     
