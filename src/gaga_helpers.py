@@ -14,7 +14,6 @@ from matplotlib.colors import LogNorm
 from scipy.stats import entropy
 from scipy.spatial.transform import Rotation
 import SimpleITK as sitk
-from box import Box
 import logging
 logger=logging.getLogger(__name__)
 
