@@ -16,7 +16,6 @@ import SimpleITK as sitk
 import itk
 import time
 from tqdm import tqdm
-from box import Box
 import logging
 logger=logging.getLogger(__name__)
 
@@ -67,7 +66,7 @@ def gaga_garf_generate_img(gan_pth_filename, garf_pth_filename,
     garf_nn, garf_model = garf.load_nn(garf_pth_filename, verbose=False)
 
     # initialisation
-    batch_size = 1e6
+    batch_size = 4e6
     t0 = time.time()
 
     # initialisation plane
@@ -76,7 +75,7 @@ def gaga_garf_generate_img(gan_pth_filename, garf_pth_filename,
 
     # initialisation garf
     garf_param = {}
-    garf_param['gpu_batch_size'] = int(1e5) # float(gpu_batch_size))
+    garf_param['gpu_batch_size'] = int(4e5) # float(gpu_batch_size))
     garf_param['size'] = 128
     garf_param['spacing'] = 4.41806
     garf_param['length'] = 99
@@ -85,7 +84,7 @@ def gaga_garf_generate_img(gan_pth_filename, garf_pth_filename,
     size_mm = garf_param['size']*garf_param['spacing']/2.0
     
     # initialisation
-    gan_batch_size = 1e5
+    gan_batch_size = 2e5
     
     # loop over angles
     angle = start_angle
@@ -115,11 +114,11 @@ def gaga_garf_generate_img(gan_pth_filename, garf_pth_filename,
 
         # save image
         b, extension = os.path.splitext(output)
-        out = f'{b}_{str(a).zfill(3)}{extension}'
+        out = f'{b}_{str(angle).zfill(5)}{extension}'
         sitk.WriteImage(image, out)
 
         # save image
-        sout = f'{b}_{str(a).zfill(3)}-Squared{extension}'
+        sout = f'{b}_{str(angle).zfill(5)}-Squared{extension}'
         sitk.WriteImage(sq_image, sout)
 
         # compute sigma if needed
@@ -128,7 +127,7 @@ def gaga_garf_generate_img(gan_pth_filename, garf_pth_filename,
             sfilenames = []
             filenames.append(out)
             sfilenames.append(sout)
-            sigout = f'{b}_{str(a).zfill(3)}_sigma{extension}'
+            sigout = f'{b}_{str(angle).zfill(5)}_sigma{extension}'
             nevents = n
             sigma_flag = True
             threshold = 0

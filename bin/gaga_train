@@ -28,7 +28,10 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 @click.option('--lr', 
               help='Learning rate (overwrite the values of the json file)',
               default=None)
-@click.option('--gpw', 
+@click.option('--gp',
+              help='Gradient Penalty type (overwrite the values of the json file)',
+              default=None)
+@click.option('--gpw',
               help='Gradient Penalty Weight (overwrite the values of the json file)',
               default=None)
 @click.option('--progress-bar/--no-progress-bar', default=True)
@@ -38,7 +41,7 @@ def gaga_train(phsp_filename,
                json_filename,
                output_filename,
                epoch,
-               lr, gpw, 
+               lr, gp, gpw,
                progress_bar,
                start_pth):
     '''
@@ -73,6 +76,8 @@ def gaga_train(phsp_filename,
         params['g_learning_rate'] = float(lr)
     if gpw:
         params['penalty_weight'] = float(gpw)
+    if gp:
+        params['penalty_type'] = gp
 
     # read input training dataset
     print(Fore.CYAN +"Loading training dataset ... "+phsp_filename+Style.RESET_ALL)
