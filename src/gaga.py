@@ -462,7 +462,9 @@ class Gan(object):
                 d_real_decision = self.D(x)
 
                 # generate z noise (latent)
-                z = Variable(torch.randn(batch_size, z_dim)).type(self.dtypef)
+                # FIXME ==> randn (normal) or uniform ???
+                #z = Variable(torch.randn(batch_size, z_dim)).type(self.dtypef)
+                z = Variable(torch.rand(batch_size, z_dim)).type(self.dtypef)
 
                 # generate fake data
                 # (detach to avoid training G on these labels (?))
@@ -509,7 +511,8 @@ class Gan(object):
             for _ in range(self.params['g_nb_update']):
 
                 # generate z noise (latent)
-                z = Variable(torch.randn(batch_size, z_dim)).type(self.dtypef)
+                #z = Variable(torch.randn(batch_size, z_dim)).type(self.dtypef)
+                z = Variable(torch.rand(batch_size, z_dim)).type(self.dtypef)
 
                 # generate the fake data
                 g_fake_data = self.G(z)
@@ -702,7 +705,8 @@ class Gan(object):
         z_dim = self.params['z_dim']
         x_mean = self.params['x_mean']
         x_std = self.params['x_std']
-        z = Variable(torch.randn(n, z_dim)).type(self.dtypef)
+        #z = Variable(torch.randn(n, z_dim)).type(self.dtypef)
+        z = Variable(torch.rand(n, z_dim)).type(self.dtypef)
         fake = self.G(z)
         fake = fake.cpu().data.numpy()
         fake = (fake * x_std) + x_mean
@@ -750,7 +754,8 @@ class Gan(object):
         z_dim = self.params['z_dim']
 
         d_real_decision = self.D(validation_x)
-        z = Variable(torch.randn(batch_size, z_dim)).type(self.dtypef)
+        #z = Variable(torch.randn(batch_size, z_dim)).type(self.dtypef)
+        z = Variable(torch.rand(batch_size, z_dim)).type(self.dtypef)
         d_fake_data = self.G(z)
         d_fake_decision = self.D(d_fake_data)
         penalty = self.penalty_fct(self, validation_x, d_fake_data)

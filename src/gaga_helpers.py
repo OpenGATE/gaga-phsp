@@ -288,46 +288,6 @@ def plot_epoch(ax, params, optim, filename):
     a.legend()
 
 # ----------------------------------------------------------------------------
-def plot_epoch_fig(ax, params, optim, filename):
-    """
-    Plot D loss wrt to epoch
-    3 panels : all epoch / first 20% / last 1%
-    """
-
-    x1 = np.asarray(optim['d_loss_real'])
-    x2 = np.asarray(optim['d_loss_fake'])
-    # x = -np.add(x1,x2)
-    x = -np.asarray(optim['d_loss'])  # with grad penalty
-
-    epoch = np.arange(params['start_epoch'], params['end_epoch'], 1)
-    a = ax  # [0]
-    l = filename
-    if '40k' in filename:
-        lab = 'D loss with training dataset'
-    else:
-        lab = None
-    a.plot(epoch, x, '-', label=lab, color='b', alpha=0.7)
-    z = np.zeros_like(x)
-    a.set_xlabel('epoch')
-    a.plot(epoch, z, '--', color='k')
-    a.legend()
-    a.set_ylim(-0.1, 0.3)
-
-    # print(params['validation_dataset'])
-    if not 'validation_dataset' in params or params['validation_dataset'] == None:
-        return
-    x = -np.asarray(optim['validation_d_loss'])
-    if '40k' in filename:
-        lab = 'D loss with validation dataset'
-    else:
-        lab = None
-    a.plot(epoch, x, '-', label=lab, color='g', alpha=0.7)
-    a.legend()
-
-    return
-
-
-# ----------------------------------------------------------------------------
 def plot_epoch_wasserstein(ax, optim, filename):
     '''
     Plot wasserstein 
@@ -378,7 +338,8 @@ def generate_samples2(params, G, n, batch_size=-1, normalize=False, to_numpy=Fal
             current_gpu_batch_size = n-m
         #print('(G) current_gpu_batch_size', current_gpu_batch_size)
 
-        z = Variable(torch.randn(current_gpu_batch_size, z_dim)).type(dtypef)
+        # z = Variable(torch.randn(current_gpu_batch_size, z_dim)).type(dtypef)
+        z = Variable(torch.rand(current_gpu_batch_size, z_dim)).type(dtypef)
         fake = G(z)
         # put back to cpu to allow concatenation
         fake = fake.cpu().data.numpy()
