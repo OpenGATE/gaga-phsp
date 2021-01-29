@@ -5,16 +5,15 @@ with open("readme.md", "r") as fh:
 
 setuptools.setup(
     name="gaga",
-    version="0.5xxx",
+    version="0.5.3",
     author="David Sarrut",
     author_email="david.sarrut@creatis.insa-lyon.fr",
     description="Python tools for GATE GAN simulations",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/dsarrut/gaga",
-    package_dir={'':'src'},
+    package_dir={'': 'src'},
     packages=setuptools.find_packages('gaga'),
-    #packages=['pygan'],
     classifiers=(
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: Apache Software License",
@@ -25,8 +24,8 @@ setuptools.setup(
         'colorama',
         'click',
         'scipy',
-        #'torch'   # better to install torch manually to match cuda version
-      ],
+        # 'torch'   # better to install torch manually to match cuda version
+    ],
     scripts=[
         'bin/gaga_train',
         'bin/gaga_info',
