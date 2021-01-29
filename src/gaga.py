@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 import torch.nn as nn
-from gaga_helpers import *
+from gaga.gaga_helpers import *
 from torch.autograd import Variable
 from torch.autograd import grad as torch_grad
 import torch.nn.functional as F
