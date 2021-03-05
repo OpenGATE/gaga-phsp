@@ -1,20 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import click
-import json
-import time
-import socket
-import gatetools.phsp as phsp
-import gaga
-import copy
-import numpy as np
-import colorama
-from colorama import Fore, Style
-import torch
 import datetime
+import json
+import socket
+import click
+import colorama
+import gatetools.phsp as phsp
+from colorama import Fore, Style
+import gaga
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
+
+
 @click.command(context_settings=CONTEXT_SETTINGS)
 @click.argument('phsp_filename',
                 type=click.Path(exists=True, file_okay=True, dir_okay=False))
@@ -23,9 +21,8 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 @click.argument('output_filename')
 @click.option('--epoch', '-e',
               help='Number of epoch (overwrite the epoch value of the json file)',
-              type=int,
-              default=None)
-@click.option('--lr', 
+              type=int, default=None)
+@click.option('--lr',
               help='Learning rate (overwrite the values of the json file)',
               default=None)
 @click.option('--gp',
@@ -37,14 +34,9 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 @click.option('--progress-bar/--no-progress-bar', default=True)
 @click.option('--start-pth', default=None,
               help='Start from already computed G and D, read in the given file')
-def gaga_train(phsp_filename,
-               json_filename,
-               output_filename,
-               epoch,
-               lr, gp, gpw,
-               progress_bar,
-               start_pth):
-    '''
+def gaga_train(phsp_filename, json_filename, output_filename,
+               epoch, lr, gp, gpw, progress_bar, start_pth):
+    """
     \b
     Train GAN to learn a PHSP (Phase Space File)
 
@@ -52,7 +44,7 @@ def gaga_train(phsp_filename,
     <PHSP_FILENAME>   : input PHSP file (.npy)
     <JSON_FILENAME>   : input json file with all GAN parameters
     <OUTPUT_FILENAME> : output GAN as pth file
-    '''
+    """
 
     # term color
     colorama.init()
@@ -80,12 +72,12 @@ def gaga_train(phsp_filename,
         params['penalty_type'] = gp
 
     # read input training dataset
-    print(Fore.CYAN +"Loading training dataset ... "+phsp_filename+Style.RESET_ALL)
+    print(Fore.CYAN + "Loading training dataset ... " + phsp_filename + Style.RESET_ALL)
     x, read_keys, m = phsp.load(phsp_filename)
 
     # consider only some keys
     keys, x = gaga.select_keys(x, params, read_keys)
-    
+
     # add information
     params['training_size'] = len(x)
     params['keys'] = keys
@@ -96,23 +88,12 @@ def gaga_train(phsp_filename,
         if (e[0] != '#'):
             print('   {:22s} {}'.format(e, str(params[e])))
 
-
-    # COMPATIBILITY FIXME TO REMOVE ##"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    # COMPATIBILITY FIXME TO REMOVE ##"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    # COMPATIBILITY FIXME TO REMOVE ##"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    params['validation_filename'] = None
-    params['plot'] = None
-    params['validation_every_epoch'] = 0
-    # COMPATIBILITY FIXME TO REMOVE ##"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    # COMPATIBILITY FIXME TO REMOVE ##"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    # COMPATIBILITY FIXME TO REMOVE ##"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
     # build the model
-    print(Fore.CYAN +'Building the GAN model ...'+Style.RESET_ALL)
+    print(Fore.CYAN + 'Building the GAN model ...' + Style.RESET_ALL)
     gan = gaga.Gan(params)
 
     # train
-    print(Fore.CYAN +'Start training ...'+Style.RESET_ALL)
+    print(Fore.CYAN + 'Start training ...' + Style.RESET_ALL)
     optim = gan.train(x)
 
     # stop timer
@@ -123,6 +104,7 @@ def gaga_train(phsp_filename,
     gan.save(optim, output_filename)
 
     print('done')
+
 
 # --------------------------------------------------------------------------
 if __name__ == '__main__':

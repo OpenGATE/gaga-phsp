@@ -9,6 +9,8 @@ import json
 from torch.autograd import Variable
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
+
+
 @click.command(context_settings=CONTEXT_SETTINGS)
 @click.argument('pth_filename')
 @click.option('--output', '-o', default='auto', help="If 'auto', use filename.pt and filename.json")
@@ -17,24 +19,24 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 @click.option('--keys', '-k', type=(str, float), multiple=True)
 @click.option('--epoch', '-e', default=-1, help='Load the G net at the given epoch (-1 for last stored epoch)')
 def gaga_convert_pth_to_pt(pth_filename, output, gpu, verbose, keys, epoch):
-    '''
+    """
     \b
     Convert a .pth file from gaga to a .pt and a .json files (used by libtorch in Gate)
 
     \b
     <PTH_FILENAME> : input GAN PTH file (.pth)
-    '''
+    """
 
     # FIXME Harmonize with create_pt for GARF
 
     # output filename
     if output == 'auto':
         b, extension = os.path.splitext(pth_filename)
-        output_pt = b+'.pt'
-        output_json = b+'.json'
+        output_pt = b + '.pt'
+        output_json = b + '.json'
     else:
-        output_pt = output+'.pt'
-        output_json = output+'.json'
+        output_pt = output + '.pt'
+        output_json = output + '.json'
 
     if gpu:
         gpu = 'true'
@@ -42,7 +44,7 @@ def gaga_convert_pth_to_pt(pth_filename, output, gpu, verbose, keys, epoch):
         gpu = 'false'
 
     # load pth
-    params, G, D, optim, dtypef= gaga.load(pth_filename, gpu, verbose, epoch=epoch)
+    params, G, D, optim, dtypef = gaga.load(pth_filename, gpu, verbose, epoch=epoch)
 
     b = 10
     z_dim = params['z_dim']
@@ -54,7 +56,7 @@ def gaga_convert_pth_to_pt(pth_filename, output, gpu, verbose, keys, epoch):
     if verbose:
         print('Writing ', output_pt)
 
-    #Save dict nn into json
+    # Save dict nn into json
     p = {}
     params["x_mean"] = params["x_mean"][0].tolist()
     params["x_std"] = params["x_std"][0].tolist()
@@ -63,7 +65,7 @@ def gaga_convert_pth_to_pt(pth_filename, output, gpu, verbose, keys, epoch):
 
     for k in keys:
         params[k[0]] = k[1];
-    
+
     outfile = open(output_json, 'w')
     if verbose:
         print('Writing ', output_json)
@@ -73,4 +75,3 @@ def gaga_convert_pth_to_pt(pth_filename, output, gpu, verbose, keys, epoch):
 # --------------------------------------------------------------------------
 if __name__ == '__main__':
     gaga_convert_pth_to_pt()
-

@@ -4,11 +4,7 @@
 import click
 import gaga
 import gatetools.phsp as phsp
-import torch
 import os
-import numpy as np
-from torch.autograd import Variable
-from matplotlib import pyplot as plt
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 
@@ -20,14 +16,13 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 @click.option('--output_folder', '-f', default=None, help='Output folder')
 @click.option('--toggle/--no-toggle', default=False, help='Convert XY to angle')
 @click.option('--radius', default=350, help='When convert angle, need the radius (in mm)')
-def gaga_plot(pth_filename, n, output, output_folder, toggle, radius):
-    '''
-    \b
-    Generate a PHSP from a GAN
+def gaga_generate(pth_filename, n, output, output_folder, toggle, radius):
+    """
+    Generate a PHSP from a (trained) GAN
 
     \b
     <PTH_FILENAME>    : input GAN PTH file (.pth)
-    '''
+    """
 
     init_n = str(n)
     n = int(float(n))
@@ -36,7 +31,7 @@ def gaga_plot(pth_filename, n, output, output_folder, toggle, radius):
     params, G, D, optim, dtypef = gaga.load(pth_filename)
     f_keys = list(params['keys'])
 
-    # generate samples
+    # generate samples (b is batch size)
     b = 1e5
     fake = gaga.generate_samples2(params, G, n, b, False, True)
 
@@ -47,14 +42,6 @@ def gaga_plot(pth_filename, n, output, output_folder, toggle, radius):
         fake = phsp.select_keys(fake, f_keys, keys)
     else:
         keys = f_keys
-
-    # special case (for retro-compatibility)
-    #try:
-    #    i = keys.index('E')
-    #    fake[:, i][fake[:, i] < 0] = 0.00000000001  # E should not be zero !
-    #except:
-    #    i = keys.index('Ekine')
-    #    fake[:, i][fake[:, i] < 0] = 0.00000000001  # E should not be zero !
 
     # write    
     if output == 'AUTO':
@@ -72,4 +59,4 @@ def gaga_plot(pth_filename, n, output, output_folder, toggle, radius):
 
 # --------------------------------------------------------------------------
 if __name__ == '__main__':
-    gaga_plot()
+    gaga_generate()

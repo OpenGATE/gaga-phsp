@@ -1,25 +1,22 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import logging
+import os
+import time
+import SimpleITK as sitk
 import click
+import gatetools as gt
+import itk
+from tqdm import tqdm
 import gaga
 import garf
-import gatetools.phsp as phsp
-import gatetools as gt
-import torch
-import os
-import numpy as np
-# import cupy as np
-from torch.autograd import Variable
-from matplotlib import pyplot as plt
-import SimpleITK as sitk
-import itk
-import time
-from tqdm import tqdm
-import logging
-logger=logging.getLogger(__name__)
+
+logger = logging.getLogger(__name__)
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
+
+
 @click.command(context_settings=CONTEXT_SETTINGS)
 @click.argument('gan_pth_filename')
 @click.argument('garf_pth_filename')
@@ -30,17 +27,17 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 @click.option('--stop_angle', default=float(1), help='Stop angle (in deg)')
 @click.option('--step_angle', default=float(1), help='Step angle (in deg)')
 @click.option('--scale', '-s', default=float(1), help='Scale the final image by s. ')
-@click.option('--debug_projection', default=False, is_flag=True, 
+@click.option('--debug_projection', default=False, is_flag=True,
               help='Debug: dump npy file with U,V,theta,phi,E on the plane')
-@click.option('--sigma', default=False, is_flag=True, 
+@click.option('--sigma', default=False, is_flag=True,
               help='Compute and dump sigma (uncertainty) image')
 @gt.add_options(gt.common_options)
 def gaga_garf_generate_img(gan_pth_filename, garf_pth_filename,
-                           radius, n, scale, 
+                           radius, n, scale,
                            start_angle, stop_angle, step_angle,
                            output, debug_projection, sigma,
                            **kwargs):
-    '''
+    """
     \b
     Simulation of a SPECT image:
     - input particles are generated from a GAN (gaga-phsp)
@@ -49,7 +46,7 @@ def gaga_garf_generate_img(gan_pth_filename, garf_pth_filename,
     \b
     <GAN_PTH_FILENAME>    : input GAN-PHSP PTH file (.pth)
     <GARF_PTH_FILENAME>   : input GARF PTH file (.pth)
-    '''
+    """
 
     # logger
     gt.logging_conf(**kwargs)
@@ -59,7 +56,7 @@ def gaga_garf_generate_img(gan_pth_filename, garf_pth_filename,
 
     # load gan pth
     logger.info(f'Reading GAN-PHSP from {gan_pth_filename}')
-    gan_params, G, D, optim, dtypef= gaga.load(gan_pth_filename)
+    gan_params, G, D, optim, dtypef = gaga.load(gan_pth_filename)
 
     # load garf pth
     logger.info(f'Reading GARF from {gan_pth_filename}')
@@ -75,36 +72,36 @@ def gaga_garf_generate_img(gan_pth_filename, garf_pth_filename,
 
     # initialisation garf
     garf_param = {}
-    garf_param['gpu_batch_size'] = int(4e5) # float(gpu_batch_size))
+    garf_param['gpu_batch_size'] = int(4e5)  # float(gpu_batch_size))
     garf_param['size'] = 128
     garf_param['spacing'] = 4.41806
     garf_param['length'] = 99
     garf_param['N_scale'] = scale
     garf_param['N_dataset'] = n
-    size_mm = garf_param['size']*garf_param['spacing']/2.0
-    
+    size_mm = garf_param['size'] * garf_param['spacing'] / 2.0
+
     # initialisation
     gan_batch_size = 2e5
-    
+
     # loop over angles
     angle = start_angle
-    bar_n = (stop_angle-start_angle)/step_angle * n
+    bar_n = (stop_angle - start_angle) / step_angle * n
     pbar = tqdm(total=bar_n)
     a = 0
-    p = { "gan_params":gan_params,
-          "G":G,
-          "batch_size": batch_size,
-          "gan_batch_size": gan_batch_size,
-          # "plane": plane,
-          "image_plane_size_mm": image_plane_size_mm,
-          "debug": False, #### FIXME 
-          "garf_nn": garf_nn,
-          "garf_model": garf_model,
-          "pbar": pbar,
-          "n": n,
-          "garf_param": garf_param}
+    p = {"gan_params": gan_params,
+         "G": G,
+         "batch_size": batch_size,
+         "gan_batch_size": gan_batch_size,
+         # "plane": plane,
+         "image_plane_size_mm": image_plane_size_mm,
+         "debug": False,  #### FIXME
+         "garf_nn": garf_nn,
+         "garf_model": garf_model,
+         "pbar": pbar,
+         "n": n,
+         "garf_param": garf_param}
 
-    while angle<stop_angle:
+    while angle < stop_angle:
         tqdm.write(f'Angle {angle} deg')
         ev = 0
 
@@ -138,8 +135,8 @@ def gaga_garf_generate_img(gan_pth_filename, garf_pth_filename,
         ev += batch_size
         # pbar.update(batch_size)
         angle += step_angle
-        a = a+1
-    
+        a = a + 1
+
     pbar.close()
 
 

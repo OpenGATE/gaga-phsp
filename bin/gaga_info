@@ -37,7 +37,7 @@ def gaga_info(pth_filename, plot, add_energy, sfig):
                 gaga.plot_epoch_fig(ax, params, optim, f)
             else:
                 gaga.plot_epoch(ax, params, optim, f)
-            #gaga.plot_epoch_wasserstein(ax, optim, f)
+            # gaga.plot_epoch_wasserstein(ax, optim, f)
 
     if plot:
         plt.tight_layout()
