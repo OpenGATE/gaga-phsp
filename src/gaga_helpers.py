@@ -1,16 +1,13 @@
 import numpy as np
-# import cupy as cp
 import torch
 from torch.autograd import Variable
 import gaga
 import datetime
-import os
 import time
 import garf
 import gatetools.phsp as phsp
 from scipy.stats import kde
 from matplotlib import pyplot as plt
-from matplotlib.colors import LogNorm
 from scipy.stats import entropy
 from scipy.spatial.transform import Rotation
 import SimpleITK as sitk
@@ -18,19 +15,17 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# ----------------------------------------------------------------------------
-'''
+"""
 date format
-'''
+"""
 date_format = "%Y-%m-%d %H:%M:%S"
 
 
-# ----------------------------------------------------------------------------
 def select_keys(x, params, read_keys):
-    '''
+    """
     Return the selected keys
-    '''
-    if not 'keys' in params:
+    """
+    if 'keys' not in params:
         return read_keys, x
 
     keys = params['keys']
@@ -40,24 +35,22 @@ def select_keys(x, params, read_keys):
     return keys, x
 
 
-# ----------------------------------------------------------------------------
 def normalize_data(x):
-    '''
+    """
     Consider the input vector mean and std and normalize it
-    '''
+    """
     x_mean = np.mean(x, 0, keepdims=True)
     x_std = np.std(x, 0, keepdims=True)
     x = (x - x_mean) / x_std
     return x, x_mean, x_std
 
 
-# ----------------------------------------------------------------------------
 def init_pytorch_cuda(gpu_mode, verbose=False):
-    '''
+    """
     Test if pytorch use CUDA. Return type and device
-    '''
+    """
 
-    if (verbose):
+    if verbose:
         print('pytorch version', torch.__version__)
     dtypef = torch.FloatTensor
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -68,20 +61,20 @@ def init_pytorch_cuda(gpu_mode, verbose=False):
         else:
             print('CUDA is *NOT* available')
 
-    if (gpu_mode == 'auto'):
-        if (torch.cuda.is_available()):
+    if gpu_mode == 'auto':
+        if torch.cuda.is_available():
             dtypef = torch.cuda.FloatTensor
-    elif (gpu_mode == 'true'):
-        if (torch.cuda.is_available()):
+    elif gpu_mode == 'true':
+        if torch.cuda.is_available():
             dtypef = torch.cuda.FloatTensor
         else:
             print('Error GPU mode not available')
             exit(0)
     else:
-        device = torch.device('cpu');
+        device = torch.device('cpu')
 
-    if (verbose):
-        if (str(device) != 'cpu'):
+    if verbose:
+        if str(device) != 'cpu':
             print('GPU is enabled')
             print('CUDA version         ', torch.version.cuda)
             print('CUDA device counts   ', torch.cuda.device_count())
@@ -95,32 +88,29 @@ def init_pytorch_cuda(gpu_mode, verbose=False):
     return dtypef, device
 
 
-# ----------------------------------------------------------------------------
 def print_network(net):
-    '''
+    """
     Print info about a network
-    '''
+    """
     num_params = get_network_nb_parameters(net)
     print(net)
     print('Total number of parameters: %d' % num_params)
 
 
-# ----------------------------------------------------------------------------
 def get_network_nb_parameters(net):
-    '''
+    """
     Compute total nb of parameters
-    '''
+    """
     num_params = 0
     for param in net.parameters():
         num_params += param.numel()
     return num_params
 
 
-# ----------------------------------------------------------------------------
 def print_info(params, optim):
-    '''
+    """
     Print info about a trained GAN-PHSP
-    '''
+    """
     # print parameters
     for e in params:
         if (e[0] != '#') and (e != 'x_mean') and (e != 'x_std'):
@@ -147,17 +137,16 @@ def print_info(params, optim):
         print('   {:22s} {}'.format('d_best_epoch', optim['d_best_epoch']))
 
 
-# ----------------------------------------------------------------------------
 def load(filename, gpu_mode='auto', verbose=False, epoch=-1):
-    '''
+    """
     Load a GAN-PHSP
     Output params   = dict with all parameters
     Output G        = Generator network
     Output optim    = dict with information of the training process
-    '''
+    """
 
     dtypef, device = init_pytorch_cuda(gpu_mode, verbose)
-    if (str(device) == 'cpu'):
+    if str(device) == 'cpu':
         nn = torch.load(filename, map_location=lambda storage, loc: storage)
     else:
         nn = torch.load(filename)
@@ -187,7 +176,7 @@ def load(filename, gpu_mode='auto', verbose=False, epoch=-1):
     G = gaga.Generator(params)
     D = gaga.Discriminator(params)
 
-    if (str(device) != 'cpu'):
+    if str(device) != 'cpu':
         G.cuda()
         D.cuda()
         params['current_gpu'] = True
@@ -200,11 +189,10 @@ def load(filename, gpu_mode='auto', verbose=False, epoch=-1):
     return params, G, D, optim, dtypef
 
 
-# ----------------------------------------------------------------------------
 def get_min_max_constraints(params):
-    '''
+    """
     Compute the min/max values per dimension according to params['keys'] and params['constraints']
-    '''
+    """
 
     # clamp take normalisation into account
     x_dim = params['x_dim']
@@ -229,7 +217,6 @@ def get_min_max_constraints(params):
     return cmin, cmax
 
 
-# ----------------------------------------------------------------------------
 def plot_epoch(ax, params, optim, filename):
     """
     Plot D loss wrt to epoch
@@ -287,11 +274,11 @@ def plot_epoch(ax, params, optim, filename):
     a.plot(epoch, z, '--')
     a.legend()
 
-# ----------------------------------------------------------------------------
+
 def plot_epoch_wasserstein(ax, optim, filename):
-    '''
+    """
     Plot wasserstein 
-    '''
+    """
 
     y = np.asarray(optim['w_value'])
     x = np.asarray(optim['w_epoch'])
@@ -311,7 +298,6 @@ def plot_epoch_wasserstein(ax, optim, filename):
     a.legend()
 
 
-# ----------------------------------------------------------------------------
 def generate_samples2(params, G, n, batch_size=-1, normalize=False, to_numpy=False):
     z_dim = params['z_dim']
 
@@ -334,9 +320,9 @@ def generate_samples2(params, G, n, batch_size=-1, normalize=False, to_numpy=Fal
     while m < n:
         # no more samples than needed
         current_gpu_batch_size = batch_size
-        if current_gpu_batch_size>n-m:
-            current_gpu_batch_size = n-m
-        #print('(G) current_gpu_batch_size', current_gpu_batch_size)
+        if current_gpu_batch_size > n - m:
+            current_gpu_batch_size = n - m
+        # print('(G) current_gpu_batch_size', current_gpu_batch_size)
 
         # z = Variable(torch.randn(current_gpu_batch_size, z_dim)).type(dtypef)
         z = Variable(torch.rand(current_gpu_batch_size, z_dim)).type(dtypef)
@@ -358,7 +344,6 @@ def generate_samples2(params, G, n, batch_size=-1, normalize=False, to_numpy=Fal
     return Variable(torch.from_numpy(rfake)).type(dtypef)
 
 
-# ----------------------------------------------------------------------------
 def fig_plot_marginal(x, k, keys, ax, i, nb_bins, color, r='', lab=''):
     a = phsp.fig_get_sub_fig(ax, i)
     index = keys.index(k)
@@ -366,11 +351,11 @@ def fig_plot_marginal(x, k, keys, ax, i, nb_bins, color, r='', lab=''):
         d = x[:, index]
     else:
         d = x
-    #label = ' {} $\mu$={:.2f} $\sigma$={:.2f}'.format(k, np.mean(d), np.std(d))
+    # label = ' {} $\mu$={:.2f} $\sigma$={:.2f}'.format(k, np.mean(d), np.std(d))
     label = f'{lab} {k} $\mu$={np.mean(d):.2f} $\sigma$={np.std(d):.2f}'
     if r != '':
         a.hist(d, nb_bins,
-               #density=True,
+               # density=True,
                histtype='stepfilled',
                facecolor=color,
                alpha=0.5,
@@ -378,7 +363,7 @@ def fig_plot_marginal(x, k, keys, ax, i, nb_bins, color, r='', lab=''):
                label=label)
     else:
         a.hist(d, nb_bins,
-               #density=True,
+               # density=True,
                histtype='stepfilled',
                facecolor=color,
                alpha=0.5,
@@ -387,7 +372,6 @@ def fig_plot_marginal(x, k, keys, ax, i, nb_bins, color, r='', lab=''):
     a.legend()
 
 
-# ----------------------------------------------------------------------------
 def fig_plot_marginal_2d(x, k1, k2, keys, ax, i, nbins, color):
     a = phsp.fig_get_sub_fig(ax, i)
     index1 = keys.index(k1)
@@ -429,7 +413,6 @@ def fig_plot_marginal_2d(x, k1, k2, keys, ax, i, nbins, color):
     a.set_ylabel(k2)
 
 
-# ----------------------------------------------------------------------------
 def fig_plot_diff_2d(x, y, keys, kk, ax, fig, nb_bins):
     k1 = kk[0]
     k2 = kk[1]
@@ -459,7 +442,6 @@ def fig_plot_diff_2d(x, y, keys, kk, ax, fig, nb_bins):
     ax.set_ylabel(k2)
 
 
-# ----------------------------------------------------------------------------
 def Jensen_Shannon_divergence(x, y, bins, margin=0):
     # margin = 0#.01 # 5%
     r = [np.amin(x), np.amax(x)]
@@ -476,7 +458,6 @@ def Jensen_Shannon_divergence(x, y, bins, margin=0):
     return 0.5 * (entropy(_P, _M) + entropy(_Q, _M))
 
 
-# ----------------------------------------------------------------------------
 def sliced_wasserstein(x, y, l, p=1):
     l = int(l)
     ndim = len(x[0])
@@ -520,7 +501,6 @@ def sliced_wasserstein(x, y, l, p=1):
     return d
 
 
-# ----------------------------------------------------------------------------
 def wasserstein1D(x, y, p=1):
     sx, indices = torch.sort(x)
     sy, indices = torch.sort(y)
@@ -528,11 +508,10 @@ def wasserstein1D(x, y, p=1):
     return torch.sum(torch.pow(torch.abs(z), p)) / len(z)
 
 
-# ----------------------------------------------------------------------------
 def init_plane(n, angle, radius):
-    '''
+    """
     plane_U, plane_V, plane_point, plane_normal
-    '''
+    """
 
     n = int(n)
     logger.info(f'Initialisation of plane with radius {radius} ')
@@ -559,12 +538,11 @@ def init_plane(n, angle, radius):
     return plane
 
 
-# ----------------------------------------------------------------------------
 def project_on_plane(x, plane, image_plane_size_mm, debug=False):
-    '''
+    """
     Project the x points (Ekine X Y Z dX dY dZ)
     on the image plane defined by plane_U, plane_V, plane_center, plane_normal
-    '''
+    """
 
     logger.info(f'Projection of {len(x)} particles on the plane')
     logger.info(f'Plane size is {image_plane_size_mm} mm')
@@ -665,11 +643,10 @@ def project_on_plane(x, plane, image_plane_size_mm, debug=False):
     return data
 
 
-# ----------------------------------------------------------------------------
 def fig_plot_projected(data):
-    '''
+    """
     Debug plot
-    '''
+    """
 
     b = 100
     x = data[:, 0]
@@ -695,7 +672,6 @@ def fig_plot_projected(data):
     plt.show()
 
 
-# ----------------------------------------------------------------------------
 def gaga_garf_generate_image(p):
     # param
     gan_params = p["gan_params"]
@@ -718,8 +694,8 @@ def gaga_garf_generate_image(p):
 
         # check generation of the exact nb of samples
         current_batch_size = batch_size
-        if current_batch_size>n-ev:
-            current_batch_size = n-ev
+        if current_batch_size > n - ev:
+            current_batch_size = n - ev
 
         # Step 1 : GAN
         t1 = time.time()
@@ -756,7 +732,7 @@ def gaga_garf_generate_image(p):
     for im in im_iter:
         d = sitk.GetArrayViewFromImage(im)
         data += d
-    data = data/len(images)
+    data = data / len(images)
     img = sitk.GetImageFromArray(data)
     img.CopyInformation(images[0])
 
@@ -767,7 +743,7 @@ def gaga_garf_generate_image(p):
     for im in im_iter:
         d = sitk.GetArrayViewFromImage(im)
         data += d
-    data = data/len(sq_images)
+    data = data / len(sq_images)
     sq_img = sitk.GetImageFromArray(data)
     sq_img.CopyInformation(sq_images[0])
 
