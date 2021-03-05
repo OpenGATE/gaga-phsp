@@ -15,11 +15,12 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 
 @click.command(context_settings=CONTEXT_SETTINGS)
 @click.argument('pth_filename')
-@click.option('--n', '-n', default=1e4, help='Number of samples to generate')
+@click.option('--n', '-n', default='1e4', help='Number of samples to generate')
 @click.option('--output', '-o', default='AUTO', help='If AUTO, use pth_filename.npy')
+@click.option('--output_folder', '-f', default=None, help='Output folder')
 @click.option('--toggle/--no-toggle', default=False, help='Convert XY to angle')
 @click.option('--radius', default=350, help='When convert angle, need the radius (in mm)')
-def gaga_plot(pth_filename, n, output, toggle, radius):
+def gaga_plot(pth_filename, n, output, output_folder, toggle, radius):
     '''
     \b
     Generate a PHSP from a GAN
@@ -28,7 +29,8 @@ def gaga_plot(pth_filename, n, output, toggle, radius):
     <PTH_FILENAME>    : input GAN PTH file (.pth)
     '''
 
-    n = int(n)
+    init_n = str(n)
+    n = int(float(n))
 
     # load pth
     params, G, D, optim, dtypef = gaga.load(pth_filename)
@@ -56,8 +58,15 @@ def gaga_plot(pth_filename, n, output, toggle, radius):
 
     # write    
     if output == 'AUTO':
-        b, extension = os.path.splitext(pth_filename)
-        output = b + '.npy'
+        gp = params['penalty_type']
+        gpw = params['penalty_weight']
+        full_path = os.path.split(pth_filename)
+        b, extension = os.path.splitext(full_path[1])
+        if not output_folder:
+            output_folder = '.'
+        output = f'{b}_{gp}_{gpw}_{init_n}.npy'
+        output = os.path.join(output_folder, output)
+        print(output)
     phsp.save_npy(output, fake, keys)
 
 
