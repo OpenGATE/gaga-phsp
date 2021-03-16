@@ -15,8 +15,9 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 @click.option('--output', '-o', default='AUTO', help='If AUTO, use pth_filename.npy')
 @click.option('--output_folder', '-f', default=None, help='Output folder')
 @click.option('--toggle/--no-toggle', default=False, help='Convert XY to angle')
+@click.option('--epoch', default=-1, help='Use G at this epoch')
 @click.option('--radius', default=350, help='When convert angle, need the radius (in mm)')
-def gaga_generate(pth_filename, n, output, output_folder, toggle, radius):
+def gaga_generate(pth_filename, n, output, output_folder, toggle, radius, epoch):
     """
     Generate a PHSP from a (trained) GAN
 
@@ -28,7 +29,7 @@ def gaga_generate(pth_filename, n, output, output_folder, toggle, radius):
     n = int(float(n))
 
     # load pth
-    params, G, D, optim, dtypef = gaga.load(pth_filename)
+    params, G, D, optim, dtypef = gaga.load(pth_filename, 'auto', False, epoch)
     f_keys = list(params['keys'])
 
     # generate samples (b is batch size)
