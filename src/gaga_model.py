@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+
 # -----------------------------------------------------------------------------
 class Discriminator(nn.Module):
     '''
@@ -69,14 +70,13 @@ class Discriminator(nn.Module):
         return x
 
 
-
 # -----------------------------------------------------------------------------
 class Generator(nn.Module):
-    '''
+    """
     Generator: G(z, θG) -> x fake samples
 
     Create samples that are intended to come from the same distrib than the
-    training dataset. May have several z input at different layers.   
+    training dataset. May have several z input at different layers.
 
     Input:
         - z_dim
@@ -85,8 +85,8 @@ class Generator(nn.Module):
         - leaky_relu  : boolean (relu if False, leaky_relu if True)
         - layer_norm  : boolean
         - loss_type   : special case for 'wasserstein'
-    
-    '''
+
+    """
 
     def __init__(self, params):
         super(Generator, self).__init__()
@@ -111,22 +111,19 @@ class Generator(nn.Module):
 
         # initialisation
         for p in self.parameters():
-            if p.ndimension()>1:
-                nn.init.kaiming_normal_(p) ## seems better ???
-                #nn.init.xavier_normal_(p)
-                #nn.init.kaiming_uniform_(p, nonlinearity='sigmoid')
+            if p.ndimension() > 1:
+                nn.init.kaiming_normal_(p)  ## seems better ???
+                # nn.init.xavier_normal_(p)
+                # nn.init.kaiming_uniform_(p, nonlinearity='sigmoid')
 
     def forward(self, x):
         x = self.activ(self.map1(x))
-        for i in range(self.g_layers-1):
+        for i in range(self.g_layers - 1):
             x = self.activ(self.maps[i](x))
 
-        x = self.maps[self.g_layers-1](x)  # last one
-        x = torch.sigmoid(x) # to output probability within [0-1]
-        #x = self.activ(x)
+        x = self.maps[self.g_layers - 1](x)  # last one
+        x = torch.sigmoid(x)  # to output probability within [0-1]
+        # x = self.activ(x)
         x = self.map3(x)
 
         return x
-
-
-
