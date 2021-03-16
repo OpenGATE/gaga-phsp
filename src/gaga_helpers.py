@@ -137,6 +137,18 @@ def print_info(params, optim):
         print('   {:22s} {}'.format('d_best_epoch', optim['d_best_epoch']))
 
 
+def create_G_and_D_model(params):
+    if 'GAN_model' not in params:
+        params['GAN_model'] = 'v1'
+    if params['GAN_model'] == 'v1':
+        G = gaga.Generator(params)
+        D = gaga.Discriminator(params)
+    if params['GAN_model'] == 'v2':
+        G = gaga.Generator2(params)
+        D = gaga.Discriminator2(params)
+    return G, D
+
+
 def load(filename, gpu_mode='auto', verbose=False, epoch=-1):
     """
     Load a GAN-PHSP
@@ -169,12 +181,8 @@ def load(filename, gpu_mode='auto', verbose=False, epoch=-1):
             exit(0)
         G_state = optim['g_model_state'][index]
 
-    # create the Generator
-    # cmin, cmax = gaga.get_min_max_constraints(params)
-    # cmin = torch.from_numpy(cmin).type(dtypef)
-    # cmax = torch.from_numpy(cmax).type(dtypef)
-    G = gaga.Generator(params)
-    D = gaga.Discriminator(params)
+    # create the Generator and the Discriminator (Critic)
+    G, D = create_G_and_D_model(params)
 
     if str(device) != 'cpu':
         G.cuda()

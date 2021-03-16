@@ -7,6 +7,7 @@ import numpy as np
 from gaga_functions import *
 from gaga_helpers import *
 from gaga_model import Discriminator, Generator
+from gaga_model_v2 import Discriminator2, Generator2
 
 '''
 Initial code from :
@@ -89,7 +90,7 @@ class Gan(object):
         """
 
         p = self.params
-        if 'start_pth' in p and p['start_pth'] != None:
+        if 'start_pth' in p and p['start_pth'] is not None:
             f = p['start_pth']
             print('Loading ', f)
             start_params, start_G, start_D, start_optim, start_dtypef = gaga.load(f)
@@ -100,8 +101,7 @@ class Gan(object):
             except:
                 self.params['start_epoch'] = start_optim['current_epoch'][-1]
         else:
-            self.D = Discriminator(p)
-            self.G = Generator(p)
+            self.G, self.D = create_G_and_D_model(p)
             self.params['start_epoch'] = 0
 
         if str(self.device) != 'cpu':
@@ -119,7 +119,7 @@ class Gan(object):
         d_learning_rate = p['d_learning_rate']
         g_learning_rate = p['g_learning_rate']
 
-        if (p['optimiser'] == 'adam'):
+        if p['optimiser'] == 'adam':
             g_weight_decay = float(p["g_weight_decay"])
             d_weight_decay = float(p["d_weight_decay"])
             print('Optimizer regularisation L2 G weight:', g_weight_decay)

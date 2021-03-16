@@ -5,7 +5,7 @@ import torch.nn.functional as F
 
 # -----------------------------------------------------------------------------
 class Discriminator(nn.Module):
-    '''
+    """
     Discriminator: D(x, θD) -> probability that x is real data
 
     Or with Wasserstein GAN :
@@ -24,8 +24,8 @@ class Discriminator(nn.Module):
         - leaky_relu  : boolean (relu if False, leaky_relu if True)
         - layer_norm  : boolean
         - loss_type   : special case for 'wasserstein'
-    
-    '''
+
+    """
 
     def __init__(self, params):
         super(Discriminator, self).__init__()
@@ -47,26 +47,27 @@ class Discriminator(nn.Module):
             self.maps.append(nn.Linear(d_dim, d_dim))
             self.norms.append(nn.LayerNorm(d_dim))
 
-        self.map3 = nn.Linear(d_dim, 1)
+        self.map_last = nn.Linear(d_dim, 1)
         self.activation_fct = activ
 
     def forward(self, x):
         activ = self.activation_fct
         x = activ(self.map1(x))
 
-        if self.params['layer_norm'] == True:
+        if self.params['layer_norm']:
+            print('Layer normalisation activated for D')
             for i in range(self.d_layers):
                 x = activ(self.norms[i](self.maps[i](x)))
         else:
             for i in range(self.d_layers):
                 x = activ(self.maps[i](x))
 
-        if self.params['loss_type'] == 'wasserstein':
+        if self.params['loss_type'] == 'non-saturating-bce':
+            x = torch.sigmoid(self.map_last(x))  # sigmoid needed to output probabilities 0-1
+        else:
             # NO SIGMOID with Wasserstein
             # https://paper.dropbox.com/doc/Wasserstein-GAN--AZxqBJuXjF5jf3zyCdJAVqEMAg-GvU0p2V9ThzdwY3BbhoP7
-            x = self.map3(x)
-        else:
-            x = torch.sigmoid(self.map3(x))  # sigmoid needed to output probabilities 0-1
+            x = self.map_last(x)
         return x
 
 

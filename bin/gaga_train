@@ -31,11 +31,14 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 @click.option('--gpw',
               help='Gradient Penalty Weight (overwrite the values of the json file)',
               default=None)
+@click.option('--model',
+              help='GAN model version v1 or v2 (if not set in the json param: v1)',
+              default=None)
 @click.option('--progress-bar/--no-progress-bar', default=True)
 @click.option('--start-pth', default=None,
               help='Start from already computed G and D, read in the given file')
 def gaga_train(phsp_filename, json_filename, output_filename,
-               epoch, lr, gp, gpw, progress_bar, start_pth):
+               epoch, lr, model, gp, gpw, progress_bar, start_pth):
     """
     \b
     Train GAN to learn a PHSP (Phase Space File)
@@ -61,6 +64,8 @@ def gaga_train(phsp_filename, json_filename, output_filename,
     params['start date'] = start.strftime(gaga.date_format)
     params['hostname'] = socket.gethostname()
     params['start_pth'] = start_pth
+    if model:
+        params['GAN_model'] = model
     if epoch:
         params['epoch'] = epoch
     if lr:
