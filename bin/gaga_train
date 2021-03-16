@@ -70,6 +70,7 @@ def gaga_train(phsp_filename, json_filename, output_filename,
         params['penalty_weight'] = float(gpw)
     if gp:
         params['penalty_type'] = gp
+    params['plot'] = None
 
     # read input training dataset
     print(Fore.CYAN + "Loading training dataset ... " + phsp_filename + Style.RESET_ALL)
