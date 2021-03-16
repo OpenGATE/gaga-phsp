@@ -89,11 +89,7 @@ class Gan(object):
         """
 
         p = self.params
-        if ('start_pth' not in p) or (p['start_pth'] == None):
-            self.D = Discriminator(p)
-            self.G = Generator(p)
-            self.params['start_epoch'] = 0
-        else:
+        if 'start_pth' in p and p['start_pth'] != None:
             f = p['start_pth']
             print('Loading ', f)
             start_params, start_G, start_D, start_optim, start_dtypef = gaga.load(f)
@@ -103,6 +99,10 @@ class Gan(object):
                 self.params['start_epoch'] = start_optim['last_epoch']
             except:
                 self.params['start_epoch'] = start_optim['current_epoch'][-1]
+        else:
+            self.D = Discriminator(p)
+            self.G = Generator(p)
+            self.params['start_epoch'] = 0
 
         if str(self.device) != 'cpu':
             print('Set model to GPU')
@@ -224,7 +224,7 @@ class Gan(object):
             'GP_0GP': gaga.GP_0GP,
             'GP_SquareHinge': gaga.GP_SquareHinge,
         }
-        print(t, penalties)
+        # print(t, penalties)
         for p in penalties:
             if t == p:
                 self.penalty_fct = penalties[p]
@@ -275,7 +275,7 @@ class Gan(object):
         self.real_labels = Variable(torch.ones(batch_size, 1)).type(self.dtypef)
         self.fake_labels = Variable(torch.zeros(batch_size, 1)).type(self.dtypef)
         # One-sided label smoothing
-        if ('label_smoothing' in self.params):
+        if 'label_smoothing' in self.params:
             s = self.params['label_smoothing']
             self.real_labels = Variable((1.0 - s) + s * torch.rand(batch_size, 1)).type(self.dtypef)
             self.fake_labels = Variable(s * torch.rand(batch_size, 1)).type(self.dtypef)
