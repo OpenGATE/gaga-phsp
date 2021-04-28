@@ -283,6 +283,76 @@ def plot_epoch(ax, params, optim, filename):
     a.legend()
 
 
+def plot_epoch2(ax, params, optim, filename):
+    """
+    Plot D loss wrt to epoch
+    """
+
+    dlr = np.asarray(optim['d_loss_real'])
+    dlf = np.asarray(optim['d_loss_fake'])
+    dl = np.asarray(optim['d_loss'])  # with grad penalty
+    gl = np.asarray(optim['g_loss'])
+    epoch = np.arange(params['start_epoch'], params['end_epoch'], 1)
+
+    # one epoch is when all the training dataset is seen
+    step = int(params['training_size']/params['batch_size'])
+    print(step)
+    dlr = dlr[::step]
+    dlf = dlf[::step]
+    dl = dl[::step]
+    gl = gl[::step]
+    epoch = epoch[::step]/step
+
+    a = ax  # [0]
+    l = filename
+    a.plot(epoch, dlr, '-', label='D_loss_real' + l, alpha=0.5)
+    a.plot(epoch, dlf, '-', label='D_loss_fake' + l, alpha=0.5)
+    a.plot(epoch, dl, '-', label='D_loss (GP) ' + l)
+    a.plot(epoch, gl, '-', label='G_loss ' + l)
+    z = np.zeros_like(dl)
+    a.set_xlabel('epoch')
+    a.plot(epoch, z, '--')
+    a.legend()
+
+    # print(params['validation_dataset'])
+    if not 'validation_dataset' in params or params['validation_dataset'] is None:
+        return
+    print('validation')
+    x = np.asarray(optim['validation_d_loss'])
+    x = x[::step]
+    a.plot(epoch, x, '-', label='Valid ' + l)
+    a.legend()
+
+    return
+    # debug
+    a = ax[1]
+    n = int(len(x) * 0.2)  # first 20%
+    xc = x[0:n]
+    a.plot(epoch, x, '-', label='D_loss ' + l)
+    z = np.zeros_like(xc)
+    a.set_xlabel('epoch')
+    a.set_xlim((0, n))
+    ymin = np.amin(xc)
+    ymax = np.amax(xc)
+    a.set_ylim((ymin, ymax))
+    a.plot(z, '--')
+    a.legend()
+
+    a = ax[2]
+    n = max(10, int(len(x) * 0.01))  # last 1%
+    xc = x
+    a.plot(xc, '.-', label='D_loss ' + l)
+    z = np.zeros_like(xc)
+    a.set_xlabel('epoch')
+    a.set_xlim((len(xc) - n, len(xc)))
+    xc = x[len(x) - n:len(x)]
+    ymin = np.amin(xc)
+    ymax = np.amax(xc)
+    a.set_ylim((ymin, ymax))
+    a.plot(epoch, z, '--')
+    a.legend()
+
+
 def plot_epoch_wasserstein(ax, optim, filename):
     """
     Plot wasserstein 
@@ -321,6 +391,13 @@ def generate_samples2(params, G, n, batch_size=-1, normalize=False, to_numpy=Fal
     if batch_size > n:
         batch_size = int(n)
 
+    if 'z_rand_type' not in params:
+        params['z_rand_type'] = 'rand'
+    if params['z_rand_type'] == 'rand':
+        z_rand = torch.rand
+    if params['z_rand_type'] == 'randn':
+        z_rand = torch.randn
+
     m = 0
     z_dim = params['z_dim']
     x_dim = params['x_dim']
@@ -333,7 +410,7 @@ def generate_samples2(params, G, n, batch_size=-1, normalize=False, to_numpy=Fal
         # print('(G) current_gpu_batch_size', current_gpu_batch_size)
 
         # z = Variable(torch.randn(current_gpu_batch_size, z_dim)).type(dtypef)
-        z = Variable(torch.rand(current_gpu_batch_size, z_dim)).type(dtypef)
+        z = Variable(z_rand(current_gpu_batch_size, z_dim)).type(dtypef)
         fake = G(z)
         # put back to cpu to allow concatenation
         fake = fake.cpu().data.numpy()

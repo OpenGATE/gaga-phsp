@@ -47,7 +47,7 @@ class Discriminator(nn.Module):
             self.maps.append(nn.Linear(d_dim, d_dim))
             self.norms.append(nn.LayerNorm(d_dim))
 
-        self.map_last = nn.Linear(d_dim, 1)
+        self.map3 = nn.Linear(d_dim, 1)
         self.activation_fct = activ
 
     def forward(self, x):
@@ -63,11 +63,11 @@ class Discriminator(nn.Module):
                 x = activ(self.maps[i](x))
 
         if self.params['loss_type'] == 'non-saturating-bce':
-            x = torch.sigmoid(self.map_last(x))  # sigmoid needed to output probabilities 0-1
+            x = torch.sigmoid(self.map3(x))  # sigmoid needed to output probabilities 0-1
         else:
             # NO SIGMOID with Wasserstein
             # https://paper.dropbox.com/doc/Wasserstein-GAN--AZxqBJuXjF5jf3zyCdJAVqEMAg-GvU0p2V9ThzdwY3BbhoP7
-            x = self.map_last(x)
+            x = self.map3(x)
         return x
 
 

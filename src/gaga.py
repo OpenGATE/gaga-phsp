@@ -109,6 +109,13 @@ class Gan(object):
             self.G.cuda()
             self.D.cuda()
 
+        if 'z_rand_type' not in self.params:
+            self.params['z_rand_type'] = 'rand'
+        if self.params['z_rand_type'] == 'rand':
+            self.z_rand = torch.rand
+        if self.params['z_rand_type'] == 'randn':
+            self.z_rand = torch.randn
+
     # --------------------------------------------------------------------------
     def init_optimiser(self):
         """
@@ -128,16 +135,17 @@ class Gan(object):
                 beta1 = float(p["beta_1"])
                 beta2 = float(p["beta_2"])
             else:
-                beta1 = 0.9
+                beta1 = 0.5
                 beta2 = 0.999
+            print('beta:', beta1, beta2)
             self.d_optimizer = torch.optim.Adam(self.D.parameters(),
-                                                weight_decay=d_weight_decay,
-                                                betas=[beta1, beta2],
-                                                lr=d_learning_rate)
+                                                # weight_decay=d_weight_decay,
+                                                lr=d_learning_rate,
+                                                betas=(beta1, beta2))
             self.g_optimizer = torch.optim.Adam(self.G.parameters(),
-                                                weight_decay=g_weight_decay,
-                                                betas=[beta1, beta2],
-                                                lr=g_learning_rate)
+                                                # weight_decay=g_weight_decay,
+                                                lr=g_learning_rate,
+                                                betas=(beta1, beta2))
 
         if p['optimiser'] == 'RMSprop':
             self.d_optimizer = torch.optim.RMSprop(self.D.parameters(), lr=d_learning_rate)
@@ -172,23 +180,27 @@ class Gan(object):
         loss = self.params['loss_type']
         print(f'Loss is {loss}')
 
+        # https://github.com/AlexiaJM/MaximumMarginGANs/blob/master/Code/GAN.py
+
         if loss == 'wasserstein':
-            self.criterion_r = gaga.WassersteinNegLoss()
-            self.criterion_f = gaga.WassersteinLoss()
+            self.criterion_dr = gaga.WassersteinNegLoss()
+            self.criterion_df = gaga.WassersteinLoss()
+            self.criterion_g = self.criterion_dr
             return
 
         if loss == 'hinge':
-            self.criterion_r = gaga.HingeNegLoss()
-            self.criterion_f = gaga.HingeLoss()
+            self.criterion_dr = gaga.HingeNegLoss()
+            self.criterion_df = gaga.HingeLoss()
+            self.criterion_g = gaga.WassersteinNegLoss()
             return
 
         if loss == 'non-saturating-bce':
             if str(self.device) != 'cpu':
-                self.criterion_r = nn.BCELoss().cuda()
-                self.criterion_f = nn.BCELoss().cuda()
+                self.criterion_dr = nn.BCELoss().cuda()
+                self.criterion_df = nn.BCELoss().cuda()
             else:
-                self.criterion_r = nn.BCELoss()
-                self.criterion_f = nn.BCELoss()
+                self.criterion_dr = nn.BCELoss()
+                self.criterion_df = nn.BCELoss()
             return
 
         if loss == 'relativistic':
@@ -377,7 +389,8 @@ class Gan(object):
             print('loading validation', self.params['validation_dataset'])
             vx, vread_keys, vm = phsp.load(self.params['validation_dataset'], nmax=-1)
             p = {}
-            p['keys'] = "Ekine X Y Z dX dY dZ"  # FIXME to change !
+            p['keys'] = self.params['keys_str']  # "Ekine X Y Z dX dY dZ"  # FIXME to change !
+            print('key', p['keys'])
             vkeys, vx = gaga.select_keys(vx, p, vread_keys)
             vx, vx_mean, vx_std = gaga.normalize_data(vx)
             print('with key', vkeys)
@@ -413,15 +426,22 @@ class Gan(object):
             if self.params['penalty_type'] == 'clamp_penalty':
                 gaga.clamp_parameters(self)
 
+            # FIXME V3
+            for p in self.D.parameters():
+                p.requires_grad = True
+
             # PART 1 : D -------------------------------------------------------
             for _ in range(self.params['d_nb_update']):
+
+                # FIXME V3
+                self.D.zero_grad()
 
                 # the input data
                 # https://github.com/pytorch/pytorch/issues/1917
                 try:
                     data = next(it)
                 except StopIteration:
-                    print('dataset empty, restartfrom zero')  # restart from zero
+                    print('dataset empty, restart from zero')  # restart from zero
                     it = iter(loader)
                     data = next(it)
                 x = Variable(data).type(self.dtypef)
@@ -433,12 +453,10 @@ class Gan(object):
                 d_real_decision = self.D(x)
 
                 # generate z noise (latent)
-                # FIXME ==> randn (normal) or uniform ???
-                # z = Variable(torch.randn(batch_size, z_dim)).type(self.dtypef)
-                z = Variable(torch.rand(batch_size, z_dim)).type(self.dtypef)
+                z = Variable(self.z_rand(batch_size, z_dim)).type(self.dtypef)
 
                 # generate fake data
-                # (detach to avoid training G on these labels (?))
+                # (detach to avoid training G on these labels)
                 d_fake_data = self.G(z).detach()
 
                 # add instance noise
@@ -448,11 +466,12 @@ class Gan(object):
                 d_fake_decision = self.D(d_fake_data)
 
                 # some penalty (like WGAN-GP, gradient penalty)
-                penalty = self.penalty_fct(self, x, d_fake_data)
+                # FIXME V3 (add *w)
+                penalty = self.penalty_weight * self.penalty_fct(self, x, d_fake_data)
 
                 # relativistic ?
                 if self.params['loss_type'] == 'relativistic':
-                    d_loss = -torch.mean(d_real_decision - d_fake_decision) + self.penalty_weight * penalty
+                    d_loss = -torch.mean(d_real_decision - d_fake_decision) + penalty
                     d_real_loss = d_loss
                     d_fake_loss = d_loss
                     # y_pred = d_real_decision
@@ -460,18 +479,31 @@ class Gan(object):
                     # y = 1
                     # errD = torch.mean((y_pred - torch.mean(y_pred_fake) - y) ** 2) + torch.mean((y_pred_fake - torch.mean(y_pred) + y) ** 2) - (torch.var(y_pred, dim=0)+torch.var(y_pred_fake, dim=0))/param.batch_size
                     # d_loss = torch.mean((d_real_decision - torch.mean(d_fake_decision) - real_labels) ** 2) + torch.mean((d_fake_decision - torch.mean(d_real_decision) + real_labels) ** 2) - (torch.var(d_real_decision, dim=0)+torch.var(d_fake_decision, dim=0))/batch_size
+
+                    # FIXME V3
+                    d_loss.backward()
+                    penalty.backward()
+
                 else:
                     # compute loss between decision on real and vector of ones (real_labels)
-                    d_real_loss = self.criterion_r(d_real_decision, real_labels)
+                    d_real_loss = self.criterion_dr(d_real_decision, real_labels)
 
                     # compute loss between decision on fake and vector of zeros (fake_labels)
-                    d_fake_loss = self.criterion_f(d_fake_decision, fake_labels)
+                    d_fake_loss = self.criterion_df(d_fake_decision, fake_labels)
+
+                    # FIXME V3
+                    d_real_loss.backward()
+                    d_fake_loss.backward()
+                    penalty.backward()
 
                     # sum of loss
-                    d_loss = d_real_loss + d_fake_loss + self.penalty_weight * penalty
+                    d_loss = d_real_loss + d_fake_loss + penalty
 
                 # backprop + optimize
-                d_loss.backward()
+                # FIXME V3
+                # d_loss.backward()
+
+                # optimizer
                 self.d_optimizer.step()
 
                 # scheduler
@@ -479,11 +511,17 @@ class Gan(object):
                     self.d_scheduler.step()
 
             # PART 2 : G -------------------------------------------------------
+            # FIXME V3
+            for p in self.D.parameters():
+                p.requires_grad = False
+
             for _ in range(self.params['g_nb_update']):
 
+                # FIXME V3
+                self.G.zero_grad()
+
                 # generate z noise (latent)
-                # z = Variable(torch.randn(batch_size, z_dim)).type(self.dtypef)
-                z = Variable(torch.rand(batch_size, z_dim)).type(self.dtypef)
+                z = Variable(self.z_rand(batch_size, z_dim)).type(self.dtypef)
 
                 # generate the fake data
                 g_fake_data = self.G(z)
@@ -508,10 +546,13 @@ class Gan(object):
                     g_loss = -torch.mean(g_fake_decision - g_real_decision)
                 else:
                     # compute loss
-                    g_loss = self.criterion_r(g_fake_decision, real_labels)
+                    g_loss = self.criterion_g(g_fake_decision, real_labels)
 
                 # Backprop + Optimize
-                g_loss.backward()
+                # FIXME V3
+                # g_loss.backward()
+                g_loss.backward(retain_graph=True)
+
                 self.g_optimizer.step()
 
                 # scheduler
@@ -669,7 +710,8 @@ class Gan(object):
         x_mean = self.params['x_mean']
         x_std = self.params['x_std']
         # z = Variable(torch.randn(n, z_dim)).type(self.dtypef)
-        z = Variable(torch.rand(n, z_dim)).type(self.dtypef)
+        # z = Variable(torch.rand(n, z_dim)).type(self.dtypef)
+        z = Variable(self.z_rand(n, z_dim)).type(self.dtypef)
         fake = self.G(z)
         fake = fake.cpu().data.numpy()
         fake = (fake * x_std) + x_mean
@@ -718,8 +760,7 @@ class Gan(object):
         z_dim = self.params['z_dim']
 
         d_real_decision = self.D(validation_x)
-        # z = Variable(torch.randn(batch_size, z_dim)).type(self.dtypef)
-        z = Variable(torch.rand(batch_size, z_dim)).type(self.dtypef)
+        z = Variable(self.z_rand(batch_size, z_dim)).type(self.dtypef)
         d_fake_data = self.G(z)
         d_fake_decision = self.D(d_fake_data)
         penalty = self.penalty_fct(self, validation_x, d_fake_data)
@@ -733,9 +774,9 @@ class Gan(object):
             # d_fake_loss = d_loss
         else:
             # compute loss between decision on real and vector of ones (real_labels)
-            d_real_loss = self.criterion_r(d_real_decision, real_labels)
+            d_real_loss = self.criterion_dr(d_real_decision, real_labels)
             # compute loss between decision on fake and vector of zeros (fake_labels)
-            d_fake_loss = self.criterion_f(d_fake_decision, fake_labels)
+            d_fake_loss = self.criterion_df(d_fake_decision, fake_labels)
             # sum of loss
             d_loss = d_real_loss + d_fake_loss + self.penalty_weight * penalty
 

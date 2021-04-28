@@ -24,9 +24,11 @@ setuptools.setup(
         'colorama',
         'click',
         'scipy',
+        'garf',
         # 'torch'   # better to install torch manually to match cuda version
     ],
     scripts=[
+        'bin/gaga_train2',
         'bin/gaga_train',
         'bin/gaga_info',
         'bin/gaga_plot',
