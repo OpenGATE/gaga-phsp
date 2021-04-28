@@ -19,7 +19,7 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 @click.argument('json_filename',
                 type=click.Path(exists=True, file_okay=True, dir_okay=False))
 @click.option('--output', '-o', help='Output filename, default = automatic name', default='auto')
-@click.option('--output_folder', '-f', help='Output folder (for auto output)', default='.')
+@click.option('--output_folder', '-f', help='Output folder (ignored if output is not "auto")', default='.')
 @click.option('--progress-bar/--no-progress-bar', default=True)
 @click.option('--user_param', '-p', help='overwrite parameter of the json file', multiple=True)
 def gaga_train(phsp_filename, json_filename,
@@ -49,22 +49,24 @@ def gaga_train(phsp_filename, json_filename,
     x, read_keys, m = phsp.load(phsp_filename)
 
     # consider only some keys
-    params['keys_str'] = params['keys']
-    keys, x = gaga.select_keys(x, params, read_keys)
+    params.param_filename = json_filename
+    x = gaga.select_keys2(x, params, read_keys)
 
-    # add information
+    # add information in the params
     params['training_size'] = len(x)
-    params['keys'] = keys
-    params['x_dim'] = len(keys)
+    params['x_dim'] = len(params.keys_list)
+
+    # prepare output filename
+    gaga.auto_output_filename(params, output, output_folder)
 
     # print parameters
     for e in params:
         if (e[0] != '#'):
-            print('   {:22s} {}'.format(e, str(params[e])))
+            print(f'   {e:32s} {params[e]}')
 
     # build the model
     print(Fore.CYAN + 'Building the GAN model ...' + Style.RESET_ALL)
-    gan = gaga.Gan(params)
+    gan = gaga.Gan2(params)
 
     # train
     print(Fore.CYAN + 'Start training ...' + Style.RESET_ALL)
@@ -75,7 +77,7 @@ def gaga_train(phsp_filename, json_filename,
     params['end date'] = stop.strftime(gaga.date_format)
 
     # save output
-    gan.save(optim, output_filename)
+    gan.save(optim, params.output_filename)
 
     print('done')
 
