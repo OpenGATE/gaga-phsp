@@ -12,7 +12,7 @@ setuptools.setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/dsarrut/gaga",
-    package_dir={'': 'src'},
+    package_dir={'gaga': 'gaga'},
     packages=setuptools.find_packages('gaga'),
     classifiers=(
         "Programming Language :: Python :: 3",

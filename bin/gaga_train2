@@ -3,7 +3,6 @@
 
 import datetime
 import json
-import socket
 import click
 import colorama
 import gatetools.phsp as phsp
@@ -38,11 +37,9 @@ def gaga_train(phsp_filename, json_filename,
     # term color
     colorama.init()
 
-    # read parameters
+    # read parameters and convert to box for simpler access
     param_file = open(json_filename).read()
     params = Box(json.loads(param_file))
-    print(params.loss_type)
-    print(params)
 
     # overwrite params from the command line
     gaga.update_params(params, user_param)

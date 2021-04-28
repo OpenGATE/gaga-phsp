@@ -4,10 +4,10 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 import numpy as np
-from gaga_functions import *
-from gaga_helpers import *
-from gaga_model import Discriminator, Generator
-from gaga_model_v2 import Discriminator2, Generator2
+from .gaga_functions import *
+from .gaga_helpers import *
+from .gaga_model import Discriminator, Generator
+from .gaga_model_v2 import Discriminator2, Generator2
 
 '''
 Initial code from :
