@@ -8,7 +8,6 @@ Set of helpers functions for losses an penalties
 '''
 
 
-# -----------------------------------------------------------------------------
 class WassersteinLoss(torch.nn.Module):
     """
     Wasserstein Loss
@@ -21,7 +20,6 @@ class WassersteinLoss(torch.nn.Module):
         return torch.mean(x)
 
 
-# -----------------------------------------------------------------------------
 class WassersteinNegLoss(torch.nn.Module):
     """
     Wasserstein Loss
@@ -34,7 +32,6 @@ class WassersteinNegLoss(torch.nn.Module):
         return -torch.mean(x)
 
 
-# -----------------------------------------------------------------------------
 class HingeLoss(torch.nn.Module):
     """
     Hinge Loss
@@ -47,7 +44,6 @@ class HingeLoss(torch.nn.Module):
         return torch.mean(torch.nn.ReLU()(1.0 + x))
 
 
-# -----------------------------------------------------------------------------
 class HingeNegLoss(torch.nn.Module):
     """
     Hinge Loss
@@ -60,7 +56,6 @@ class HingeNegLoss(torch.nn.Module):
         return torch.mean(torch.nn.ReLU()(1.0 - x))
 
 
-# -----------------------------------------------------------------------------
 def zero_penalty(self, real_data, fake_data):
     """
     No penalty
@@ -68,7 +63,6 @@ def zero_penalty(self, real_data, fake_data):
     return 0
 
 
-# -----------------------------------------------------------------------------
 def clamp_parameters(self):
     """
     Clamp
@@ -77,7 +71,6 @@ def clamp_parameters(self):
         p.data.clamp_(self.clamp_lower, self.clamp_upper)
 
 
-# -----------------------------------------------------------------------------
 def get_interpolated_gradient(self, real_data, fake_data):
     """
     Common function to gradient penalty functions
@@ -113,7 +106,6 @@ def get_interpolated_gradient(self, real_data, fake_data):
     return gradients
 
 
-# -----------------------------------------------------------------------------
 def gradient_penalty(self, real_data, fake_data):
     """
     Gulrajani2017 $(||\nabla_a D(a)||_2 - 1)^2$
@@ -135,7 +127,6 @@ def gradient_penalty(self, real_data, fake_data):
     return gradient_penalty
 
 
-# -----------------------------------------------------------------------------
 def gradient_penalty_centered(self, real_data, fake_data):
     """
     Thanh-Tung2019 $(||\nabla_a D(a)||_2)^2$
@@ -156,7 +147,6 @@ def gradient_penalty_centered(self, real_data, fake_data):
     return gradient_penalty
 
 
-# -----------------------------------------------------------------------------
 def gradient_penalty_max(self, real_data, fake_data):
     """
     Petzka2018 $(max||\nabla_a D(a)||_2 - 1)^2$
@@ -177,7 +167,6 @@ def gradient_penalty_max(self, real_data, fake_data):
     return gradient_penalty
 
 
-# -----------------------------------------------------------------------------
 def gradient_penalty_linf_hinge(self, real_data, fake_data):
     """
     Jolicoeur2019 (TEST)
@@ -195,7 +184,6 @@ def gradient_penalty_linf_hinge(self, real_data, fake_data):
     return gradient_penalty
 
 
-# -----------------------------------------------------------------------------
 def gradient_penalty_linf_hinge_abs(self, real_data, fake_data):
     """
     Jolicoeur2019 (TEST), idem with abs
@@ -216,7 +204,6 @@ def gradient_penalty_linf_hinge_abs(self, real_data, fake_data):
     return gradient_penalty
 
 
-# -----------------------------------------------------------------------------
 def GP_L1_LS(self, real_data, fake_data):
     # gradient
     gradients = get_interpolated_gradient(self, real_data, fake_data)
@@ -227,7 +214,6 @@ def GP_L1_LS(self, real_data, fake_data):
     return gradient_penalty.mean()
 
 
-# -----------------------------------------------------------------------------
 def GP_L2_LS(self, real_data, fake_data):
     # Gulrajani2017 $(||\nabla_a D(a)||_2 - 1)^2$
     # gradient
@@ -239,7 +225,6 @@ def GP_L2_LS(self, real_data, fake_data):
     return gradient_penalty.mean()
 
 
-# -----------------------------------------------------------------------------
 def GP_Linf_LS(self, real_data, fake_data):
     # gradient
     gradients = get_interpolated_gradient(self, real_data, fake_data)
@@ -254,7 +239,6 @@ def GP_Linf_LS(self, real_data, fake_data):
     return gradient_penalty.mean()
 
 
-# -----------------------------------------------------------------------------
 def GP_L1_Hinge(self, real_data, fake_data):
     # gradient
     gradients = get_interpolated_gradient(self, real_data, fake_data)
@@ -265,7 +249,6 @@ def GP_L1_Hinge(self, real_data, fake_data):
     return gradient_penalty.mean()
 
 
-# -----------------------------------------------------------------------------
 def GP_L2_Hinge(self, real_data, fake_data):
     # Gulrajani2017 $(||\nabla_a D(a)||_2 - 1)^2$
     # gradient
@@ -277,7 +260,6 @@ def GP_L2_Hinge(self, real_data, fake_data):
     return gradient_penalty.mean()
 
 
-# -----------------------------------------------------------------------------
 def GP_Linf_Hinge(self, real_data, fake_data):
     # gradient
     gradients = get_interpolated_gradient(self, real_data, fake_data)
@@ -292,7 +274,6 @@ def GP_Linf_Hinge(self, real_data, fake_data):
     return gradient_penalty.mean()
 
 
-# -----------------------------------------------------------------------------
 def GP_0GP(self, real_data, fake_data):
     # thanh-tung2019, zero-centered
     # gradient
@@ -304,7 +285,6 @@ def GP_0GP(self, real_data, fake_data):
     return gradient_penalty.mean()
 
 
-# -----------------------------------------------------------------------------
 def GP_SquareHinge(self, real_data, fake_data):
     # petzka2018, square hinge
     # gradient
