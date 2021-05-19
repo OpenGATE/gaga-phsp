@@ -32,12 +32,14 @@ def gaga_info(pth_filename, plot, add_energy, sfig):
     for f in pth_filename:
         params, G, D, optim, dtypef = gaga.load(f)
         gaga.print_info(params, optim)
+        # print(G)
+        # print(D)
         if plot:
             if sfig:
                 gaga.plot_epoch_fig(ax, params, optim, f)
             else:
-                #gaga.plot_epoch(ax, params, optim, f)
-                gaga.plot_epoch2(ax, params, optim, f) # FIXME
+                # gaga.plot_epoch(ax, params, optim, f)
+                gaga.plot_epoch2(ax, params, optim, f)  # FIXME
             # gaga.plot_epoch_wasserstein(ax, optim, f)
 
     if plot:

@@ -4,7 +4,8 @@ import gatetools.phsp as phsp
 
 
 def update_params(params, user_param):
-    print('TODO')
+    for up in user_param:
+        params[up[0]] = up[1]
 
 
 def select_keys2(x, params, read_keys):
@@ -29,6 +30,6 @@ def auto_output_filename(params, output, output_folder):
         params.output_filename = output
         return
     # create an output name with some params
-    b, extension = os.path.splitext(os.path.basename(params.param_filename))
+    b, extension = os.path.splitext(os.path.basename(params.params_filename))
     output = f'{b}_{params.penalty}_{params.penalty_weight}_{params.epoch}.pth'
     params.output_filename = os.path.join(output_folder, output)

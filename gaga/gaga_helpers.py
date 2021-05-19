@@ -12,6 +12,7 @@ from scipy.stats import entropy
 from scipy.spatial.transform import Rotation
 import SimpleITK as sitk
 import logging
+import sys
 
 logger = logging.getLogger(__name__)
 
@@ -112,7 +113,7 @@ def print_info(params, optim):
     Print info about a trained GAN-PHSP
     """
     # print parameters
-    for e in params:
+    for e in sorted(params):
         if (e[0] != '#') and (e != 'x_mean') and (e != 'x_std'):
             print('   {:22s} {}'.format(e, str(params[e])))
 
@@ -136,17 +137,39 @@ def print_info(params, optim):
         print('   {:22s} {}'.format('d_best_loss', optim['d_best_loss']))
         print('   {:22s} {}'.format('d_best_epoch', optim['d_best_epoch']))
 
+    # version
+    p = 'python'
+    v = sys.version.replace('\n', '')
+    print(f'   {p:22s} {v}')
+    p = 'pytorch'
+    print(f'   {p:22s} {torch.__version__}')
+
 
 def create_G_and_D_model(params):
+    G = None
+    D = None
     if 'GAN_model' not in params:
         params['GAN_model'] = 'v1'
+    if 'model' not in params:
+        params['model'] = 'no'
+    if params['model'] == 'v3':
+        G = gaga.Generator3(params)
+        D = gaga.Discriminator3(params)
+        params['GAN_model'] = 'no'
+        return G, D
     if params['GAN_model'] == 'v1':
         G = gaga.Generator(params)
         D = gaga.Discriminator(params)
+        return G, D
     if params['GAN_model'] == 'v2':
         G = gaga.Generator2(params)
         D = gaga.Discriminator2(params)
-    return G, D
+        return G, D
+    if not D or not G:
+        print('Error in create G and D model, unknown model version?')
+        print(params['model'])
+        print(params['GAN_model'])
+        exit(0)
 
 
 def load(filename, gpu_mode='auto', verbose=False, epoch=-1):
@@ -295,13 +318,13 @@ def plot_epoch2(ax, params, optim, filename):
     epoch = np.arange(params['start_epoch'], params['end_epoch'], 1)
 
     # one epoch is when all the training dataset is seen
-    step = int(params['training_size']/params['batch_size'])
+    step = 1  # int(params['training_size'] / params['batch_size'])
     print(step)
     dlr = dlr[::step]
     dlf = dlf[::step]
     dl = dl[::step]
     gl = gl[::step]
-    epoch = epoch[::step]/step
+    epoch = epoch[::step] / step
 
     a = ax  # [0]
     l = filename
@@ -376,9 +399,22 @@ def plot_epoch_wasserstein(ax, optim, filename):
     a.legend()
 
 
-def generate_samples2(params, G, n, batch_size=-1, normalize=False, to_numpy=False):
-    z_dim = params['z_dim']
+def get_z_rand(params):
+    if 'z_rand_type' in params:
+        if params['z_rand_type'] == 'rand':
+            return torch.rand
+        if params['z_rand_type'] == 'randn':
+            return torch.randn
+    if 'z_rand' in params:
+        if params['z_rand'] == 'uniform':
+            return torch.rand
+        if params['z_rand'] == 'normal':
+            return torch.randn
+    params['z_rand_type'] = 'randn'
+    return torch.randn
 
+
+def generate_samples2(params, G, n, batch_size=-1, normalize=False, to_numpy=False):
     if params['current_gpu']:
         dtypef = torch.cuda.FloatTensor
     else:
@@ -391,12 +427,7 @@ def generate_samples2(params, G, n, batch_size=-1, normalize=False, to_numpy=Fal
     if batch_size > n:
         batch_size = int(n)
 
-    if 'z_rand_type' not in params:
-        params['z_rand_type'] = 'rand'
-    if params['z_rand_type'] == 'rand':
-        z_rand = torch.rand
-    if params['z_rand_type'] == 'randn':
-        z_rand = torch.randn
+    z_rand = get_z_rand(params)
 
     m = 0
     z_dim = params['z_dim']
@@ -833,3 +864,12 @@ def gaga_garf_generate_image(p):
     sq_img.CopyInformation(sq_images[0])
 
     return img, sq_img
+
+
+def append_gaussian(data, mean, cov, n):
+    x, y = np.random.multivariate_normal(mean, cov, n).T
+    d = np.column_stack((x, y))
+    if data is None:
+        return d
+    data = np.vstack((data, d))
+    return data

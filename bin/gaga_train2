@@ -9,6 +9,7 @@ import gatetools.phsp as phsp
 from colorama import Fore, Style
 import gaga
 from box import Box
+import socket
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 
@@ -21,10 +22,18 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 @click.option('--output', '-o', help='Output filename, default = automatic name', default='auto')
 @click.option('--output_folder', '-f', help='Output folder (ignored if output is not "auto")', default='.')
 @click.option('--progress-bar/--no-progress-bar', default=True)
-@click.option('--user_param', '-p', help='overwrite parameter of the json file', multiple=True)
+@click.option('--user_param_str', '-ps',
+              help='overwrite str parameter of the json file',
+              multiple=True, type=(str, str))
+@click.option('--user_param', '-p',
+              help='overwrite numeric parameter of the json file',
+              multiple=True, type=(str, float))
+@click.option('--user_param_int', '-pi',
+              help='overwrite numeric int parameter of the json file',
+              multiple=True, type=(str, int))
 def gaga_train(phsp_filename, json_filename,
                output, output_folder,
-               progress_bar, user_param):
+               progress_bar, user_param_str, user_param, user_param_int):
     """
     \b
     Train GAN to learn a PHSP (Phase Space File)
@@ -38,23 +47,31 @@ def gaga_train(phsp_filename, json_filename,
     colorama.init()
 
     # read parameters and convert to box for simpler access
-    param_file = open(json_filename).read()
-    params = Box(json.loads(param_file))
+    params_file = open(json_filename).read()
+    params = Box(json.loads(params_file))
 
     # overwrite params from the command line
     gaga.update_params(params, user_param)
+    gaga.update_params(params, user_param_str)
+    gaga.update_params(params, user_param_int)
 
     # read input training dataset
     print(Fore.CYAN + "Loading training dataset ... " + phsp_filename + Style.RESET_ALL)
     x, read_keys, m = phsp.load(phsp_filename)
 
     # consider only some keys
-    params.param_filename = json_filename
+    params.params_filename = json_filename
     x = gaga.select_keys2(x, params, read_keys)
 
     # add information in the params
-    params['training_size'] = len(x)
-    params['x_dim'] = len(params.keys_list)
+    params.training_size = len(x)
+    params.x_dim = len(params.keys_list)
+    params.progress_bar = progress_bar
+    params.training_filename = phsp_filename
+    start = datetime.datetime.now()
+    params.start_date = start.strftime(gaga.date_format)
+    params.hostname = socket.gethostname()
+
 
     # prepare output filename
     gaga.auto_output_filename(params, output, output_folder)
@@ -70,14 +87,14 @@ def gaga_train(phsp_filename, json_filename,
 
     # train
     print(Fore.CYAN + 'Start training ...' + Style.RESET_ALL)
-    optim = gan.train(x)
+    model = gan.train(x)
 
     # stop timer
     stop = datetime.datetime.now()
-    params['end date'] = stop.strftime(gaga.date_format)
+    params.end_date = stop.strftime(gaga.date_format)
 
-    # save output
-    gan.save(optim, params.output_filename)
+    # save output (params is in the model)
+    gan.save(model, params.output_filename)
 
     print('done')
 

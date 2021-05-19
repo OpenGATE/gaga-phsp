@@ -109,12 +109,7 @@ class Gan(object):
             self.G.cuda()
             self.D.cuda()
 
-        if 'z_rand_type' not in self.params:
-            self.params['z_rand_type'] = 'rand'
-        if self.params['z_rand_type'] == 'rand':
-            self.z_rand = torch.rand
-        if self.params['z_rand_type'] == 'randn':
-            self.z_rand = torch.randn
+        self.z_rand = get_z_rand(self.params)
 
     # --------------------------------------------------------------------------
     def init_optimiser(self):

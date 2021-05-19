@@ -33,6 +33,8 @@ setuptools.setup(
         'bin/gaga_info',
         'bin/gaga_plot',
         'bin/gaga_generate',
+        'bin/gaga_gauss_test',
+        'bin/gaga_gauss_plot',
         'bin/gaga_convert_pth_to_pt',
         'bin/gaga_wasserstein',
         'bin/gaga_garf_generate_img'
