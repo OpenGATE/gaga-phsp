@@ -30,11 +30,11 @@ def gaga_generate(pth_filename, n, output, output_folder, toggle, radius, epoch)
 
     # load pth
     params, G, D, optim, dtypef = gaga.load(pth_filename, 'auto', False, epoch)
-    f_keys = list(params['keys'])
+    f_keys = list(params['keys_list'])
 
     # generate samples (b is batch size)
     b = 1e5
-    fake = gaga.generate_samples2(params, G, n, b, False, True)
+    fake = gaga.generate_samples2(params, G, D, n, b, False, True)
 
     # Keep X,Y or convert to toggle
     if toggle:

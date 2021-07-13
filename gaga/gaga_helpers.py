@@ -414,7 +414,7 @@ def get_z_rand(params):
     return torch.randn
 
 
-def generate_samples2(params, G, n, batch_size=-1, normalize=False, to_numpy=False):
+def generate_samples2(params, G, D, n, batch_size=-1, normalize=False, to_numpy=False):
     if params['current_gpu']:
         dtypef = torch.cuda.FloatTensor
     else:
@@ -429,6 +429,10 @@ def generate_samples2(params, G, n, batch_size=-1, normalize=False, to_numpy=Fal
 
     z_rand = get_z_rand(params)
 
+    langevin_latent_sampling_flag = False
+    if 'langevin_latent_sampling' in params:
+        langevin_latent_sampling_flag = True
+
     m = 0
     z_dim = params['z_dim']
     x_dim = params['x_dim']
@@ -440,8 +444,12 @@ def generate_samples2(params, G, n, batch_size=-1, normalize=False, to_numpy=Fal
             current_gpu_batch_size = n - m
         # print('(G) current_gpu_batch_size', current_gpu_batch_size)
 
-        # z = Variable(torch.randn(current_gpu_batch_size, z_dim)).type(dtypef)
         z = Variable(z_rand(current_gpu_batch_size, z_dim)).type(dtypef)
+
+        # FIXME test langevin
+        if langevin_latent_sampling_flag:
+            z = gaga.langevin_latent_sampling(G, D, params, z)
+
         fake = G(z)
         # put back to cpu to allow concatenation
         fake = fake.cpu().data.numpy()
@@ -792,6 +800,7 @@ def gaga_garf_generate_image(p):
     # param
     gan_params = p["gan_params"]
     G = p["G"]
+    D = p["D"]
     batch_size = p["batch_size"]
     gan_batch_size = p["gan_batch_size"]
     plane = p["plane"]
@@ -816,7 +825,7 @@ def gaga_garf_generate_image(p):
         # Step 1 : GAN
         t1 = time.time()
         logger.info(f'Generating {current_batch_size} events')
-        x = gaga.generate_samples2(gan_params, G, current_batch_size, gan_batch_size, normalize=False, to_numpy=True)
+        x = gaga.generate_samples2(gan_params, G, D, current_batch_size, gan_batch_size, normalize=False, to_numpy=True)
         # print('batch / x', current_batch_size, len(x))
         logger.info('Computation time: {0:.3f} sec'.format(time.time() - t1))
 

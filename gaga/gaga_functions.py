@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 from torch.autograd import grad as torch_grad
 from torch.autograd import Variable
+import numpy as np
 
 '''
 Set of helpers functions for losses an penalties
@@ -294,3 +295,95 @@ def GP_SquareHinge(self, real_data, fake_data):
     # penalty
     gradient_penalty = (torch.nn.ReLU()(gradients_norm - 1)).pow(2)
     return gradient_penalty.mean()
+
+
+def langevin_latent_sampling(G, D, params, z):
+    print('generate with langevin')
+    n = len(z)
+    print('size', n)
+
+    """
+    line 85 run_synthetic.py
+    line 49 langevin.py
+    https://github.com/clear-nus/DGflow/blob/main/dgflow.py
+    """
+    # params
+    n_steps = params['lgs_nb_steps']
+    eta = params['lgs_lr']
+    gamma = params['lgs_gamma']
+    f = params['lgs_f']
+
+    # parameters (will be in params)
+    # n_steps = 20  # 50000 in che2020 ? ; 25 in ansari2020
+    # alpha = 1.0  # for rejection
+    # step_lr = 1e-4  ## see eta
+    # eps_std = 1e-2
+    # eta = 0.1  # step_lr = step_size
+    # f = 'KL'  # KL logD JS ; used in "velocity"
+    # gamma = 0.02  # diffusion term
+
+    fn = None
+    if f == 'KL':
+        fn = lambda d_score: torch.ones_like(d_score.detach())
+    if f == 'logD':
+        fn = lambda d_score: 1 / (1 + d_score.detach().exp())
+    if f == 'JS':
+        fn = lambda d_score: 1 / (1 + 1 / d_score.detach().exp())
+    if not fn:
+        print('ERROR lgs_f must be KL, LogD or JS')
+        return z
+
+    noise_factor = np.sqrt(gamma)
+    print('langevin nb steps ', n_steps)
+    print('langevin lr       ', eta)
+    print('langevin gamma    ', gamma)
+    print('langevin f        ', f)
+
+    """
+    KL-divergence by setting f = r log r 
+    ==> equivalent to DDLS Che2020 ? NO 
+    s = torch.ones_like(d_score.detach())
+    
+    f == 'logD' => s = 1 / (1 + d_score.detach().exp())
+    Discriminator Optimal Transport (DOT) (Tanaka, 2019) ; with λ = 1/2 ? unsure 
+    NO it is different 
+    
+    f == 'JS' => s = 1 / (1 + 1 / d_score.detach().exp())
+    proposed by ansari2020 ?
+    
+    DGflow performs well even without the diffusion term (i.e., with γ = 0)
+    """
+
+    def velocity(z):
+        z_t = z.clone()
+        z_t.requires_grad_(True)
+        if z_t.grad is not None:
+            z_t.grad.zero_()
+        x_t = G(z_t)
+        d_score = D(x_t)
+        # s = torch.ones_like(d_score.detach())
+        # s = 1 / (1 + d_score.detach().exp())
+        # s = 1 / (1 + 1 / d_score.detach().exp())  # FIXME use f
+        s = fn(d_score)
+        s.expand_as(z_t)
+        d_score.backward(torch.ones_like(d_score).to(z.device))
+        grad = z_t.grad
+        return s.data * grad.data
+
+    # loop on number of steps
+    for i in range(n_steps):
+        print(i, len(z))
+        v = velocity(z)
+        # FIXME warning randn !
+        z = z.data + eta * v + np.sqrt(2 * eta) * noise_factor * torch.randn_like(z)
+        """
+            v = velocity(z)  <--- grad ?
+            z = z.data + eta * v + np.sqrt(2*eta) * noise_factor * torch.randn_like(z)
+        """
+        """
+            eps = eps_std * xp.random.randn(batch_size, z_dim).astype(xp.float32)
+            E, grad = e_grad(z, P, gen, dis, alpha, ret_e=True)
+            z = z - step_lr * grad[0] + eps
+        """
+
+    return z

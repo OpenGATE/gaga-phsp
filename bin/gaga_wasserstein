@@ -45,7 +45,7 @@ def gaga_wasserstein(phsp_filename, pth_filename, n, l, p, keys, toggle, radius,
         keys = f_keys
             
     # generate samples (do NOT normalize yet)
-    fake = gaga.generate_samples2(params, G, n, 1e5, False, True)
+    fake = gaga.generate_samples2(params, G, D, n, 1e5, False, True)
     
     # select keys
     real = phsp.select_keys(real, r_keys, keys)

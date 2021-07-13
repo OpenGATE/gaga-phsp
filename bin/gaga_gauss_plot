@@ -40,7 +40,7 @@ def gaga_gauss_plot(phsp_filename, pth_filename, n, epoch):
     keys = f_keys.copy()
 
     # generate samples
-    fake = gaga.generate_samples2(params, G, n, int(1e5), False, True)
+    fake = gaga.generate_samples2(params, G, D, n, int(1e5), False, True)
 
     # get 2D points
     x_ref = real[:, 0]

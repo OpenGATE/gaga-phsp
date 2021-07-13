@@ -4,6 +4,7 @@ import torch
 from tqdm import tqdm
 from .gaga_functions import *
 from .gaga_helpers import *
+from .gaga_helpers2 import *
 
 '''
 Initial code from :
@@ -90,11 +91,11 @@ class Gan2(object):
             d_weight_decay = float(p["d_weight_decay"])
             print('Optimizer regularisation L2 G weight:', g_weight_decay)
             print('Optimizer regularisation L2 D weight:', d_weight_decay)
-            if "beta1" in p["beta_1"]:
+            if "beta1" in p["beta_1"]:  ## FIXME bug ????
                 beta1 = float(p["beta_1"])
                 beta2 = float(p["beta_2"])
             else:
-                beta1 = 0.5
+                beta1 = 0.9
                 beta2 = 0.999
             print('beta:', beta1, beta2)
             self.d_optimizer = torch.optim.Adam(self.D.parameters(),
@@ -107,8 +108,18 @@ class Gan2(object):
                                                 betas=(beta1, beta2))
 
         if p['optimiser'] == 'RMSprop':
-            self.d_optimizer = torch.optim.RMSprop(self.D.parameters(), lr=d_learning_rate)
-            self.g_optimizer = torch.optim.RMSprop(self.G.parameters(), lr=g_learning_rate)
+            # self.d_optimizer = torch.optim.RMSprop(self.D.parameters(), lr=d_learning_rate)
+            # self.g_optimizer = torch.optim.RMSprop(self.G.parameters(), lr=g_learning_rate)
+
+            # FIXME
+            """
+            momentum (float, optional) – momentum factor (default: 0)
+            alpha (float, optional) – smoothing constant (default: 0.99)
+            centered (bool, optional) – if True, compute the centered RMSProp, 
+                         the gradient is normalized by an estimation of its variance
+            weight_decay (float, optional) – weight decay (L2 penalty) (default: 0)
+            """
+            self.d_optimizer, self.g_optimizer = get_RMSProp_optimisers(self, p)
 
         if p['optimiser'] == 'SGD':
             self.d_optimizer = torch.optim.SGD(self.D.parameters(), lr=d_learning_rate)
@@ -360,7 +371,7 @@ class Gan2(object):
 
                 # generate fake data
                 # (detach to avoid training G on these labels)
-                d_fake_data = self.G(z) #.detach() # FIXME detach ?
+                d_fake_data = self.G(z)  # .detach() # FIXME detach ?
 
                 # add instance noise
                 d_fake_data = self.add_Gaussian_noise(d_fake_data, self.params['f_instance_noise_sigma'])
@@ -380,7 +391,8 @@ class Gan2(object):
                 # backward
                 d_real_loss.backward()
                 d_fake_loss.backward()
-                penalty.backward()
+                if self.penalty_fct != gaga.zero_penalty:
+                    penalty.backward()
 
                 # sum of loss
                 d_loss = d_real_loss + d_fake_loss + penalty

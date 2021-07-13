@@ -42,7 +42,7 @@ def gaga_plot(phsp_filename, pth_filename, n, nb_bins,
         keys_2d = []
 
     # load phsp
-    real, r_keys, m = phsp.load(phsp_filename, nmax=n, shuffle=True)
+    real, r_keys, m = phsp.load(phsp_filename, nmax=n, shuffle=False)
 
     # load pth
     params, G, D, optim, dtypef = gaga.load(pth_filename, epoch=epoch)
@@ -52,7 +52,7 @@ def gaga_plot(phsp_filename, pth_filename, n, nb_bins,
     keys = f_keys.copy()
 
     # generate samples
-    fake = gaga.generate_samples2(params, G, n, int(1e5), False, True)
+    fake = gaga.generate_samples2(params, G, D, n, int(1e5), False, True)
 
     # Keep X,Y or convert to toggle
     if toggle:

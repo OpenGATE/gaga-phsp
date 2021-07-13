@@ -35,16 +35,26 @@ class Discriminator3(nn.Module):
         x_dim = params['x_dim']
         d_dim = params['d_dim']
         d_l = params['d_layers']
+        sn = False
+        if 'spectral_norm' in params:
+            sn = params['spectral_norm']
         # activation function
         activation = get_activation(params)
         # create the net
         self.net = nn.Sequential()
         # first layer
-        self.net.add_module('1st_layer', nn.Linear(x_dim, d_dim))
+        if sn:
+            self.net.add_module('1st_layer', nn.utils.spectral_norm(nn.Linear(x_dim, d_dim)))
+        else:
+            self.net.add_module('1st_layer', nn.Linear(x_dim, d_dim))
+
         # hidden layers
         for i in range(d_l):
             self.net.add_module(f'activation_{i}', activation)
-            self.net.add_module(f'layer_{i}', nn.Linear(d_dim, d_dim))
+            if sn:
+                self.net.add_module(f'layer_{i}', nn.utils.spectral_norm(nn.Linear(d_dim, d_dim)))
+            else:
+                self.net.add_module(f'layer_{i}', nn.Linear(d_dim, d_dim))
         # latest layer
         if params['loss'] == 'non-saturating-bce':
             self.net.add_module('sigmoid', nn.Sigmoid())

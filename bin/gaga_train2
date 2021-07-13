@@ -72,10 +72,6 @@ def gaga_train(phsp_filename, json_filename,
     params.start_date = start.strftime(gaga.date_format)
     params.hostname = socket.gethostname()
 
-
-    # prepare output filename
-    gaga.auto_output_filename(params, output, output_folder)
-
     # print parameters
     for e in params:
         if (e[0] != '#'):
@@ -92,6 +88,9 @@ def gaga_train(phsp_filename, json_filename,
     # stop timer
     stop = datetime.datetime.now()
     params.end_date = stop.strftime(gaga.date_format)
+
+    # prepare output filename
+    gaga.auto_output_filename(params, output, output_folder)
 
     # save output (params is in the model)
     gan.save(model, params.output_filename)
