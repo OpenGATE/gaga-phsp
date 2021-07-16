@@ -49,9 +49,9 @@ def gaga_train(phsp_filename, json_filename,
     params = Box(json.loads(params_file))
 
     # overwrite params from the command line
-    gaga.update_params(params, user_param)
-    gaga.update_params(params, user_param_str)
-    gaga.update_params(params, user_param_int)
+    gaga.update_params_with_user_options(params, user_param)
+    gaga.update_params_with_user_options(params, user_param_str)
+    gaga.update_params_with_user_options(params, user_param_int)
 
     # read input training dataset
     print(Fore.CYAN + "Loading training dataset ... " + phsp_filename + Style.RESET_ALL)
@@ -59,7 +59,7 @@ def gaga_train(phsp_filename, json_filename,
 
     # consider only some keys
     params.params_filename = json_filename
-    x = gaga.select_keys2(x, params, read_keys)
+    x = gaga.phsp_select_keys_from_param(x, params, read_keys)
 
     # add information in the params
     params.training_size = len(x)
