@@ -184,19 +184,11 @@ def create_G_and_D_model(params):
     if 'GAN_model' not in params:
         params['GAN_model'] = 'v1'
     if 'model' not in params:
-        params['model'] = 'no'
+        params['model'] = 'v3'
     if params['model'] == 'v3':
-        G = gaga.Generator3(params)
-        D = gaga.Discriminator3(params)
-        params['GAN_model'] = 'no'
-        return G, D
-    if params['GAN_model'] == 'v1':
         G = gaga.Generator(params)
         D = gaga.Discriminator(params)
-        return G, D
-    if params['GAN_model'] == 'v2':
-        G = gaga.Generator2(params)
-        D = gaga.Discriminator2(params)
+        params['GAN_model'] = 'no'
         return G, D
     if not D or not G:
         print('Error in create G and D model, unknown model version?')

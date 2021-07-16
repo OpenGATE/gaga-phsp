@@ -1,116 +1,101 @@
-import torch
 import torch.nn as nn
-import torch.nn.functional as F
+import torch
 
 
-# -----------------------------------------------------------------------------
+class MyLeakyReLU(nn.Module):
+    def __init__(self, negative_slope=0.01):
+        super(MyLeakyReLU, self).__init__()
+        self.negative_slope = negative_slope
+
+    def forward(self, x):
+        return torch.clamp(x, min=0.0) + torch.clamp(x, max=0.0) * self.negative_slope
+
+
+def get_activation(params):
+    activation = None
+    if params.activation == 'relu':
+        activation = nn.ReLU()
+    if params.activation == 'leaky_relu':
+        activation = nn.LeakyReLU()
+    if params.activation == 'my_leaky_relu':
+        activation = MyLeakyReLU()
+    if not activation:
+        print('Error, activation unknown: ', params.activation)
+        exit(0)
+    return activation
+
+
 class Discriminator(nn.Module):
     """
-    Discriminator: D(x, θD) -> probability that x is real data
-
-    Or with Wasserstein GAN :
-    Discriminator is called Critic D(x, θD) -> Wasserstein distance
-
-    The discriminator takes in both real and fake input data and returns
-    probabilities, a number between 0 and 1, with 1 representing a prediction
-    of authenticity and 0 representing fake.
-
-    At Nash equilibrium, half of input will be real, half fake: D(x) = 1/2 (?)
-
-    Input:
-        - x_dim
-        - d_dim
-        - d_layers
-        - leaky_relu  : boolean (relu if False, leaky_relu if True)
-        - layer_norm  : boolean
-        - loss_type   : special case for 'wasserstein'
-
+    Discriminator: D(x, θD)
     """
 
     def __init__(self, params):
         super(Discriminator, self).__init__()
-
-        self.params = params
         x_dim = params['x_dim']
         d_dim = params['d_dim']
-        self.d_layers = params['d_layers']
+        d_l = params['d_layers']
+        sn = False
+        if 'spectral_norm' in params:
+            sn = params['spectral_norm']
+        # activation function
+        activation = get_activation(params)
+        # create the net
+        self.net = nn.Sequential()
+        # first layer
+        if sn:
+            self.net.add_module('1st_layer', nn.utils.spectral_norm(nn.Linear(x_dim, d_dim)))
+        else:
+            self.net.add_module('1st_layer', nn.Linear(x_dim, d_dim))
 
-        self.map1 = nn.Linear(x_dim, d_dim)
-        self.maps = nn.ModuleList()
-        self.norms = nn.ModuleList()
+        # hidden layers
+        for i in range(d_l):
+            self.net.add_module(f'activation_{i}', activation)
+            if sn:
+                self.net.add_module(f'layer_{i}', nn.utils.spectral_norm(nn.Linear(d_dim, d_dim)))
+            else:
+                self.net.add_module(f'layer_{i}', nn.Linear(d_dim, d_dim))
+        # latest layer
+        if params['loss'] == 'non-saturating-bce':
+            self.net.add_module('sigmoid', nn.Sigmoid())
+        else:
+            self.net.add_module('last_activation', activation)
+            self.net.add_module('last_layer', nn.Linear(d_dim, 1))
 
-        activ = F.relu
-        if 'leaky_relu' in params:
-            activ = F.leaky_relu
-
-        for i in range(self.d_layers):
-            self.maps.append(nn.Linear(d_dim, d_dim))
-            self.norms.append(nn.LayerNorm(d_dim))
-
-        self.map3 = nn.Linear(d_dim, 1)
-        self.activation_fct = activ
+        # for p in self.parameters():
+        #    if p.ndimension() > 1:
+        #        nn.init.kaiming_uniform_(p, nonlinearity='sigmoid')
 
     def forward(self, x):
-        activ = self.activation_fct
-        x = activ(self.map1(x))
-
-        if self.params['layer_norm']:
-            print('Layer normalisation activated for D')
-            for i in range(self.d_layers):
-                x = activ(self.norms[i](self.maps[i](x)))
-        else:
-            for i in range(self.d_layers):
-                x = activ(self.maps[i](x))
-
-        if self.params['loss_type'] == 'non-saturating-bce':
-            x = torch.sigmoid(self.map3(x))  # sigmoid needed to output probabilities 0-1
-        else:
-            # NO SIGMOID with Wasserstein
-            # https://paper.dropbox.com/doc/Wasserstein-GAN--AZxqBJuXjF5jf3zyCdJAVqEMAg-GvU0p2V9ThzdwY3BbhoP7
-            x = self.map3(x)
-        return x
+        return self.net(x)
 
 
-# -----------------------------------------------------------------------------
 class Generator(nn.Module):
     """
     Generator: G(z, θG) -> x fake samples
-
-    Create samples that are intended to come from the same distrib than the
-    training dataset. May have several z input at different layers.
-
-    Input:
-        - z_dim
-        - x_dim
-        - d_layers
-        - leaky_relu  : boolean (relu if False, leaky_relu if True)
-        - layer_norm  : boolean
-        - loss_type   : special case for 'wasserstein'
-
     """
 
     def __init__(self, params):
         super(Generator, self).__init__()
+        z_dim = params['z_dim']
+        x_dim = params['x_dim']
+        g_dim = params['g_dim']
+        g_l = params['g_layers']
+        # activation function
+        activation = get_activation(params)
+        # create the net
+        self.net = nn.Sequential()
+        # first layer
+        self.net.add_module('first_layer', nn.Linear(z_dim, g_dim))
+        # hidden layers
+        for i in range(g_l):
+            self.net.add_module(f'activation_{i}', activation)
+            self.net.add_module(f'layer_{i}', nn.Linear(g_dim, g_dim))
+        # last layer
+        self.net.add_module(f'last_activation_{i}', activation)
+        self.net.add_module(f'last_layer', nn.Linear(g_dim, x_dim))
 
-        self.params = params
-        z_dim = self.params['z_dim']
-        self.x_dim = self.params['x_dim']
-        g_dim = self.params['g_dim']
-        self.g_layers = self.params['g_layers']
-
-        self.map1 = nn.Linear(z_dim, g_dim)
-        self.maps = nn.ModuleList()
-
-        for i in range(self.g_layers):
-            self.maps.append(nn.Linear(g_dim, g_dim))
-
-        self.map3 = nn.Linear(g_dim, self.x_dim)
-
-        self.activ = F.relu
-        if 'leaky_relu' in params:
-            self.activ = F.leaky_relu
-
-        # initialisation
+        # initialisation (not sure better than default init). Keep default.
         for p in self.parameters():
             if p.ndimension() > 1:
                 nn.init.kaiming_normal_(p)  ## seems better ???
@@ -118,13 +103,4 @@ class Generator(nn.Module):
                 # nn.init.kaiming_uniform_(p, nonlinearity='sigmoid')
 
     def forward(self, x):
-        x = self.activ(self.map1(x))
-        for i in range(self.g_layers - 1):
-            x = self.activ(self.maps[i](x))
-
-        x = self.maps[self.g_layers - 1](x)  # last one
-        x = torch.sigmoid(x)  # to output probability within [0-1]
-        # x = self.activ(x)
-        x = self.map3(x)
-
-        return x
+        return self.net(x)
