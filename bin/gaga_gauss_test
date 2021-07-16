@@ -16,7 +16,8 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 @click.argument('output_filename', nargs=1)
 @click.option('--n', '-n', default=1e4, help='Number of samples to generate')
 @click.option('--plot/--no-plot', default=False)
-def gaga_test_gauss(output_filename, plot, n):
+@click.option('--gtype', '-t', default='v1', help='Type : v1, v2 etc')
+def gaga_test_gauss(output_filename, plot, n, gtype):
     """
     \b
     Generate test dataset with several 2D mixture of Gaussian
@@ -31,14 +32,19 @@ def gaga_test_gauss(output_filename, plot, n):
     # init data (must be None)
     data = None
 
-    # Gauss1 (half of n)
-    data = gaga.append_gaussian(data, [5, 0], [[5, 0], [0, 10]], int(n * 0.5))
-    # Gauss 2
-    data = gaga.append_gaussian(data, [2, 2], [[2, 0], [0, 1]], int(n * 0.35))
-    # Gauss 3
-    data = gaga.append_gaussian(data, [-4, -2], [[0.01, 0], [0, 1]], int(n * 0.15))
-    # Gauss 4
-    #data = gaga.append_gaussian(data, [0, -3], [[0.1, 0], [0, 0.2]], int(n * 0.2))
+    print(gtype)
+    if gtype == 'v3':
+        # Gauss1 (half of n)
+        data = gaga.append_gaussian(data, [5, 0], [[5, 0], [0, 10]], int(n * 0.5))
+        # Gauss 2
+        data = gaga.append_gaussian(data, [2, 2], [[2, 0], [0, 1]], int(n * 0.35))
+        # Gauss 3
+        data = gaga.append_gaussian(data, [-4, -2], [[0.01, 0], [0, 1]], int(n * 0.15))
+        # Gauss 4
+        # data = gaga.append_gaussian(data, [0, -3], [[0.1, 0], [0, 0.2]], int(n * 0.2))
+
+    if gtype == 'v1':
+        data = gaga.append_gaussian(data, [-2, 3], [[5, 0], [0, 2]], n)
 
     np.random.shuffle(data)
     x = data[:, 0]

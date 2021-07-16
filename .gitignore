@@ -16,6 +16,8 @@ aa.png
 /src/gaga.save.py
 /src/gaga.save2.py
 
-/tests/
+/tests/*npy
+/tests/*pth
+/tests/*pt
 
 /notes-push-to-pypi.txt
