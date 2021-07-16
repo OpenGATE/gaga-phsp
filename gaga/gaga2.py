@@ -353,7 +353,7 @@ class Gan2(object):
                 try:
                     data = next(it)
                 except StopIteration:
-                    print('dataset empty, restart from zero')  # restart from zero
+                    # print('dataset empty, restart from zero')  # restart from zero
                     it = iter(loader)
                     data = next(it)
                 x = Variable(data).type(self.dtypef)

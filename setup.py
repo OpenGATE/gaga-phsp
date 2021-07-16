@@ -5,7 +5,7 @@ with open("readme.md", "r") as fh:
 
 setuptools.setup(
     name="gaga",
-    version="0.5.3",
+    version="0.5.5",
     author="David Sarrut",
     author_email="david.sarrut@creatis.insa-lyon.fr",
     description="Python tools for GATE GAN simulations",
@@ -28,7 +28,6 @@ setuptools.setup(
         # 'torch'   # better to install torch manually to match cuda version
     ],
     scripts=[
-        'bin/gaga_train2',
         'bin/gaga_train',
         'bin/gaga_info',
         'bin/gaga_plot',

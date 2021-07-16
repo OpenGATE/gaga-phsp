@@ -3,42 +3,35 @@
 
 import datetime
 import json
-import socket
 import click
 import colorama
 import gatetools.phsp as phsp
 from colorama import Fore, Style
 import gaga
+from box import Box
+import socket
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 
 
 @click.command(context_settings=CONTEXT_SETTINGS)
-@click.argument('phsp_filename',
-                type=click.Path(exists=True, file_okay=True, dir_okay=False))
-@click.argument('json_filename',
-                type=click.Path(exists=True, file_okay=True, dir_okay=False))
-@click.argument('output_filename')
-@click.option('--epoch', '-e',
-              help='Number of epoch (overwrite the epoch value of the json file)',
-              type=int, default=None)
-@click.option('--lr',
-              help='Learning rate (overwrite the values of the json file)',
-              default=None)
-@click.option('--gp',
-              help='Gradient Penalty type (overwrite the values of the json file)',
-              default=None)
-@click.option('--gpw',
-              help='Gradient Penalty Weight (overwrite the values of the json file)',
-              default=None)
-@click.option('--model',
-              help='GAN model version v1 or v2 (if not set in the json param: v1)',
-              default=None)
+@click.argument('phsp_filename', type=click.Path(exists=True, file_okay=True, dir_okay=False))
+@click.argument('json_filename', type=click.Path(exists=True, file_okay=True, dir_okay=False))
+@click.option('--output', '-o', help='Output filename, default = automatic name', default='auto')
+@click.option('--output_folder', '-f', help='Output folder (ignored if output is not "auto")', default='.')
 @click.option('--progress-bar/--no-progress-bar', default=True)
-@click.option('--start-pth', default=None,
-              help='Start from already computed G and D, read in the given file')
-def gaga_train(phsp_filename, json_filename, output_filename,
-               epoch, lr, model, gp, gpw, progress_bar, start_pth):
+@click.option('--user_param_str', '-ps',
+              help='overwrite str parameter of the json file',
+              multiple=True, type=(str, str))
+@click.option('--user_param', '-p',
+              help='overwrite numeric parameter of the json file',
+              multiple=True, type=(str, float))
+@click.option('--user_param_int', '-pi',
+              help='overwrite numeric int parameter of the json file',
+              multiple=True, type=(str, int))
+def gaga_train(phsp_filename, json_filename,
+               output, output_folder,
+               progress_bar, user_param_str, user_param, user_param_int):
     """
     \b
     Train GAN to learn a PHSP (Phase Space File)
@@ -46,71 +39,61 @@ def gaga_train(phsp_filename, json_filename, output_filename,
     \b
     <PHSP_FILENAME>   : input PHSP file (.npy)
     <JSON_FILENAME>   : input json file with all GAN parameters
-    <OUTPUT_FILENAME> : output GAN as pth file
     """
 
     # term color
     colorama.init()
 
-    # read parameters
-    param_file = open(json_filename).read()
-    params = json.loads(param_file)
+    # read parameters and convert to box for simpler access
+    params_file = open(json_filename).read()
+    params = Box(json.loads(params_file))
 
-    # add params from the command line    
-    params['progress_bar'] = progress_bar
-    params['params_filename'] = json_filename
-    params['training_filename'] = phsp_filename
-    start = datetime.datetime.now()
-    params['start date'] = start.strftime(gaga.date_format)
-    params['hostname'] = socket.gethostname()
-    params['start_pth'] = start_pth
-    if model:
-        params['GAN_model'] = model
-    if epoch:
-        params['epoch'] = epoch
-    if lr:
-        params['d_learning_rate'] = float(lr)
-        params['g_learning_rate'] = float(lr)
-    if gpw:
-        params['penalty_weight'] = float(gpw)
-    if gp:
-        params['penalty_type'] = gp
-    params['plot'] = None
+    # overwrite params from the command line
+    gaga.update_params(params, user_param)
+    gaga.update_params(params, user_param_str)
+    gaga.update_params(params, user_param_int)
 
     # read input training dataset
     print(Fore.CYAN + "Loading training dataset ... " + phsp_filename + Style.RESET_ALL)
     x, read_keys, m = phsp.load(phsp_filename)
 
     # consider only some keys
-    params['keys_str'] = params['keys']
-    keys, x = gaga.select_keys(x, params, read_keys)
+    params.params_filename = json_filename
+    x = gaga.select_keys2(x, params, read_keys)
 
-    # add information
-    params['training_size'] = len(x)
-    params['keys'] = keys
-    params['x_dim'] = len(keys)
+    # add information in the params
+    params.training_size = len(x)
+    params.x_dim = len(params.keys_list)
+    params.progress_bar = progress_bar
+    params.training_filename = phsp_filename
+    start = datetime.datetime.now()
+    params.start_date = start.strftime(gaga.date_format)
+    params.hostname = socket.gethostname()
 
     # print parameters
     for e in params:
         if (e[0] != '#'):
-            print('   {:22s} {}'.format(e, str(params[e])))
+            print(f'   {e:32s} {params[e]}')
 
     # build the model
     print(Fore.CYAN + 'Building the GAN model ...' + Style.RESET_ALL)
-    gan = gaga.Gan(params)
+    gan = gaga.Gan2(params)
 
     # train
     print(Fore.CYAN + 'Start training ...' + Style.RESET_ALL)
-    optim = gan.train(x)
+    model = gan.train(x)
 
     # stop timer
     stop = datetime.datetime.now()
-    params['end date'] = stop.strftime(gaga.date_format)
+    params.end_date = stop.strftime(gaga.date_format)
 
-    # save output
-    gan.save(optim, output_filename)
+    # prepare output filename
+    gaga.auto_output_filename(params, output, output_folder)
 
-    print('done')
+    # save output (params is in the model)
+    gan.save(model, params.output_filename)
+
+    print(Fore.CYAN + f'Training done: {params.output_filename}')
 
 
 # --------------------------------------------------------------------------
