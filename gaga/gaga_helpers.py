@@ -60,6 +60,49 @@ def param_check_keys(params, read_keys):
     # print('keys_list: ', params.keys_list)
 
 
+def check_input_params(params):
+    required = ['gpu_mode', 'model', 'd_layers', 'g_layers', 'd_learning_rate', 'g_learning_rate', 'optimiser',
+                'd_nb_update', 'g_nb_update', 'loss', 'penalty', 'penalty_weight', 'batch_size', 'epoch',
+                'd_dim', 'g_dim', 'z_dim', 'r_instance_noise_sigma', 'f_instance_noise_sigma',
+                'activation', 'z_rand_type', 'shuffle', 'keys', 'epoch_dump', 'keys_list']
+    automated = ['params_filename', 'training_size', 'x_dim', 'progress_bar', 'training_filename',
+                 'start_date', 'hostname']
+
+    # forced
+    if 'r_instance_noise_sigma' not in params:
+        params['r_instance_noise_sigma'] = -1
+    if 'f_instance_noise_sigma' not in params:
+        params['f_instance_noise_sigma'] = -1
+
+    # check required
+    for req in required + automated:
+        if req not in params:
+            print(f'Error, the parameters "{req}" is required in {params}')
+            exit(0)
+
+    # look unknown param
+    optional = ['start_pth', 'start_epoch', 'schedule_learning_rate_step', 'schedule_learning_rate_gamma',
+                'label_smoothing', 'spectral_norm', 'epoch_store_model_every']
+    for p in params:
+        if p[0] == '#':
+            continue
+        if p in optional:
+            # print('Found optional: ', p)
+            pass
+        else:
+            if p not in required + automated:
+                print(f'Error, unknown param "{p}"')
+                exit(0)
+
+    # special for adam
+    if params.optimiser == "adam":
+        required_adam = ['g_weight_decay', 'd_weight_decay', 'beta_1', 'beta_2']
+        for req in required_adam:
+            if req not in params:
+                print(f'Error, the Adam parameters "{req}" is required in {params}')
+                exit(0)
+
+
 def normalize_data(x):
     """
     Consider the input vector mean and std and normalize it
@@ -172,14 +215,9 @@ def print_info(params, optim):
 def create_G_and_D_model(params):
     G = None
     D = None
-    if 'GAN_model' not in params:
-        params['GAN_model'] = 'v1'
-    if 'model' not in params:
-        params['model'] = 'v3'
     if params['model'] == 'v3':
         G = gaga.Generator(params)
         D = gaga.Discriminator(params)
-        params['GAN_model'] = 'no'
         return G, D
     if not D or not G:
         print('Error in create G and D model, unknown model version?')

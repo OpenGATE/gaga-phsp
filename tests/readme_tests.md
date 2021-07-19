@@ -53,11 +53,12 @@ generate:
 
     cd tests
     gaga_gauss_test gauss_v1.npy -n 1e5 -t v1
-    gaga_gauss_test gauss_v3.npy -n 1e5 -t v3
+    gaga_gauss_test gauss_v2.npy -n 1e5 -t v2
 
 train:
 
-    gaga_train gauss_1.npy g1.json -f . -pi epoch 100
+    gaga_train gauss_v1.npy g1.json -f . -pi epoch 1000
+    gaga_train gauss_v2.npy g2.json -f . -pi epoch 5000
     
 
 result:

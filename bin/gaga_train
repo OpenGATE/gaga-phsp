@@ -57,10 +57,10 @@ def gaga_train(phsp_filename, json_filename,
     print(Fore.CYAN + "Loading training dataset ... " + phsp_filename + Style.RESET_ALL)
     x, read_keys, m = phsp.load(phsp_filename)
 
-    # special processing for 'keys'
+    # special processing for 'keys' (required)
     gaga.param_check_keys(params, read_keys)
 
-    # consider only some keys
+    # consider only selected keys
     params.params_filename = json_filename
     x = phsp.select_keys(x, read_keys, params.keys_list)
 
@@ -72,6 +72,9 @@ def gaga_train(phsp_filename, json_filename,
     start = datetime.datetime.now()
     params.start_date = start.strftime(gaga.date_format)
     params.hostname = socket.gethostname()
+
+    # check parameters
+    gaga.check_input_params(params)
 
     # print parameters
     for e in params:

@@ -21,3 +21,10 @@ aa.png
 /tests/*pt
 
 /notes-push-to-pypi.txt
+
+/gitrefs
+/old
+/tests/old/
+/tests/jobs
+/tests_old
+/tests/a.pdf

@@ -90,13 +90,9 @@ class Gan(object):
             d_weight_decay = float(p["d_weight_decay"])
             print('Optimizer regularisation L2 G weight:', g_weight_decay)
             print('Optimizer regularisation L2 D weight:', d_weight_decay)
-            if "beta1" in p["beta_1"]:  ## FIXME bug ????
-                beta1 = float(p["beta_1"])
-                beta2 = float(p["beta_2"])
-            else:
-                beta1 = 0.9
-                beta2 = 0.999
-            print('beta:', beta1, beta2)
+            beta1 = float(p["beta_1"])
+            beta2 = float(p["beta_2"])
+            print('Adam beta:', beta1, beta2)
             self.d_optimizer = torch.optim.Adam(self.D.parameters(),
                                                 weight_decay=d_weight_decay,
                                                 lr=d_learning_rate,
