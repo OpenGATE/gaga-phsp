@@ -33,7 +33,7 @@ def gaga_test_gauss(output_filename, plot, n, gtype):
     data = None
 
     # print('Gauss type', gtype)
-    if gtype == 'v3':
+    if gtype == 'v2':
         # Gauss1 (half of n)
         data = gaga.append_gaussian(data, [5, 0], [[5, 0], [0, 10]], int(n * 0.5))
         # Gauss 2

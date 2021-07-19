@@ -57,9 +57,12 @@ def gaga_train(phsp_filename, json_filename,
     print(Fore.CYAN + "Loading training dataset ... " + phsp_filename + Style.RESET_ALL)
     x, read_keys, m = phsp.load(phsp_filename)
 
+    # special processing for 'keys'
+    gaga.param_check_keys(params, read_keys)
+
     # consider only some keys
     params.params_filename = json_filename
-    x = gaga.phsp_select_keys_from_param(x, params, read_keys)
+    x = phsp.select_keys(x, read_keys, params.keys_list)
 
     # add information in the params
     params.training_size = len(x)
@@ -77,7 +80,7 @@ def gaga_train(phsp_filename, json_filename,
 
     # build the model
     print(Fore.CYAN + 'Building the GAN model ...' + Style.RESET_ALL)
-    gan = gaga.Gan2(params)
+    gan = gaga.Gan(params)
 
     # train
     print(Fore.CYAN + 'Start training ...' + Style.RESET_ALL)

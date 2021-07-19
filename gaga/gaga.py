@@ -17,7 +17,7 @@ Disclaimer: experimental work. All mistakes and bullshits are mine.
 '''
 
 
-class Gan2(object):
+class Gan(object):
     """
     Main GAN object
     Input params = dict with all parameters and options

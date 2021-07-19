@@ -102,11 +102,11 @@
     "gpu_mode": "auto",
 
     "#": "validation dataset",
-    "validation_dataset": "gauss_1.npy",
+    "validation_dataset": "gauss_v1.npy",
     
     "#": "print info during training",
     "epoch_dump": 500,
 
     "#": "store mode every n epoch",
-    "epoch_store_model_every": 10000
+    "epoch_store_model_every": 20
 }

@@ -29,44 +29,35 @@ def update_params_with_user_options(params, user_param):
         params[up[0]] = up[1]
 
 
-def select_keys(x, params, read_keys):
+def param_check_keys(params, read_keys):
     """
-    Return the selected keys
+    Consider the 'keys' tag in param
+    - if not exist consider read_keys
+    - remove '_' if needed
+    - convert to keys_list
+    - check keys
     """
+
+    # if no keys, just consider the read ones
     if 'keys' not in params:
-        return read_keys, x
+        params['keys'] = read_keys.join(' ')
 
-    keys = params['keys']
-    keys = phsp.str_keys_to_array_keys(keys)
-    x = phsp.select_keys(x, read_keys, keys)
+    # on command line, '_' may be used to replace space, so we put it back
+    if '_' in params['keys']:
+        params['keys'] = params['keys'].replace('_', ' ')
 
-    return keys, x
+    # build the list of keys
+    params.keys_list = phsp.str_keys_to_array_keys(params['keys'])
 
+    # check
+    for k in params.keys_list:
+        if k not in read_keys:
+            print(f'Error, the key "{k}" does not belong to read keys: {read_keys}')
+            exit(0)
 
-def phsp_select_keys_from_param(x, params, read_keys):
-    """
-    Consider the keys chosen by the user in params.
-    Select among the read_keys of x
-    WARNING: if set in the command line, user need to put underscore (_) between keys
-    Add params.keys_list
-    """
-    if 'keys' not in params:
-        params.keys_list = read_keys
-        return read_keys, x
-
-    keys_list = phsp.str_keys_to_array_keys(params['keys'])
-
-    if 'skeys' in params:
-        skeys = params['skeys']
-        print('special case skeys', skeys)
-        s = skeys.replace('_', ' ')
-        keys_list = phsp.str_keys_to_array_keys(s)
-        print(keys_list)
-
-    x = phsp.select_keys(x, read_keys, keys_list)
-    params.keys_list = keys_list
-
-    return x
+    # debug
+    # print('keys:      ', params['keys'])
+    # print('keys_list: ', params.keys_list)
 
 
 def normalize_data(x):

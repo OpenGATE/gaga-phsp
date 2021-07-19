@@ -107,7 +107,7 @@ def plot_epoch2(ax, params, optim, filename):
     # print(params['validation_dataset'])
     if not 'validation_dataset' in params or params['validation_dataset'] is None:
         return
-    print('validation')
+    print('Plot with validation dataset')
     x = np.asarray(optim['validation_d_loss'])
     x = x[::step]
     a.plot(epoch, x, '-', label='Valid ' + l)
