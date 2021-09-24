@@ -63,6 +63,10 @@ train:
 
 result:
 
-    gaga_gauss_plot gauss_v1.npy g1_GP_SquareHinge_1_100.pth -n 1e4
-    gaga_plot  gauss_v1.npy g1_GP_SquareHinge_1_100.pt
+    gaga_gauss_plot gauss_v1.npy g1_GP_SquareHinge_1_1000.pth -n 1e4
+    gaga_plot  gauss_v1.npy g1_GP_SquareHinge_1_1000.pth
 
+    gaga_gauss_plot gauss_v2.npy g2_GP_SquareHinge_1_5000.pth -n 1e4
+    gaga_plot  gauss_v2.npy g2_GP_SquareHinge_1_5000.pth
+
+# Test 3: GateContrib

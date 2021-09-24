@@ -60,13 +60,14 @@ def param_check_keys(params, read_keys):
     # print('keys_list: ', params.keys_list)
 
 
-def check_input_params(params):
+def check_input_params(params, fatal_on_unknown_keys=True):
     required = ['gpu_mode', 'model', 'd_layers', 'g_layers', 'd_learning_rate', 'g_learning_rate', 'optimiser',
                 'd_nb_update', 'g_nb_update', 'loss', 'penalty', 'penalty_weight', 'batch_size', 'epoch',
                 'd_dim', 'g_dim', 'z_dim', 'r_instance_noise_sigma', 'f_instance_noise_sigma',
                 'activation', 'z_rand_type', 'shuffle', 'keys', 'epoch_dump', 'keys_list']
     automated = ['params_filename', 'training_size', 'x_dim', 'progress_bar', 'training_filename',
-                 'start_date', 'hostname']
+                 'start_date', 'hostname', 'd_nb_weights', 'g_nb_weights', 'x_mean', 'x_std', 'end_epoch',
+                 'Duration', 'duration', 'end_date', 'output_filename']
 
     # forced
     if 'r_instance_noise_sigma' not in params:
@@ -74,15 +75,33 @@ def check_input_params(params):
     if 'f_instance_noise_sigma' not in params:
         params['f_instance_noise_sigma'] = -1
 
+    # old versions does not have some tags  
+    if 'activation' not in params:
+        params['activation'] = 'relu'
+    if 'loss' not in params:
+        params['loss'] = 'wasserstein'
+    if 'model' not in params:
+        params['model'] = 'v3'
+    if 'penalty' not in params:
+        params['penalty'] = 'clamp'
+    if 'penalty_weight' not in params:
+        params['penalty_weight'] = 0
+    if 'z_rand_type' not in params:
+        params['z_rand_type'] = 'randn'
+    if 'epoch_dump' not in params:
+        params['epoch_dump'] = -1
+
     # check required
-    for req in required + automated:
+    for req in required: # + automated
         if req not in params:
             print(f'Error, the parameters "{req}" is required in {params}')
             exit(0)
 
     # look unknown param
     optional = ['start_pth', 'start_epoch', 'schedule_learning_rate_step', 'schedule_learning_rate_gamma',
-                'label_smoothing', 'spectral_norm', 'epoch_store_model_every']
+                'label_smoothing', 'spectral_norm', 'epoch_store_model_every', 'RMSprop_d_momentum',
+                'RMSprop_g_momentum', 'RMSProp_d_alpha', 'RMSProp_g_alpha',
+                'RMSProp_d_weight_decay', 'RMSProp_g_weight_decay', 'RMSProp_d_centered', 'RMSProp_g_centered']
     for p in params:
         if p[0] == '#':
             continue
@@ -91,8 +110,9 @@ def check_input_params(params):
             pass
         else:
             if p not in required + automated:
-                print(f'Error, unknown param "{p}"')
-                exit(0)
+                print(f'Warning unknown key in param "{p}"')
+                if fatal_on_unknown_keys:
+                    exit(0)
 
     # special for adam
     if params.optimiser == "adam":
@@ -236,7 +256,7 @@ def auto_output_filename(params, output, output_folder):
     params.output_filename = os.path.join(output_folder, output)
 
 
-def load(filename, gpu_mode='auto', verbose=False, epoch=-1):
+def load(filename, gpu_mode='auto', verbose=False, epoch=-1, fatal_on_unknown_keys=True):
     """
     Load a GAN-PHSP
     Output params   = dict with all parameters
@@ -252,6 +272,8 @@ def load(filename, gpu_mode='auto', verbose=False, epoch=-1):
 
     # get elements
     params = nn['params']
+    print(params)
+    gaga.check_input_params(params, fatal_on_unknown_keys)
     if not 'optim' in nn:
         optim = nn['model']  ## FIXME compatibility --> to remove
     else:
@@ -384,7 +406,7 @@ def get_z_rand(params):
     return torch.randn
 
 
-def generate_samples2(params, G, D, n, batch_size=-1, normalize=False, to_numpy=False):
+def generate_samples2(params, G, D, n, batch_size=-1, normalize=False, to_numpy=False, z=None):
     if params['current_gpu']:
         dtypef = torch.cuda.FloatTensor
     else:
@@ -414,7 +436,9 @@ def generate_samples2(params, G, D, n, batch_size=-1, normalize=False, to_numpy=
             current_gpu_batch_size = n - m
         # print('(G) current_gpu_batch_size', current_gpu_batch_size)
 
-        z = Variable(z_rand(current_gpu_batch_size, z_dim)).type(dtypef)
+        # (checking Z allow to reuse z for some special test case)
+        if None == z:
+            z = Variable(z_rand(current_gpu_batch_size, z_dim)).type(dtypef)
 
         # FIXME test langevin
         if langevin_latent_sampling_flag:

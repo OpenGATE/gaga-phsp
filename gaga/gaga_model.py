@@ -13,14 +13,15 @@ class MyLeakyReLU(nn.Module):
 
 def get_activation(params):
     activation = None
-    if params.activation == 'relu':
+    # set activation
+    if params['activation'] == 'relu':
         activation = nn.ReLU()
-    if params.activation == 'leaky_relu':
+    if params['activation'] == 'leaky_relu':
         activation = nn.LeakyReLU()
-    if params.activation == 'my_leaky_relu':
+    if params['activation'] == 'my_leaky_relu':
         activation = MyLeakyReLU()
     if not activation:
-        print('Error, activation unknown: ', params.activation)
+        print('Error, activation unknown: ', params['activation'])
         exit(0)
     return activation
 
