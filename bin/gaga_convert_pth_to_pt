@@ -16,7 +16,8 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 @click.option('--output', '-o', default='auto', help="If 'auto', use filename.pt and filename.json")
 @click.option('--gpu/--no-gpu', default=False)
 @click.option('--verbose/--no-verbose', '-v', default=False)
-@click.option('--keys', '-k', type=(str, float), multiple=True)
+@click.option('--keys', '-k', type=(str, float), multiple=True,
+              help='Default value for a given key, e.g. -k Z 1000 (for fixed Z plane)')
 @click.option('--epoch', '-e', default=-1, help='Load the G net at the given epoch (-1 for last stored epoch)')
 def gaga_convert_pth_to_pt(pth_filename, output, gpu, verbose, keys, epoch):
     """
@@ -64,12 +65,12 @@ def gaga_convert_pth_to_pt(pth_filename, output, gpu, verbose, keys, epoch):
     params['g_nb_weights'] = int(params['g_nb_weights'])
 
     for k in keys:
-        params[k[0]] = k[1];
+        params[k[0]] = k[1]
 
     outfile = open(output_json, 'w')
     if verbose:
         print('Writing ', output_json)
-    json.dump(params, outfile)
+    json.dump(params, outfile, indent=4)
 
 
 # --------------------------------------------------------------------------
