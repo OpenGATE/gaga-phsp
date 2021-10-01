@@ -1,66 +1,22 @@
-
-
-
-
 # Test 1 : Linac phsp
 
-Linac phase space 
-Trainnig dataset : `ELEKTA_PRECISE_6mv_part1.root`
-
-Todo in `GateBenchmark/t9_gaga_phsp`
-
-Training 
-    
-    conda activate pet_gan 
-    gaga_train2 train_data/ELEKTA_PRECISE_6mv_part1.root pth2/config_001.json -o pth2/001.pth
-    gaga_plot train_data/ELEKTA_PRECISE_6mv_part1.root pth2/001.pth -n 1e4
-    gaga_convert_pth_to_pt pth2/001.pth
-
- 
-
-
-Gate simulation
-
-    conda activate gate
-    gate_devel
-    
-    # in GateBenchmarks, using 001.pth
-    ./runTest.sh 
-
-    # or manually
-    Gate -a "[JOB_ID,0][N,1e2][TYPE,gaga][PTH,003]" mac/main_test.mac
-
-    # or tests
-    gate_split_and_run.py mac/main_test.mac -a N 1e7 -a PTH 001 -a TYPE gaga -j 1 -o output_001
-    gate_split_and_run.py mac/main_test.mac -a N 1e7 -a PTH 002 -a TYPE gaga -j 1 -o output_002
-    gate_split_and_run.py mac/main_test.mac -a N 1e7 -a PTH 003 -a TYPE gaga -j 1 -o output_003
-
-
-Quantitative test
-
-    ./runAnalysis.py output
-    
-    ./runAnalysis.py output_001/output.local_0
-    ./runAnalysis.py output_002/output.local_0
-    ./runAnalysis.py output_003/output.local_0
-    
-
+==> See GateBenchmark/t9_gaga_phsp
+- test train
+- test convert from pth to pt, with and without denormalisation
 
 # Test 2: Gaussian
-
-    
+   
 generate:
 
     cd tests
-    gaga_gauss_test gauss_v1.npy -n 1e5 -t v1
-    gaga_gauss_test gauss_v2.npy -n 1e5 -t v2
+    gaga_gauss_test npy/gauss_v1.npy -n 1e5 -t v1
+    gaga_gauss_test npy/gauss_v2.npy -n 1e5 -t v2
 
 train:
 
-    gaga_train gauss_v1.npy g1.json -f . -pi epoch 1000
-    gaga_train gauss_v2.npy g2.json -f . -pi epoch 5000
+    gaga_train npy/gauss_v1.npy json/g1.json -f . -pi epoch 1000
+    gaga_train npy/gauss_v2.npy json/g2.json -f . -pi epoch 5000
     
-
 result:
 
     gaga_gauss_plot gauss_v1.npy g1_GP_SquareHinge_1_1000.pth -n 1e4
@@ -69,4 +25,8 @@ result:
     gaga_gauss_plot gauss_v2.npy g2_GP_SquareHinge_1_5000.pth -n 1e4
     gaga_plot  gauss_v2.npy g2_GP_SquareHinge_1_5000.pth
 
-# Test 3: GateContrib
+# Test 3: pairs parametrisation
+
+==> See GateBenchmark/t14_phsp_pairs
+
+

@@ -1,0 +1,57 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+import click
+import gatetools as gt
+from gatetools import phsp
+import gaga
+
+CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
+
+
+@click.command(context_settings=CONTEXT_SETTINGS)
+@click.argument('pairs_filename', nargs=1)
+@click.option('--det_radius', '-d', default=170, help='Detector radius in mm')
+@click.option('--cyl_height', default=2000, help='Cylindrical height in mm')
+@click.option('-n', default='-1', help='Number of samples')
+@click.option('--shuffle', '-s', is_flag=True, default=False, help='Shuffle the n samples (slow if file is large)')
+@click.option('--output', '-o', required=True, help='output filename (npy)')
+def go(pairs_filename, det_radius, cyl_height, n, output, shuffle):
+    """
+        input : consider A (X1, Y1, Z2) and B (X2, Y2, Z2) points on a cylinder (no need to know the radius)
+        output: parametrize with timed-LOR with several methods
+        m1 --> no param: use A B dB dB
+        m2 --> lor weighted ? previous version
+        m3 --> time weighted with direction
+    """
+
+    # read data
+    n = int(float(n))
+    phsp, keys, m = gt.phsp.load(pairs_filename, nmax=n, shuffle=shuffle)
+    print('Input ', pairs_filename, n, keys)
+
+    # remove out of cylinder data
+    """Az = phsp[:, keys.index('Z1')]
+    Bz = phsp[:, keys.index('Z2')]
+    cyl_height = cyl_height / 2.0
+    mask = ~((Az >= cyl_height) | (Bz >= cyl_height) | (Az <= -cyl_height) | (Bz <= -cyl_height))
+    phsp = phsp[mask]
+    print(f'Remove out of cylinder data. Remains: {len(phsp)}/{n}')"""
+
+    # convert pairs to lor
+    params = {
+        'cyl_height': cyl_height,
+        'det_radius': det_radius,
+        'keys_list': keys
+    }
+    x, keys_out = gaga.from_pairs_to_tlor(phsp, params)
+
+    # save
+    n = len(x)
+    print('Output', n, keys_out)
+    gt.phsp.save_npy(output, x, keys_out)
+
+
+# --------------------------------------------------------------------------
+if __name__ == '__main__':
+    go()

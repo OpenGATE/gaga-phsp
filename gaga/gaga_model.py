@@ -1,5 +1,8 @@
 import torch.nn as nn
 import torch
+import gaga
+from torch.autograd import Variable
+from types import MethodType
 
 
 class MyLeakyReLU(nn.Module):
@@ -78,6 +81,7 @@ class Generator(nn.Module):
 
     def __init__(self, params):
         super(Generator, self).__init__()
+        self.params = params
         z_dim = params['z_dim']
         x_dim = params['x_dim']
         g_dim = params['g_dim']
@@ -105,3 +109,32 @@ class Generator(nn.Module):
 
     def forward(self, x):
         return self.net(x)
+
+    def forward_with_post_processing(self, x):
+        y = self.net(x)
+        y = self.denormalization(y)
+        y = self.post_process(y, self.params)
+        return y
+
+    def denormalization(self, x):
+        if self.params['apply_normalization']:
+            return (x * self.x_std) + self.x_mean
+        return x
+
+    def init_forward_with_post_processing(self, f):
+        self.post_process = f
+        self.forward = self.forward_with_post_processing
+
+    def init_forward_with_norm(self, gpu):
+        # init the std/mean in torch variable
+        dtypef, device = gaga.init_pytorch_cuda(gpu, False)
+        self.x_mean = Variable(torch.from_numpy(self.params['x_mean']).type(dtypef))
+        self.x_std = Variable(torch.from_numpy(self.params['x_std']).type(dtypef))
+        # by default, bypass the test in  denormalization
+        # (if forward_with_post_processing is used, the test is kept)
+        self.forward = self.forward_with_norm
+
+    def forward_with_norm(self, x):
+        y = self.net(x)
+        y = (y * self.x_std) + self.x_mean
+        return y

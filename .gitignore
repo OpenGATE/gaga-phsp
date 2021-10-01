@@ -3,6 +3,8 @@
 *__pycache__*
 aa.png
 
+.DS_Store
+
 /bin.save/
 /build/
 /.idea/

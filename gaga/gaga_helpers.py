@@ -75,6 +75,13 @@ def check_input_params(params, fatal_on_unknown_keys=True):
     if 'f_instance_noise_sigma' not in params:
         params['f_instance_noise_sigma'] = -1
 
+    # keys (for backward compatible)
+    if 'keys_list' not in params:
+        if type(params['keys']) == list:
+            params['keys_list'] = params['keys'].copy()
+        else:
+            params['keys_list'] = phsp.str_keys_to_array_keys(params['keys'])
+
     # old versions does not have some tags  
     if 'activation' not in params:
         params['activation'] = 'relu'
@@ -92,7 +99,7 @@ def check_input_params(params, fatal_on_unknown_keys=True):
         params['epoch_dump'] = -1
 
     # check required
-    for req in required: # + automated
+    for req in required:  # + automated
         if req not in params:
             print(f'Error, the parameters "{req}" is required in {params}')
             exit(0)
@@ -100,7 +107,7 @@ def check_input_params(params, fatal_on_unknown_keys=True):
     # look unknown param
     optional = ['start_pth', 'start_epoch', 'schedule_learning_rate_step', 'schedule_learning_rate_gamma',
                 'label_smoothing', 'spectral_norm', 'epoch_store_model_every', 'RMSprop_d_momentum',
-                'RMSprop_g_momentum', 'RMSProp_d_alpha', 'RMSProp_g_alpha',
+                'RMSprop_g_momentum', 'RMSProp_d_alpha', 'RMSProp_g_alpha', 'GAN_model',
                 'RMSProp_d_weight_decay', 'RMSProp_g_weight_decay', 'RMSProp_d_centered', 'RMSProp_g_centered']
     for p in params:
         if p[0] == '#':
@@ -110,12 +117,12 @@ def check_input_params(params, fatal_on_unknown_keys=True):
             pass
         else:
             if p not in required + automated:
-                print(f'Warning unknown key in param "{p}"')
+                print(f'Warning unknown key named "{p}" in the parameters (deprecated?)')
                 if fatal_on_unknown_keys:
                     exit(0)
 
     # special for adam
-    if params.optimiser == "adam":
+    if params['optimiser'] == "adam":
         required_adam = ['g_weight_decay', 'd_weight_decay', 'beta_1', 'beta_2']
         for req in required_adam:
             if req not in params:
@@ -272,7 +279,7 @@ def load(filename, gpu_mode='auto', verbose=False, epoch=-1, fatal_on_unknown_ke
 
     # get elements
     params = nn['params']
-    print(params)
+
     gaga.check_input_params(params, fatal_on_unknown_keys)
     if not 'optim' in nn:
         optim = nn['model']  ## FIXME compatibility --> to remove
@@ -416,6 +423,7 @@ def generate_samples2(params, G, D, n, batch_size=-1, normalize=False, to_numpy=
     if batch_size == -1:
         batch_size = int(n)
         to_numpy = True
+
     if batch_size > n:
         batch_size = int(n)
 

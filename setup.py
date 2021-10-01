@@ -36,6 +36,9 @@ setuptools.setup(
         'bin/gaga_gauss_plot',
         'bin/gaga_convert_pth_to_pt',
         'bin/gaga_wasserstein',
-        'bin/gaga_garf_generate_img'
+        'bin/gaga_garf_generate_img',
+        'bin/gaga_pairs_to_tlor',
+        'bin/gaga_tlor_to_pairs',
+        'bin/gaga_pet_to_pairs'
     ]
 )

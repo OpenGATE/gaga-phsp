@@ -29,7 +29,7 @@ def gaga_generate(pth_filename, n, output, output_folder, toggle, radius, epoch)
     n = int(float(n))
 
     # load pth
-    params, G, D, optim, dtypef = gaga.load(pth_filename, 'auto', False, epoch)
+    params, G, D, optim, dtypef = gaga.load(pth_filename, 'auto', verbose=False, epoch=epoch)
     f_keys = list(params['keys_list'])
 
     # generate samples (b is batch size)

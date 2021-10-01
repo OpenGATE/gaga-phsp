@@ -7,6 +7,7 @@ import torch
 import os
 import json
 from torch.autograd import Variable
+from types import MethodType
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 
@@ -18,17 +19,16 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 @click.option('--verbose/--no-verbose', '-v', default=False)
 @click.option('--keys', '-k', type=(str, float), multiple=True,
               help='Default value for a given key, e.g. -k Z 1000 (for fixed Z plane)')
+@click.option('--norm/--no-norm', default=True, help='If "true", embed the normalisation in the Generator.')
 @click.option('--epoch', '-e', default=-1, help='Load the G net at the given epoch (-1 for last stored epoch)')
-def gaga_convert_pth_to_pt(pth_filename, output, gpu, verbose, keys, epoch):
+def gaga_convert_pth_to_pt(pth_filename, output, gpu, norm, verbose, keys, epoch):
     """
-    \b
     Convert a .pth file from gaga to a .pt and a .json files (used by libtorch in Gate)
 
-    \b
     <PTH_FILENAME> : input GAN PTH file (.pth)
     """
 
-    # FIXME Harmonize with create_pt for GARF
+    # FIXME harmonize with create_pt for GARF
 
     # output filename
     if output == 'auto':
@@ -39,13 +39,36 @@ def gaga_convert_pth_to_pt(pth_filename, output, gpu, verbose, keys, epoch):
         output_pt = output + '.pt'
         output_json = output + '.json'
 
+    # gpu or not ? (default = no gpu in Gate)
     if gpu:
         gpu = 'true'
     else:
         gpu = 'false'
 
     # load pth
-    params, G, D, optim, dtypef = gaga.load(pth_filename, gpu, verbose, epoch=epoch)
+    params, G, D, optim, dtypef = gaga.load(pth_filename, gpu, verbose, epoch=epoch, fatal_on_unknown_keys=False)
+
+    # (un)normalization ?
+    # if true, the (un)normalization is performed in G, not in Gate (recommended)
+    # if false, the (un)normalization is performed by Gate
+    if norm:
+        params['apply_normalization'] = 0
+    else:
+        params['apply_normalization'] = 1
+    if norm:
+        print('Generator: initialize the (un)normalization during forward. gpu =', gpu)
+        G.init_forward_with_norm(gpu)
+
+    # If pairs, convert tlor to pairs
+    keys_list = params['keys_list']
+    params['is_pairs'] = 0
+    if 'Cx' in keys_list:
+        params['is_pairs'] = 1
+        print('Generator: add a post-process during forward.')
+        G.init_forward_with_post_processing(gaga.from_tlor_to_pairs)
+    if 'X1' in keys_list:
+        params['is_pairs'] = 1
+        print('pth generates pairs of particles')
 
     b = 10
     z_dim = params['z_dim']
@@ -54,22 +77,22 @@ def gaga_convert_pth_to_pt(pth_filename, output, gpu, verbose, keys, epoch):
     # generate trace
     traced_script_module = torch.jit.trace(G, z)
     traced_script_module.save(output_pt)
-    if verbose:
-        print('Writing ', output_pt)
 
     # Save dict nn into json
-    p = {}
     params["x_mean"] = params["x_mean"][0].tolist()
     params["x_std"] = params["x_std"][0].tolist()
     params['d_nb_weights'] = int(params['d_nb_weights'])
     params['g_nb_weights'] = int(params['g_nb_weights'])
 
+    # add the default key values in the param
     for k in keys:
+        print('Default value', k)
         params[k[0]] = k[1]
 
     outfile = open(output_json, 'w')
     if verbose:
-        print('Writing ', output_json)
+        print('Writing model', output_pt)
+        print('Writing json ', output_json)
     json.dump(params, outfile, indent=4)
 
 

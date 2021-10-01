@@ -1,0 +1,71 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+import click
+import gatetools as gt
+from gatetools import phsp
+import gaga
+from torch.autograd import Variable
+import torch
+
+CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
+
+
+@click.command(context_settings=CONTEXT_SETTINGS)
+@click.argument('tlor_filename', nargs=1)
+@click.option('--cyl_radius', '-r', default=170, help='Cylindrical radius in mm')
+@click.option('--cyl_height', default=2000, help='Cylindrical cyl_height in mm')
+@click.option('-n', default='-1', help='Number of samples')
+@click.option('--shuffle', '-s', is_flag=True, default=False, help='Shuffle the n samples (slow if file is large)')
+@click.option('--output', '-o', required=True, help='output filename (npy)')
+def go(tlor_filename, cyl_radius, cyl_height, n, output, shuffle):
+    """
+        Convert a phsp (npy or root) file that contains pairs of particles parameterized with tlor
+        into phsp with pairs of particles.
+        
+        tlor : Cx Cy Cz Vx Vy Vz Dx Dy Dz Wx Wy Wz t1 t2 t3 E1 E2
+        pairs: t1 t2 Ax Ay Az Bx By Bz dAx dAy dAz dBx dBy dBz E1 E2
+        
+        tlor is within a cylinder (radius, height)
+        
+    """
+
+    # read data
+    n = int(float(n))
+    phsp, keys, m = gt.phsp.load(tlor_filename, nmax=n, shuffle=shuffle)
+    print('Input ', tlor_filename, n, keys)
+    if n == -1:
+        n = m
+
+    # parameters for conversion
+    params = {
+        'cyl_radius': cyl_radius,
+        'cyl_height': cyl_height,
+        'ignore_direction': False,
+        'keys_list': keys
+    }
+    # x, keys_out = gaga.from_phsp_lor_to_pairs(phsp, keys, cyl_radius, method, ignore_direction)
+
+    # convert numpy to torch
+    # (I need to copy otherwise : 'warning NumPy array is not writeable'
+    dtypef, device = gaga.init_pytorch_cuda('auto', verbose=False)
+    print('Convert to torch tensor', dtypef)
+    phsp = Variable(torch.from_numpy(phsp.copy()).type(dtypef))
+
+    # convert tlor to pairs
+    print('Convert from tlor to pairs')
+    x = gaga.from_tlor_to_pairs(phsp, params)
+    keys_out = params['keys_output']
+    print(f'Output conversion: {len(x)}/{n}')
+    print(f'Output Keys {keys_out}')
+
+    # convert back to numpy and save
+    x = x.cpu().data.numpy()
+    n = len(x)
+    print('Output', n)
+    gt.phsp.save_npy(output, x, keys_out)
+
+
+# --------------------------------------------------------------------------
+if __name__ == '__main__':
+    go()
