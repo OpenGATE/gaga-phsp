@@ -19,11 +19,11 @@ train:
     
 result:
 
-    gaga_gauss_plot gauss_v1.npy g1_GP_SquareHinge_1_1000.pth -n 1e4
-    gaga_plot  gauss_v1.npy g1_GP_SquareHinge_1_1000.pth
+    gaga_gauss_plot npy/gauss_v1.npy pth/g1_GP_SquareHinge_1_1000.pth -n 1e4
+    gaga_plot  npy/gauss_v1.npy pth/g1_GP_SquareHinge_1_1000.pth
 
-    gaga_gauss_plot gauss_v2.npy g2_GP_SquareHinge_1_5000.pth -n 1e4
-    gaga_plot  gauss_v2.npy g2_GP_SquareHinge_1_5000.pth
+    gaga_gauss_plot npy/gauss_v2.npy pth/g2_GP_SquareHinge_1_5000.pth -n 1e4
+    gaga_plot  npy/gauss_v2.npy pth/g2_GP_SquareHinge_1_5000.pth
 
 # Test 3: pairs parametrisation
 
