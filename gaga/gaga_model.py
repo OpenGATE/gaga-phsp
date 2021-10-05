@@ -111,21 +111,20 @@ class Generator(nn.Module):
         return self.net(x)
 
     def forward_with_post_processing(self, x):
+        # generate data
         y = self.net(x)
-        y = self.denormalization(y)
+        # denormalize
+        y = (y * self.x_std) + self.x_mean
+        # apply post_process
         y = self.post_process(y, self.params)
         return y
 
-    def denormalization(self, x):
-        if self.params['apply_normalization']:
-            return (x * self.x_std) + self.x_mean
-        return x
-
-    def init_forward_with_post_processing(self, f):
+    def init_forward_with_post_processing(self, f, gpu):
         self.post_process = f
+        self.init_forward_with_denorm(gpu)
         self.forward = self.forward_with_post_processing
 
-    def init_forward_with_norm(self, gpu):
+    def init_forward_with_denorm(self, gpu):
         # init the std/mean in torch variable
         dtypef, device = gaga.init_pytorch_cuda(gpu, False)
         self.x_mean = Variable(torch.from_numpy(self.params['x_mean']).type(dtypef))

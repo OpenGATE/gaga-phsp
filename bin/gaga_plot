@@ -23,8 +23,10 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
               help='Add 2D plots (key1,key2), such as --plot2d X Ekine --plot2d X Y ', multiple=True)
 @click.option('--epoch', '-e', default=-1, help='Load the G net at the given epoch (-1 for last stored epoch)')
 @click.option('--no-title', is_flag=True, default=False)
+@click.option('--output', '-o', type=str, help='Do not plot, only output a pdf with the given name')
 def gaga_plot(phsp_filename, pth_filename, n, nb_bins,
-              toggle, radius, quantile, plot2d, epoch, no_title):
+              toggle, radius, quantile, plot2d, epoch,
+              output, no_title):
     """
     \b
     Plot marginal distributions from a GAN-PHSP
@@ -125,9 +127,11 @@ def gaga_plot(phsp_filename, pth_filename, n, nb_bins,
         plt.suptitle(pth_filename)
     plt.tight_layout()
     plt.subplots_adjust(top=0.9)
-    output_filename = 'a.pdf'
-    plt.savefig(output_filename)
-    plt.show()
+
+    if output:
+        plt.savefig(output)
+    else:
+        plt.show()
     plt.close()
 
 

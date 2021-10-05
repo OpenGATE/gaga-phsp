@@ -1,11 +1,12 @@
 # Test 1 : Linac phsp
 
 ==> See GateBenchmark/t9_gaga_phsp
+
 - test train
 - test convert from pth to pt, with and without denormalisation
 
 # Test 2: Gaussian
-   
+
 generate:
 
     cd tests
@@ -16,7 +17,7 @@ train:
 
     gaga_train npy/gauss_v1.npy json/g1.json -f . -pi epoch 1000
     gaga_train npy/gauss_v2.npy json/g2.json -f . -pi epoch 5000
-    
+
 result:
 
     gaga_gauss_plot npy/gauss_v1.npy pth/g1_GP_SquareHinge_1_1000.pth -n 1e4

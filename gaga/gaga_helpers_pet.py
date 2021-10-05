@@ -21,7 +21,6 @@ def from_tlor_to_pairs(x, params):
 
     """
 
-    print('from_tlor_to_pairs', x.size())
     keys = params['keys_list']
     params['keys_output'] = ['t1', 't2', 'X1', 'Y1', 'Z1', 'X2', 'Y2', 'Z2',
                              'dX1', 'dY1', 'dZ1', 'dX2', 'dY2', 'dZ2', 'E1', 'E2']
@@ -29,25 +28,21 @@ def from_tlor_to_pairs(x, params):
 
     # Step1: name the columns according to key
     C, V, D, W = get_key_3d(x, keys, ['Cx', 'Vx', 'Dx', 'Wx'])
-    print('C', C.size())
-    print('V', V.size())
     t1, t2, t3, E1, E2 = get_key(x, keys, ['t1', 't2', 't3', 'E1', 'E2'])
     # FIXME weights optional
 
     # Step2: find intersections with cylinder
     A, B, non_valid = line_cylinder_intersections(params['cyl_radius'], C, V)
-    print('A ', A.size())
-    print('B ', B.size())
 
     # Step3: retrieve time weighted position
     tA, tB = compute_times_wrt_weighted_position(C, A, B, t1)
-    print('tA ', tA.size())
-    print('tB ', tB.size())
 
     # Step4: direction
     dA, dB = compute_directions(D, W, t2, t3, A, B)
-    print('dA ', dA.size())
-    print('dB ', dB.size())
+
+    # clean non valid data (?) FIXME ---> put in fct
+    non_valid = (E1 <= 0).squeeze()
+    non_valid = torch.logical_or((E2 <= 0).squeeze(), non_valid)
 
     # Step4: stack
     x = torch.stack((tA, tB), dim=0).T
@@ -57,13 +52,10 @@ def from_tlor_to_pairs(x, params):
     x = torch.hstack([x, dB])
     x = torch.hstack([x, E1])
     x = torch.hstack([x, E2])
-    print('x ', x.size())
     # FIXME weights
 
     # mask non valid samples
-    print('before mask', x.size())
     x = x[~non_valid]
-    print('after mask', x.size(), type(x))
 
     # end
     return x
@@ -91,6 +83,7 @@ def from_pairs_to_tlor(x, params):
 
     # Step2: compute intersection and times with the detector
     radius = params['det_radius']
+    print(radius, type(radius))
     Ap = line_sphere_intersection(radius, A, dA)
     Bp = line_sphere_intersection(radius, B, dB)
     print('Ap Bp', Ap.shape, Bp.shape)
@@ -202,24 +195,15 @@ def compute_directions(D, W, t2, t3, A, B):
     """
 
     """
-
     # retrieve Ap and Bp
-    print('')
-    print('D', D.size())
-    print('W', W.size())
-    print('t2', t2.size())
     Ap = D - t2 * W
     Bp = D + t3 * W
-    print('Ap', Ap.size())
 
     # directions (normalized) at A and B
     dA = Ap - A
-    print('dA', dA.size())
     n = torch.linalg.norm(dA, axis=1)[:, np.newaxis]
-    print('n', n.size())
     # FIXME change to torch.nn.functional.normalize ?
     dA = dA / n
-    print('dA', dA.size())
 
     dB = Bp - B
     n = torch.linalg.norm(dB, axis=1)[:, np.newaxis]
@@ -250,18 +234,12 @@ def compute_times_wrt_weighted_position(C, A, B, t1):
     compute the times at A and B (tA and tB)
     """
     distance = torch.linalg.norm(B - A, axis=1)
-    print('dist ', distance.size())
-    print('t1 ', t1.size())
     t1 = torch.squeeze(t1)
-    print('t1 ', t1.size())
     f = t1 / distance
-    print('f ', f.size())
     distA = torch.linalg.norm(C - A, axis=1)
     distB = torch.linalg.norm(C - B, axis=1)
-    print('distA ', distA.size())
     tA = distA * f
     tB = distB * f
-    print('tA ', tA.size())
     return tA, tB
 
 

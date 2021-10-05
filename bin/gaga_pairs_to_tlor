@@ -11,8 +11,8 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 
 @click.command(context_settings=CONTEXT_SETTINGS)
 @click.argument('pairs_filename', nargs=1)
-@click.option('--det_radius', '-d', default=170, help='Detector radius in mm')
-@click.option('--cyl_height', default=2000, help='Cylindrical height in mm')
+@click.option('--det_radius', '-d', required=True, type=float, help='Detector radius in mm')
+@click.option('--cyl_height', required=True, type=float, help='Cylindrical height in mm')
 @click.option('-n', default='-1', help='Number of samples')
 @click.option('--shuffle', '-s', is_flag=True, default=False, help='Shuffle the n samples (slow if file is large)')
 @click.option('--output', '-o', required=True, help='output filename (npy)')
@@ -40,8 +40,8 @@ def go(pairs_filename, det_radius, cyl_height, n, output, shuffle):
 
     # convert pairs to lor
     params = {
-        'cyl_height': cyl_height,
-        'det_radius': det_radius,
+        'cyl_height': float(cyl_height),
+        'det_radius': float(det_radius),
         'keys_list': keys
     }
     x, keys_out = gaga.from_pairs_to_tlor(phsp, params)
