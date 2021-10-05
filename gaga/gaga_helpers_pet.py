@@ -33,6 +33,13 @@ def from_tlor_to_pairs(x, params):
 
     # Step2: find intersections with cylinder
     A, B, non_valid = line_cylinder_intersections(params['cyl_radius'], C, V)
+    h = params['cyl_height'] / 2
+    # print(torch.unique(non_valid, return_counts=True))
+    non_valid = torch.logical_or(A[:, 2] > h, non_valid)
+    non_valid = torch.logical_or(A[:, 2] < -h, non_valid)
+    non_valid = torch.logical_or(B[:, 2] > h, non_valid)
+    non_valid = torch.logical_or(B[:, 2] < -h, non_valid)
+    # print(torch.unique(non_valid, return_counts=True))
 
     # Step3: retrieve time weighted position
     tA, tB = compute_times_wrt_weighted_position(C, A, B, t1)
@@ -40,9 +47,11 @@ def from_tlor_to_pairs(x, params):
     # Step4: direction
     dA, dB = compute_directions(D, W, t2, t3, A, B)
 
-    # clean non valid data (?) FIXME ---> put in fct
-    non_valid = (E1 <= 0).squeeze()
+    # clean non valid data (negative energy)
+    non_valid = torch.logical_or((E1 <= 0).squeeze(), non_valid)
+    # print(torch.unique(non_valid, return_counts=True))
     non_valid = torch.logical_or((E2 <= 0).squeeze(), non_valid)
+    # print(torch.unique(non_valid, return_counts=True))
 
     # Step4: stack
     x = torch.stack((tA, tB), dim=0).T
@@ -70,43 +79,30 @@ def from_pairs_to_tlor(x, params):
         Output: Cx Cy Cz Vx Vy Vz Dx Dy Dz Wx Wy Wz t1 t2 t3 E1 E2
     """
 
-    print('from_pairs_to_tlor', x.shape)
     keys = params['keys_list']
     keys_output = ['Cx', 'Cy', 'Cz', 'Vx', 'Vy', 'Vz', 'Dx', 'Dy', 'Dz', 'Wx', 'Wy', 'Wz', 't1', 't2', 't3', 'E1', 'E2']
 
     # Step1: name the columns according to key
     A, B, dA, dB = get_key_3d(x, keys, ['X1', 'X2', 'dX1', 'dX2'])
     tA, tB, E1, E2 = get_key(x, keys, ['t1', 't2', 'E1', 'E2'])
-    print('A B', A.shape, B.shape)
-    print('dA dB', dA.shape, dB.shape)
-    print('tA tB', tA.shape, tB.shape)
 
     # Step2: compute intersection and times with the detector
     radius = params['det_radius']
-    print(radius, type(radius))
     Ap = line_sphere_intersection(radius, A, dA)
     Bp = line_sphere_intersection(radius, B, dB)
-    print('Ap Bp', Ap.shape, Bp.shape)
     tAp, tBp = compute_time_at_detector(A, B, Ap, Bp, tA, tB)
-    print('tAp tBp', tAp.shape, tBp.shape)
 
     # Step3: compute time weighted position for AB (relative to time at Ap not A)
     C, V, tt, n = compute_time_weighted_position(A, B, tA, tB)
-    print('C V', C.shape, V.shape)
     t1 = tt
-    print('t1', t1.shape)
 
     # compute time weighted position for A'B'
     D, W, tt, n = compute_time_weighted_position(Ap, Bp, tAp, tBp)
     t2 = np.linalg.norm(Ap - D, axis=1)
     t3 = np.linalg.norm(Bp - D, axis=1)
-    print('D W', D.shape, W.shape)
-    print('t2', t2.shape)
-    print('t3', t3.shape)
 
     # Step4: stack
     x = np.column_stack([C, V, D, W, t1, t2, t3, E1, E2])
-    print('x ', x.shape)
 
     return x, keys_output
 
@@ -116,7 +112,6 @@ def compute_time_weighted_position(A, B, tA, tB):
     n = np.linalg.norm(B - A, axis=1)[:, np.newaxis]
     # vector from A to B
     V = (B - A)
-    print('V', V.shape)
     # relative timing
     tt = tA + tB
     tAr = tA / tt
@@ -124,16 +119,10 @@ def compute_time_weighted_position(A, B, tA, tB):
     # relative time weighted position
     CA = A + tAr * V
     CB = B - tBr * V
-    print('CA', CA.shape)
-    print('CB', CB.shape)
     # CA should be equal to CB, consider the mean
     C = (CA + CB) / 2
     # normalize vector
     V = V / n
-    # print('CA', CA)
-    # print('CB', CB)
-    # print('C', C)
-    # print('V', V)
     # t1 factor
     # tt = tt[:, np.newaxis]
     # print('shape tt and n', tt.shape, n.shape)

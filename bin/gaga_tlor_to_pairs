@@ -41,12 +41,8 @@ def go(tlor_filename, cyl_radius, cyl_height, n, output, shuffle):
     params = {
         'cyl_radius': float(cyl_radius),
         'cyl_height': float(cyl_height),
-        'ignore_direction': False,
         'keys_list': keys
     }
-
-    # FIXME
-    # clean uncorrect height ?
 
     # convert numpy to torch --> this function may be embedded in the Generator for Gate
     # (I need to copy otherwise : 'warning NumPy array is not writeable'
