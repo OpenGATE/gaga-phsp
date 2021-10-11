@@ -4,7 +4,7 @@ with open("readme.md", "r") as fh:
     long_description = fh.read()
 
 setuptools.setup(
-    name="gaga",
+    name="gaga-phsp",
     version="0.5.5",
     author="David Sarrut",
     author_email="david.sarrut@creatis.insa-lyon.fr",
