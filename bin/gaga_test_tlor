@@ -6,7 +6,7 @@ import gatetools.phsp as phsp
 import numpy as np
 # from test_mmd import maximum_mean_discrepancy
 from tqdm import tqdm
-import gaga
+import gaga_phsp as gaga
 from torch.autograd import Variable
 # from helpers import *
 # from helpers_reconstruction import *

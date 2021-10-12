@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import click
-import gaga
+import gaga_phsp as gaga
 import gatetools.phsp as phsp
 from torch.autograd import Variable
 import torch

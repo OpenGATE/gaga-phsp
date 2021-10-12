@@ -9,7 +9,7 @@ import click
 import gatetools as gt
 import itk
 from tqdm import tqdm
-import gaga
+import gaga_phsp as gaga
 import garf
 
 logger = logging.getLogger(__name__)

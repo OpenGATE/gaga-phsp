@@ -5,7 +5,7 @@ import scipy
 import numpy as np
 from torch.autograd import Variable
 import torch
-import gaga
+import gaga_phsp
 
 c = scipy.constants.speed_of_light * 1000 / 1e9
 

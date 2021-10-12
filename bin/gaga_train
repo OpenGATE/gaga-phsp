@@ -7,7 +7,7 @@ import click
 import colorama
 import gatetools.phsp as phsp
 from colorama import Fore, Style
-import gaga
+import gaga_phsp as gaga
 from box import Box
 import socket
 

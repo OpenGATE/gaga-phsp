@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import click
-import gaga
+import gaga_phsp as gaga
 import torch
 import os
 import json

@@ -4,7 +4,7 @@
 import click
 import gatetools as gt
 from gatetools import phsp
-import gaga
+import gaga_phsp as gaga
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 

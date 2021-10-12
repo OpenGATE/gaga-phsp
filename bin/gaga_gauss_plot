@@ -5,7 +5,7 @@ import click
 import gatetools.phsp as phsp
 import numpy as np
 from matplotlib import pyplot as plt
-import gaga
+import gaga_phsp as gaga
 from scipy.stats import gaussian_kde
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])

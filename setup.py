@@ -11,9 +11,9 @@ setuptools.setup(
     description="Python tools for GATE GAN simulations",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/dsarrut/gaga",
-    package_dir={'gaga': 'gaga'},
-    packages=setuptools.find_packages('gaga'),
+    url="https://github.com/dsarrut/gaga-phsp",
+    package_dir={'gaga_phsp': 'gaga_phsp'},
+    packages=setuptools.find_packages('gaga_phsp'),
     classifiers=(
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: Apache Software License",

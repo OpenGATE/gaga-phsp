@@ -63,7 +63,7 @@ class Gan(object):
         if 'start_pth' in p and p['start_pth'] is not None:
             f = p['start_pth']
             print('Loading previous pth ', f)
-            start_params, start_G, start_D, start_optim, start_dtypef = gaga.load(f)
+            start_params, start_G, start_D, start_optim, start_dtypef = gaga_phsp.load(f)
             self.D = start_D
             self.G = start_G
             try:
@@ -147,15 +147,15 @@ class Gan(object):
         # https://github.com/AlexiaJM/MaximumMarginGANs/blob/master/Code/GAN.py
 
         if loss == 'wasserstein':
-            self.criterion_dr = gaga.WassersteinNegLoss()
-            self.criterion_df = gaga.WassersteinLoss()
+            self.criterion_dr = gaga_phsp.WassersteinNegLoss()
+            self.criterion_df = gaga_phsp.WassersteinLoss()
             self.criterion_g = self.criterion_dr
             return
 
         if loss == 'hinge':
-            self.criterion_dr = gaga.HingeNegLoss()
-            self.criterion_df = gaga.HingeLoss()
-            self.criterion_g = gaga.WassersteinNegLoss()
+            self.criterion_dr = gaga_phsp.HingeNegLoss()
+            self.criterion_df = gaga_phsp.HingeLoss()
+            self.criterion_g = gaga_phsp.WassersteinNegLoss()
             return
 
         if loss == 'non_saturating_bce':
@@ -171,7 +171,7 @@ class Gan(object):
         Initialise the penalty
         """
         t = self.params['penalty']
-        self.penalty_fct = gaga.zero_penalty
+        self.penalty_fct = gaga_phsp.zero_penalty
         self.penalty_weight = self.params['penalty_weight']
         print(f'Penalty weight {self.penalty_weight}')
         print(f'Penalty is: {t}')
@@ -182,14 +182,14 @@ class Gan(object):
         # Linf_LS Linf_Hinge
         # GP0 SqHinge
         penalties = {
-            'GP_L1_LS': gaga.GP_L1_LS,
-            'GP_L2_LS': gaga.GP_L2_LS,
-            'GP_Linf_LS': gaga.GP_Linf_LS,
-            'GP_L1_Hinge': gaga.GP_L1_Hinge,
-            'GP_L2_Hinge': gaga.GP_L2_Hinge,
-            'GP_Linf_Hinge': gaga.GP_Linf_Hinge,
-            'GP_0GP': gaga.GP_0GP,
-            'GP_SquareHinge': gaga.GP_SquareHinge,
+            'GP_L1_LS': gaga_phsp.GP_L1_LS,
+            'GP_L2_LS': gaga_phsp.GP_L2_LS,
+            'GP_Linf_LS': gaga_phsp.GP_Linf_LS,
+            'GP_L1_Hinge': gaga_phsp.GP_L1_Hinge,
+            'GP_L2_Hinge': gaga_phsp.GP_L2_Hinge,
+            'GP_Linf_Hinge': gaga_phsp.GP_Linf_Hinge,
+            'GP_0GP': gaga_phsp.GP_0GP,
+            'GP_SquareHinge': gaga_phsp.GP_SquareHinge,
         }
         # print(t, penalties)
         for p in penalties:
@@ -198,13 +198,13 @@ class Gan(object):
                 return
 
         if t == 'clamp':
-            self.penalty_fct = gaga.zero_penalty
+            self.penalty_fct = gaga_phsp.zero_penalty
             self.clamp_lower = self.params['clamp_lower']
             self.clamp_upper = self.params['clamp_upper']
             return
 
         if t == 'no_penalty':
-            self.penalty_fct = gaga.zero_penalty
+            self.penalty_fct = gaga_phsp.zero_penalty
             return
 
         print(f'Error, cannot set penalty {t}')
@@ -288,7 +288,7 @@ class Gan(object):
 
         # normalisation
         print('Normalization')
-        x, x_mean, x_std = gaga.normalize_data(x)
+        x, x_mean, x_std = gaga_phsp.normalize_data(x)
         self.params['x_mean'] = x_mean
         self.params['x_std'] = x_std
 
@@ -331,7 +331,7 @@ class Gan(object):
 
             # Clamp D if needed
             if self.params['penalty'] == 'clamp':
-                gaga.clamp_parameters(self)
+                gaga_phsp.clamp_parameters(self)
 
             # FIXME V3
             for p in self.D.parameters():
@@ -386,7 +386,7 @@ class Gan(object):
                 # backward
                 d_real_loss.backward()
                 d_fake_loss.backward()
-                if self.penalty_fct != gaga.zero_penalty:
+                if self.penalty_fct != gaga_phsp.zero_penalty:
                     penalty.backward()
 
                 # sum of loss
@@ -466,8 +466,8 @@ class Gan(object):
         stop = datetime.datetime.now()
         optim['last_epoch'] = epoch
         print('Training completed epoch = ', epoch)
-        print('Start time    = ', start.strftime(gaga.date_format))
-        print('End time      = ', stop.strftime(gaga.date_format))
+        print('Start time    = ', start.strftime(gaga_phsp.date_format))
+        print('End time      = ', stop.strftime(gaga_phsp.date_format))
         print('Duration time = ', (stop - start))
         self.params.Duration = str(stop - start)
         self.params.duration = str(stop - start)

@@ -1,6 +1,6 @@
 import torch.nn as nn
 import torch
-import gaga
+import gaga_phsp as gaga
 from torch.autograd import Variable
 from types import MethodType
 
