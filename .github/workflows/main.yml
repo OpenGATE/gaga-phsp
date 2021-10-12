@@ -29,7 +29,7 @@ jobs:
         architecture: 'x64'
     - name: Create Wheel
       run: | 
-          pip install bdist_wheel
+          pip install wheel
           python setup.py sdist bdist_wheel
     - name: Upload wheels
       uses: actions/upload-artifact@v1
