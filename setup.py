@@ -1,4 +1,5 @@
 import setuptools
+from setuptools import find_packages
 
 with open("readme.md", "r") as fh:
     long_description = fh.read()
@@ -12,8 +13,7 @@ setuptools.setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/dsarrut/gaga-phsp",
-    package_dir={'gaga_phsp': 'gaga_phsp'},
-    packages=setuptools.find_packages('gaga_phsp'),
+    packages=find_packages(),
     classifiers=(
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: Apache Software License",
