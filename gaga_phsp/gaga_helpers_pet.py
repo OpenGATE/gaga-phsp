@@ -3,11 +3,7 @@
 
 import scipy
 import numpy as np
-from torch.autograd import Variable
 import torch
-import gaga_phsp
-import gaga
-import torch.nn.functional as F
 
 speed_of_light = scipy.constants.speed_of_light * 1000 / 1e9
 
