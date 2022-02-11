@@ -11,7 +11,7 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 
 @click.command(context_settings=CONTEXT_SETTINGS)
 @click.argument('pairs_filename', nargs=1)
-@click.option('--det_radius', '-d', required=True, type=float, help='Detector radius in mm')
+@click.option('--det_radius', '-d', required=False, default=0, type=float, help='Detector radius in mm')
 @click.option('--cyl_height', required=True, type=float, help='Cylindrical height in mm')
 @click.option('-n', default='-1', help='Number of samples')
 @click.option('--shuffle', '-s', is_flag=True, default=False, help='Shuffle the n samples (slow if file is large)')
@@ -30,18 +30,10 @@ def go(pairs_filename, det_radius, cyl_height, n, output, shuffle):
     phsp, keys, m = gt.phsp.load(pairs_filename, nmax=n, shuffle=shuffle)
     print('Input ', pairs_filename, n, keys)
 
-    # remove out of cylinder data
-    """Az = phsp[:, keys.index('Z1')]
-    Bz = phsp[:, keys.index('Z2')]
-    cyl_height = cyl_height / 2.0
-    mask = ~((Az >= cyl_height) | (Bz >= cyl_height) | (Az <= -cyl_height) | (Bz <= -cyl_height))
-    phsp = phsp[mask]
-    print(f'Remove out of cylinder data. Remains: {len(phsp)}/{n}')"""
-
     # convert pairs to lor
     params = {
         'cyl_height': float(cyl_height),
-        'det_radius': float(det_radius),
+        'det_radius': float(det_radius), # FIXME unused
         'keys_list': keys
     }
     x, keys_out = gaga.from_pairs_to_tlor(phsp, params)

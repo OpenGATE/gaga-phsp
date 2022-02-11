@@ -31,7 +31,7 @@ def go(root_filename, output, time_col):
     print(output)
 
     print(f)
-    phspf = f['PhaseSpace']
+    phspf = f['Hits']
     print(phspf)
     phspf.show()
 

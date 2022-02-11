@@ -348,7 +348,7 @@ class Gan(object):
                 try:
                     data = next(it)
                 except StopIteration:
-                    # print('dataset empty, restart from zero')  # restart from zero
+                    print('dataset empty, restart from zero', epoch)  # restart from zero
                     it = iter(loader)
                     data = next(it)
                 x = Variable(data).type(self.dtypef)
@@ -366,7 +366,7 @@ class Gan(object):
 
                 # generate fake data
                 # (detach to avoid training G on these labels)
-                d_fake_data = self.G(z)  # .detach() # FIXME detach ?
+                d_fake_data = self.G(z).detach()  # FIXME detach ?
 
                 # add instance noise
                 d_fake_data = self.add_Gaussian_noise(d_fake_data, self.params['f_instance_noise_sigma'])

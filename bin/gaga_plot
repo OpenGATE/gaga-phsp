@@ -81,6 +81,7 @@ def gaga_plot(phsp_filename, pth_filename, n, nb_bins,
     # plot all keys for real data
     i = 0
     q = {}
+    n = 0
     for k in keys:
         index = keys.index(k)
         d = real[:, index]
@@ -121,7 +122,7 @@ def gaga_plot(phsp_filename, pth_filename, n, nb_bins,
                 i = i + 1
 
     # remove empty plot
-    phsp.fig_rm_empty_plot(nb_fig, ax)
+    phsp.fig_rm_empty_plot(nb_fig, i, ax)
 
     if not no_title:
         plt.suptitle(pth_filename)

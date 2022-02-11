@@ -438,6 +438,7 @@ def generate_samples2(params, G, D, n, batch_size=-1, normalize=False, to_numpy=
     x_dim = params['x_dim']
     rfake = np.empty((0, x_dim))
     while m < n:
+        print('m n', m, n)
         # no more samples than needed
         current_gpu_batch_size = batch_size
         if current_gpu_batch_size > n - m:
@@ -445,8 +446,8 @@ def generate_samples2(params, G, D, n, batch_size=-1, normalize=False, to_numpy=
         # print('(G) current_gpu_batch_size', current_gpu_batch_size)
 
         # (checking Z allow to reuse z for some special test case)
-        if None == z:
-            z = Variable(z_rand(current_gpu_batch_size, z_dim)).type(dtypef)
+        #if None == z:
+        z = Variable(z_rand(current_gpu_batch_size, z_dim)).type(dtypef)
 
         # FIXME test langevin
         if langevin_latent_sampling_flag:

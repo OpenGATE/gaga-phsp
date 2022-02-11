@@ -95,10 +95,10 @@ def plot_epoch2(ax, params, optim, filename):
 
     a = ax  # [0]
     l = filename
-    a.plot(epoch, dlr, '-', label='D_loss_real' + l, alpha=0.5)
-    a.plot(epoch, dlf, '-', label='D_loss_fake' + l, alpha=0.5)
+    # a.plot(epoch, dlr, '-', label='D_loss_real' + l, alpha=0.5)
+    # a.plot(epoch, dlf, '-', label='D_loss_fake' + l, alpha=0.5)
     a.plot(epoch, dl, '-', label='D_loss (GP) ' + l)
-    a.plot(epoch, gl, '-', label='G_loss ' + l)
+    a.plot(epoch, gl, '-', label='G_loss ' + l, alpha=0.5)
     z = np.zeros_like(dl)
     a.set_xlabel('epoch')
     a.plot(epoch, z, '--')

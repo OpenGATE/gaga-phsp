@@ -80,13 +80,12 @@ def gaga_convert_pth_to_pt(pth_filename, output, gpu, denorm, verbose, keys, epo
         params['is_pairs'] = 1
         print('pth generates pairs of particles')
 
-    b = 10
+    b = 100
     z_dim = params['z_dim']
     z = Variable(torch.randn(b, z_dim)).type(dtypef)
 
     # generate trace
     traced_script_module = torch.jit.trace(G, z)
-    print('DONE')
     keys_out = params['keys_output']
     print(keys_out)
     params['keys_input'] = params['keys_list']

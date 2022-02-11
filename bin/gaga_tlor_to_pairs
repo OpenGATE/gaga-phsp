@@ -45,7 +45,7 @@ def go(tlor_filename, cyl_radius, cyl_height, n, output, shuffle):
     }
 
     # convert numpy to torch --> this function may be embedded in the Generator for Gate
-    # (I need to copy otherwise : 'warning NumPy array is not writeable'
+    # (I need to copy, otherwise : 'warning NumPy array is not writeable')
     dtypef, device = gaga.init_pytorch_cuda('auto', verbose=False)
     phsp = Variable(torch.from_numpy(phsp.copy()).type(dtypef))
 

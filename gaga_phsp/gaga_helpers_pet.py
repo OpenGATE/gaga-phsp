@@ -6,17 +6,18 @@ import numpy as np
 from torch.autograd import Variable
 import torch
 import gaga_phsp
+import gaga
+import torch.nn.functional as F
 
-c = scipy.constants.speed_of_light * 1000 / 1e9
+speed_of_light = scipy.constants.speed_of_light * 1000 / 1e9
 
 
 def from_tlor_to_pairs(x, params):
     """
         WARNING: the input 'x' is considered to be a torch Variable (not numpy)
-        Expected options in params: keys_lists, cyl_radius,
+        Expected options in params: keys_lists, cyl_radius, ignore_directions
 
-        Input:  Cx Cy Cz Vx Vy Vz Dx Dy Dz Wx Wy Wz t1 t2 t3 E1 E2
-        Temp:   t1 t2 Ax Ay Az Bx By Bz dAx dAy dAz dBx dBy dBz E1 E2
+        Input:  Cx Cy Cz Vx Vy Vz dAx dAy dAz dBx dBy dBz t1 E1 E2
         Output: t1 t2 X1 Y1 Z1 X2 Y2 Z2 dX1 dY1 dZ1 dX2 dY2 dZ2 E1 E2
 
     """
@@ -27,41 +28,78 @@ def from_tlor_to_pairs(x, params):
     # FIXME add weights
 
     # Step1: name the columns according to key
-    C, V, D, W = get_key_3d(x, keys, ['Cx', 'Vx', 'Dx', 'Wx'])
-    t1, t2, t3, E1, E2 = get_key(x, keys, ['t1', 't2', 't3', 'E1', 'E2'])
+    print(keys)
+    C, V, = get_key_3d(x, keys, ['Cx', 'Vx'])
+    if params['ignore_directions']:
+        params['keys_output'].remove('dX1')
+        params['keys_output'].remove('dY1')
+        params['keys_output'].remove('dZ1')
+        params['keys_output'].remove('dX2')
+        params['keys_output'].remove('dY2')
+        params['keys_output'].remove('dZ2')
+        print('remove ', params)
+    else:
+        dA, dB = get_key_3d(x, keys, ['dAx', 'dBx'])
+    t1, E1, E2 = get_key(x, keys, ['t1', 'E1', 'E2'])
+
     # FIXME weights optional
+    w = False
+    if 'w1' in keys:
+        w = get_key(x, keys, ['w1'])[0]
+        params['keys_output'].append('w')
 
     # Step2: find intersections with cylinder
     A, B, non_valid = line_cylinder_intersections(params['cyl_radius'], C, V)
-    h = params['cyl_height'] / 2
-    # print(torch.unique(non_valid, return_counts=True))
+    h = params['cyl_height']
+    print('cyl inter', torch.unique(non_valid, return_counts=True))
     non_valid = torch.logical_or(A[:, 2] > h, non_valid)
+    print('A h', torch.unique(non_valid, return_counts=True))
     non_valid = torch.logical_or(A[:, 2] < -h, non_valid)
+    print('A -h', torch.unique(non_valid, return_counts=True))
     non_valid = torch.logical_or(B[:, 2] > h, non_valid)
+    print('B h', torch.unique(non_valid, return_counts=True))
     non_valid = torch.logical_or(B[:, 2] < -h, non_valid)
-    # print(torch.unique(non_valid, return_counts=True))
+    print('B -h', torch.unique(non_valid, return_counts=True))
 
     # Step3: retrieve time weighted position
     tA, tB = compute_times_wrt_weighted_position(C, A, B, t1)
 
+    # alternative to step4 -> intersection with virtual spherical detector ? (no need t2, t3 ??)
+    """dtypef, device = gaga.init_pytorch_cuda('auto', verbose=False)
+    D = D.cpu().data.numpy()
+    W = W.cpu().data.numpy()
+    Ap = line_sphere_intersection(500, D, -W)
+    Bp = line_sphere_intersection(500, D, W)
+    Ap = Variable(torch.from_numpy(Ap).type(dtypef))
+    Bp = Variable(torch.from_numpy(Bp).type(dtypef))
+
+    dA = Ap - A
+    dA = F.normalize(dA, p=2, dim=1)
+    dB = Bp - B
+    dB = F.normalize(dB, p=2, dim=1)"""
+
     # Step4: direction
-    dA, dB = compute_directions(D, W, t2, t3, A, B)
+    # dA, dB = compute_directions(D, W, t2, t3, A, B)
 
     # clean non valid data (negative energy)
     non_valid = torch.logical_or((E1 <= 0).squeeze(), non_valid)
-    # print(torch.unique(non_valid, return_counts=True))
+    print('E1', torch.unique(non_valid, return_counts=True))
     non_valid = torch.logical_or((E2 <= 0).squeeze(), non_valid)
-    # print(torch.unique(non_valid, return_counts=True))
+    print('E2', torch.unique(non_valid, return_counts=True))
 
     # Step4: stack
     x = torch.stack((tA, tB), dim=0).T
     x = torch.hstack([x, A])
     x = torch.hstack([x, B])
-    x = torch.hstack([x, dA])
-    x = torch.hstack([x, dB])
+    if not params['ignore_directions']:
+        x = torch.hstack([x, dA])
+        x = torch.hstack([x, dB])
     x = torch.hstack([x, E1])
     x = torch.hstack([x, E2])
+
     # FIXME weights
+    if 'w1' in keys:
+        x = torch.hstack([x, w])
 
     # mask non valid samples
     x = x[~non_valid]
@@ -75,43 +113,50 @@ def from_pairs_to_tlor(x, params):
         x is numpy array
         Convert pairs into tlor parametrisation
         Input:  t1 t2 X1 Y1 Z1 X2 Y2 Z2 dX1 dY1 dZ1 dX2 dY2 dZ2 E1 E2
-        Temp:   t1 t2 Ax Ay Az Bx By Bz dAx dAy dAz dBx dBy dBz E1 E2
-        Output: Cx Cy Cz Vx Vy Vz Dx Dy Dz Wx Wy Wz t1 t2 t3 E1 E2
+        Output: Cx Cy Cz Vx Vy Vz dAx dAy dAz dBx dBy dBz t1 E1 E2
     """
 
     keys = params['keys_list']
-    keys_output = ['Cx', 'Cy', 'Cz', 'Vx', 'Vy', 'Vz', 'Dx', 'Dy', 'Dz', 'Wx', 'Wy', 'Wz', 't1', 't2', 't3', 'E1', 'E2']
+    keys_output = ['Cx', 'Cy', 'Cz', 'Vx', 'Vy', 'Vz', 'dAx', 'dAy', 'dAz', 'dBx', 'dBy', 'dBz',
+                   't1', 'E1', 'E2', 'w1']
 
     # Step1: name the columns according to key
     A, B, dA, dB = get_key_3d(x, keys, ['X1', 'X2', 'dX1', 'dX2'])
     tA, tB, E1, E2 = get_key(x, keys, ['t1', 't2', 'E1', 'E2'])
 
-    # Step2: compute intersection and times with the detector
-    radius = params['det_radius']
-    Ap = line_sphere_intersection(radius, A, dA)
-    Bp = line_sphere_intersection(radius, B, dB)
-    tAp, tBp = compute_time_at_detector(A, B, Ap, Bp, tA, tB)
+    # special case for weight that can be ignored
+    if 'w1' in keys:
+        w1 = get_key(x, keys, ['w1'])[0]
+    else:
+        w1 = np.ones_like(tA)
+
+    # Step2: compute intersection and times with a virtual spherical detector
+    # radius = params['det_radius']  # FIXME arbitrary !
+    # Ap = line_sphere_intersection(radius, A, dA)
+    # Bp = line_sphere_intersection(radius, B, dB)
 
     # Step3: compute time weighted position for AB (relative to time at Ap not A)
-    C, V, tt, n = compute_time_weighted_position(A, B, tA, tB)
-    t1 = tt
+    # t1 is sum of tA+tB
+    C, V, t1 = compute_time_weighted_position(A, B, tA, tB)
 
     # compute time weighted position for A'B'
-    D, W, tt, n = compute_time_weighted_position(Ap, Bp, tAp, tBp)
-    t2 = np.linalg.norm(Ap - D, axis=1)
-    t3 = np.linalg.norm(Bp - D, axis=1)
+    # tAp, tBp = compute_time_at_detector(A, B, Ap, Bp, tA, tB)
+    # D, W, tt = compute_time_weighted_position(Ap, Bp, tAp, tBp)
+    # t2 and t3 are distances (not time!) # FIXME
+    # t2 = np.linalg.norm(Ap - D, axis=1)
+    # t3 = np.linalg.norm(Bp - D, axis=1)
 
     # Step4: stack
-    x = np.column_stack([C, V, D, W, t1, t2, t3, E1, E2])
+    x = np.column_stack([C, V, dA, dB, t1, E1, E2, w1])
 
     return x, keys_output
 
 
 def compute_time_weighted_position(A, B, tA, tB):
-    # norm of |AB|
-    n = np.linalg.norm(B - A, axis=1)[:, np.newaxis]
     # vector from A to B
     V = (B - A)
+    # norm of |AB|
+    n = np.linalg.norm(V, axis=1)[:, np.newaxis]
     # relative timing
     tt = tA + tB
     tAr = tA / tt
@@ -127,7 +172,7 @@ def compute_time_weighted_position(A, B, tA, tB):
     # tt = tt[:, np.newaxis]
     # print('shape tt and n', tt.shape, n.shape)
     # t1 = tt / n  # FIXME total time divided by segment length
-    return C, V, tt, n
+    return C, V, tt
 
 
 def compute_time_at_detector(A, B, Ap, Bp, tA, tB):
@@ -137,8 +182,8 @@ def compute_time_at_detector(A, B, Ap, Bp, tA, tB):
     distance_AAp = np.linalg.norm(Ap - A, axis=1)[:, np.newaxis]
     distance_BBp = np.linalg.norm(Bp - B, axis=1)[:, np.newaxis]
     # convert in time
-    tAp = tA + distance_AAp / c
-    tBp = tB + distance_BBp / c
+    tAp = tA + distance_AAp / speed_of_light
+    tBp = tB + distance_BBp / speed_of_light
     return tAp, tBp
 
 
@@ -150,14 +195,14 @@ def line_sphere_intersection(radius, P, dir):
     nabla = np.einsum('ij, ij->i', P, dir)
     nabla = np.square(nabla)
     nabla = nabla - (np.linalg.norm(P, axis=1, ord=2) - radius ** 2)
-    # FIXME check >0
+
+    # check >0 -> ok
     # print('nabla', nabla)
-    mask = nabla <= 0
-    n = nabla[mask]
-    # print('<0', np.min(nabla), len(n))
+    # mask = nabla <= 0
+    # print('nabla<0', np.count_nonzero(mask))
+
     # distances
     d = -np.einsum('ij, ij->i', P, dir) + np.sqrt(nabla)
-    # print('d', d)
     # compute points
     x = P + d[:, np.newaxis] * dir
     return x
@@ -182,13 +227,14 @@ def get_key_3d(x, keys_list, keys):
 
 def compute_directions(D, W, t2, t3, A, B):
     """
-
+    Consider the point D and direction W.
+        t2 and t3 are the distance from D in W direction
     """
-    # retrieve Ap and Bp
+    # retrieve Ap and Bp at virtual spherical detector
     Ap = D - t2 * W
     Bp = D + t3 * W
 
-    # directions (normalized) at A and B
+    # get back the initial A to Ap direction (normalized)
     dA = Ap - A
     n = torch.linalg.norm(dA, axis=1)[:, np.newaxis]
     # FIXME change to torch.nn.functional.normalize ?
@@ -232,29 +278,27 @@ def compute_times_wrt_weighted_position(C, A, B, t1):
     return tA, tB
 
 
-def line_cylinder_intersections(radius, P, dir):
+def line_cylinder_intersections(radius, point, direction):
     """
     Compute intersection between the lines and a cylinder.
-    Lines : determine by position 'P', and direction 'dir'
+    Lines : determine by position 'point', and direction 'direction'
     Cylinder: radius in parameter, height assumed to be Z axis
     """
     # consider xy part
-    Cx = P[:, 0]
-    Cy = P[:, 1]
-    vx = dir[:, 0]
-    vy = dir[:, 1]
+    cx = point[:, 0]
+    cy = point[:, 1]
+    vx = direction[:, 0]
+    vy = direction[:, 1]
 
     # solve intersection with cylinder
-    # a = np.power(vx, 2) + np.power(vy, 2)
     a = vx ** 2 + vy ** 2
-    b = 2 * Cx * vx + 2 * Cy * vy
-    # c = np.power(Cx, 2) + np.power(Cy, 2) - radius * radius
-    c = Cx ** 2 + Cy ** 2 - radius * radius
-    # delta = np.power(b, 2) - 4 * a * c
+    b = 2 * cx * vx + 2 * cy * vy
+    c = cx ** 2 + cy ** 2 - radius ** 2
     delta = b ** 2 - 4 * a * c
     non_valid = delta < 0
-    # print(f'Nb values delta {len(delta)}')
-    # print('delta', delta)
+
+    # debug
+    print(f'Nb values delta < 0 {torch.count_nonzero(non_valid)}')
 
     s2 = (-b + torch.sqrt(delta)) / (2 * a)
     s1 = (-b - torch.sqrt(delta)) / (2 * a)
@@ -262,8 +306,8 @@ def line_cylinder_intersections(radius, P, dir):
     # print('s2', s2)
 
     # find A and B
-    A = P + s1[:, np.newaxis] * dir
-    B = P + s2[:, np.newaxis] * dir
+    A = point + s1[:, np.newaxis] * direction
+    B = point + s2[:, np.newaxis] * direction
     # print('A', A.shape)
     # print('B', B.shape)
 
