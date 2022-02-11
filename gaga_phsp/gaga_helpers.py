@@ -12,6 +12,7 @@ import SimpleITK as sitk
 import logging
 import sys
 import os
+from box import Box
 
 logger = logging.getLogger(__name__)
 
@@ -239,6 +240,19 @@ def print_info(params, optim):
     print(f'   {p:22s} {torch.__version__}')
 
 
+def print_info_short(params, optim):
+    p = Box(params)
+    s = f'H {p.params_filename} {p.d_dim} {p.g_dim} L {p.d_layers} {p.g_layers} Z {p.z_dim} ' \
+        f'{p.penalty} {p.penalty_weight} lr {p.d_learning_rate} {p.g_learning_rate} '
+    try:
+        s += f'sc {p.schedule_learning_rate_step} {p.schedule_learning_rate_gamma} '
+    except:
+        pass
+    s += f'D:G {p.d_nb_update}:{p.g_nb_update} {p.epoch} {p.batch_size} {p.duration}'
+
+    print(s)
+
+
 def create_G_and_D_model(params):
     G = None
     D = None
@@ -446,7 +460,7 @@ def generate_samples2(params, G, D, n, batch_size=-1, normalize=False, to_numpy=
         # print('(G) current_gpu_batch_size', current_gpu_batch_size)
 
         # (checking Z allow to reuse z for some special test case)
-        #if None == z:
+        # if None == z:
         z = Variable(z_rand(current_gpu_batch_size, z_dim)).type(dtypef)
 
         # FIXME test langevin

@@ -16,7 +16,8 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 @click.option('--add_energy', default=float(-1),
               help='Add the key Ekine with the given value in the parameters of the pth file')
 @click.option('--sfig/--no-sfig', is_flag=True, default=False, help='special plot for figure')
-def gaga_info(pth_filename, plot, add_energy, sfig):
+@click.option('--short', is_flag=True, default=False, help='one line summary of main parameters')
+def gaga_info(pth_filename, plot, add_energy, sfig, short):
     """
     \b
     Print information about a trained GAN phase space.
@@ -31,6 +32,11 @@ def gaga_info(pth_filename, plot, add_energy, sfig):
 
     for f in pth_filename:
         params, G, D, optim, dtypef = gaga.load(f, fatal_on_unknown_keys=False)
+
+        if short:
+            gaga.print_info_short(params, optim)
+            continue
+
         gaga.print_info(params, optim)
         # print(G)
         # print(D)

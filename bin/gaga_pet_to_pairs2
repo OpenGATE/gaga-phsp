@@ -3,13 +3,10 @@
 
 import uproot
 import click
-import gatetools as gt
 import gatetools.phsp as phsp
-from matplotlib import pyplot as plt
 import numpy as np
 import os
-
-# import awkward1 as aw
+import time
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 
@@ -17,8 +14,9 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 @click.command(context_settings=CONTEXT_SETTINGS)
 @click.argument('root_filename', nargs=1)
 @click.option('--output', '-o', default='auto', help='output filename (npy)')
+@click.option('--n', '-n', default=None, help='Number of samples to generate')
 @click.option('--time_col', '-t', default='TimeFromBeginOfEvent', help='Time column ? TimeFromBeginOfEvent or Time')
-def go(root_filename, output, time_col):
+def go(root_filename, n, output, time_col):
     # read the root file
     try:
         f = uproot.open(root_filename)
@@ -59,23 +57,31 @@ def go(root_filename, output, time_col):
         st = 'LocalTime'
     print('Timing column is ', st)
 
-    print('reading event id', phspf['EventID'].num_entries)
-    event_id = phspf['EventID'].array(library='numpy')
+    if not n:
+        n = phspf['EventID'].num_entries
+    else:
+        n = int(float(n))
+    print(f'{n=}')
+    print(f'reading event id {n} / {phspf["EventID"].num_entries}')
+    event_id = phspf['EventID'].array(entry_stop=n, library='numpy')
+
+    print('len ', len(event_id))
+
     print('reading ekine')
-    ekine = phspf[sekine].array(library='numpy')
+    ekine = phspf[sekine].array(entry_stop=n, library='numpy')
     print('reading pos')
-    posx = phspf[sx].array(library='numpy')
-    posy = phspf[sy].array(library='numpy')
-    posz = phspf[sz].array(library='numpy')
+    posx = phspf[sx].array(entry_stop=n, library='numpy')
+    posy = phspf[sy].array(entry_stop=n, library='numpy')
+    posz = phspf[sz].array(entry_stop=n, library='numpy')
     print('reading dir')
-    dx = phspf[sdx].array(library='numpy')
-    dy = phspf[sdy].array(library='numpy')
-    dz = phspf[sdz].array(library='numpy')
+    dx = phspf[sdx].array(entry_stop=n, library='numpy')
+    dy = phspf[sdy].array(entry_stop=n, library='numpy')
+    dz = phspf[sdz].array(entry_stop=n, library='numpy')
     print('reading time')
-    time = phspf[st].array(library='numpy')
+    ttime = phspf[st].array(entry_stop=n, library='numpy')
     weight_enabled = False
     if 'Weight' in phspf:
-        weights = phspf['Weight'].array(library='numpy')
+        weights = phspf['Weight'].array(entry_stop=n, library='numpy')
         weight_enabled = True
         print('weights', len(weights))
 
@@ -96,6 +102,10 @@ def go(root_filename, output, time_col):
 
     x = []
     i = 0
+    idxs1 = []
+    idxs2 = []
+    print('Starting identifying pairs')
+    start = time.time()
     for eid in event_id:
         # look for same event ID in the XX (max_u) next values
         r = event_id[i:i + max_u]
@@ -109,30 +119,40 @@ def go(root_filename, output, time_col):
             i = i + 1
             continue
         # Get the energies of the two events
-        idx1 = i + idx[0]
-        idx2 = i + idx[1]
-        # print('idx ', idx1, idx2)
-        e1 = ekine[idx1]
-        e2 = ekine[idx2]
-        # print(f' {eid} {i} --> {event_id[i + idx[0]]} {event_id[i + idx[1]]} => {e1} {e2}')
-        if weight_enabled:
-            x.append([e1, e2,
-                      posx[idx1], posy[idx1], posz[idx1],
-                      posx[idx2], posy[idx2], posz[idx2],
-                      dx[idx1], dy[idx1], dz[idx1],
-                      dx[idx2], dy[idx2], dz[idx2],
-                      time[idx1], time[idx2],
-                      weights[idx1], weights[idx2]])
-        else:
-            x.append([e1, e2,
-                      posx[idx1], posy[idx1], posz[idx1],
-                      posx[idx2], posy[idx2], posz[idx2],
-                      dx[idx1], dy[idx1], dz[idx1],
-                      dx[idx2], dy[idx2], dz[idx2],
-                      time[idx1], time[idx2]])
+        idxs1.append(i + idx[0])
+        idxs2.append(i + idx[1])
         i = i + 1
 
-    print('Pairs: ', len(x))
+    end = time.time()
+    print(f'Time {end - start:0.1f} seconds')
+    print('Indexes done: ', len(idxs1))
+
+    print('Building pairs')
+    start = time.time()
+    x = np.array([[ekine[idx1], ekine[idx2],
+                   posx[idx1], posy[idx1], posz[idx1],
+                   posx[idx2], posy[idx2], posz[idx2],
+                   dx[idx1], dy[idx1], dz[idx1],
+                   dx[idx2], dy[idx2], dz[idx2],
+                   ttime[idx1], ttime[idx2],
+                   weights[idx1], weights[idx2]]
+                  for idx1, idx2 in zip(idxs1, idxs2)])
+    end = time.time()
+    print(f'Time {end - start:0.1f} seconds')
+    print('x shape', x.shape)
+
+    print('Selecting pairs')
+    start = time.time()
+    dir1 = x[:, 8:11]
+    dir2 = x[:, 11:14]
+    cp = np.cross(dir1, dir2)
+    cpn = np.linalg.norm(cp, axis=1)
+    mask = cpn < 1e-4
+    x = x[mask]
+    end = time.time()
+    print(f'Time {end - start:0.1f} seconds')
+    print('Pairs: ', x.shape)
+
     keys = ['E1', 'E2',
             'X1', 'Y1', 'Z1', 'X2', 'Y2', 'Z2',
             'dX1', 'dY1', 'dZ1', 'dX2', 'dY2', 'dZ2',
@@ -140,8 +160,8 @@ def go(root_filename, output, time_col):
     if weight_enabled:
         keys.append('w1')
         keys.append('w2')
-    print('Keys', keys)
-    x = np.reshape(x, newshape=(len(x), len(keys)))
+    print('Keys', keys, len(keys))
+    x = np.reshape(x, newshape=(x.shape[0], len(keys)))
     print(x.shape)
     phsp.save_npy(output, x, keys)
 

@@ -28,7 +28,6 @@ def from_tlor_to_pairs(x, params):
     # FIXME add weights
 
     # Step1: name the columns according to key
-    print(keys)
     C, V, = get_key_3d(x, keys, ['Cx', 'Vx'])
     if params['ignore_directions']:
         params['keys_output'].remove('dX1')
@@ -37,7 +36,6 @@ def from_tlor_to_pairs(x, params):
         params['keys_output'].remove('dX2')
         params['keys_output'].remove('dY2')
         params['keys_output'].remove('dZ2')
-        print('remove ', params)
     else:
         dA, dB = get_key_3d(x, keys, ['dAx', 'dBx'])
     t1, E1, E2 = get_key(x, keys, ['t1', 'E1', 'E2'])
@@ -51,15 +49,15 @@ def from_tlor_to_pairs(x, params):
     # Step2: find intersections with cylinder
     A, B, non_valid = line_cylinder_intersections(params['cyl_radius'], C, V)
     h = params['cyl_height']
-    print('cyl inter', torch.unique(non_valid, return_counts=True))
+    # print('cyl inter', torch.unique(non_valid, return_counts=True))
     non_valid = torch.logical_or(A[:, 2] > h, non_valid)
-    print('A h', torch.unique(non_valid, return_counts=True))
+    # print('A h', torch.unique(non_valid, return_counts=True))
     non_valid = torch.logical_or(A[:, 2] < -h, non_valid)
-    print('A -h', torch.unique(non_valid, return_counts=True))
+    # print('A -h', torch.unique(non_valid, return_counts=True))
     non_valid = torch.logical_or(B[:, 2] > h, non_valid)
-    print('B h', torch.unique(non_valid, return_counts=True))
+    # print('B h', torch.unique(non_valid, return_counts=True))
     non_valid = torch.logical_or(B[:, 2] < -h, non_valid)
-    print('B -h', torch.unique(non_valid, return_counts=True))
+    # print('B -h', torch.unique(non_valid, return_counts=True))
 
     # Step3: retrieve time weighted position
     tA, tB = compute_times_wrt_weighted_position(C, A, B, t1)
@@ -83,9 +81,9 @@ def from_tlor_to_pairs(x, params):
 
     # clean non valid data (negative energy)
     non_valid = torch.logical_or((E1 <= 0).squeeze(), non_valid)
-    print('E1', torch.unique(non_valid, return_counts=True))
+    # print('E1', torch.unique(non_valid, return_counts=True))
     non_valid = torch.logical_or((E2 <= 0).squeeze(), non_valid)
-    print('E2', torch.unique(non_valid, return_counts=True))
+    # print('E2', torch.unique(non_valid, return_counts=True))
 
     # Step4: stack
     x = torch.stack((tA, tB), dim=0).T

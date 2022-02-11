@@ -46,7 +46,7 @@ def gaga_generate(pth_filename, n, output, output_folder, toggle, radius, epoch)
 
     # write    
     if output == 'AUTO':
-        gp = params['penalty_type']
+        gp = params['penalty']
         gpw = params['penalty_weight']
         full_path = os.path.split(pth_filename)
         b, extension = os.path.splitext(full_path[1])

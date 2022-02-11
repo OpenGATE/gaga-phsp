@@ -21,8 +21,8 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
               help='Default value for a given key, e.g. -k Z 1000 (for fixed Z plane)')
 @click.option('--denorm/--no-denorm', default=True, help='If "true", embed the denormalisation in the Generator.')
 @click.option('--epoch', '-e', default=-1, help='Load the G net at the given epoch (-1 for last stored epoch)')
-@click.option('--cyl_radius', '-r', default=False, help='Cylindrical radius in mm (if pth is pairs_tlor)')
-@click.option('--cyl_height', default=False, help='Cylindrical cyl_height in mm (if pth is pairs_tlor)')
+@click.option('--cyl_radius', '-r', default=-1, help='Cylindrical radius in mm (if pth is pairs_tlor)')
+@click.option('--cyl_height', default=-1, help='Cylindrical cyl_height in mm (if pth is pairs_tlor)')
 def gaga_convert_pth_to_pt(pth_filename, output, gpu, denorm, verbose, keys, epoch, cyl_radius, cyl_height):
     """
     Convert a .pth file from gaga to a .pt and a .json files (used by libtorch in Gate)
@@ -66,12 +66,12 @@ def gaga_convert_pth_to_pt(pth_filename, output, gpu, denorm, verbose, keys, epo
     params['is_pairs'] = 0
     if 'Cx' in keys_list:
         params['is_pairs'] = 1
-        if not cyl_radius or not cyl_height:
+        if cyl_radius == -1 or cyl_height == -1:
             print('Requires : --cyl_radius and --cyl_height')
             exit()
         params['cyl_radius'] = float(cyl_radius)
         params['cyl_height'] = float(cyl_height)
-        params['ignore_direction'] = False
+        params['ignore_directions'] = False
         # The following line means that GATE will not denormalize (it is done here)
         params['gate_apply_denormalization'] = 0
         print('Generator: add a post-process during forward.')
@@ -80,13 +80,19 @@ def gaga_convert_pth_to_pt(pth_filename, output, gpu, denorm, verbose, keys, epo
         params['is_pairs'] = 1
         print('pth generates pairs of particles')
 
+    print(params)
+
     b = 100
     z_dim = params['z_dim']
     z = Variable(torch.randn(b, z_dim)).type(dtypef)
 
     # generate trace
     traced_script_module = torch.jit.trace(G, z)
-    keys_out = params['keys_output']
+
+    try:
+        keys_out = params['keys_output']
+    except:
+        keys_out = params['keys_list']
     print(keys_out)
     params['keys_input'] = params['keys_list']
     params['keys_list'] = keys_out
