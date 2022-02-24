@@ -17,8 +17,9 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 @click.command(context_settings=CONTEXT_SETTINGS)
 @click.argument('root_filename', nargs=1)
 @click.option('--output', '-o', default='auto', help='output filename (npy)')
+@click.option('--single', '-s', is_flag=True, help='Also insert singles')
 @click.option('--time_col', '-t', default='TimeFromBeginOfEvent', help='Time column ? TimeFromBeginOfEvent or Time')
-def go(root_filename, output, time_col):
+def go(root_filename, output, time_col, single):
     # read the root file
     try:
         f = uproot.open(root_filename)
@@ -73,11 +74,26 @@ def go(root_filename, output, time_col):
     dz = phspf[sdz].array(library='numpy')
     print('reading time')
     time = phspf[st].array(library='numpy')
+
     weight_enabled = False
     if 'Weight' in phspf:
         weights = phspf['Weight'].array(library='numpy')
         weight_enabled = True
         print('weights', len(weights))
+
+    vdir_enabled = False
+    if 'TrackVertexMomentumDirection_X' in phspf:
+        vdirx = phspf['TrackVertexMomentumDirection_X'].array(library='numpy')
+        vdiry = phspf['TrackVertexMomentumDirection_Y'].array(library='numpy')
+        vdirz = phspf['TrackVertexMomentumDirection_Z'].array(library='numpy')
+        vdir_enabled = True
+
+    vpos_enabled = False
+    if 'TrackVertexPosition_X' in phspf:
+        vposx = phspf['TrackVertexPosition_X'].array(library='numpy')
+        vposy = phspf['TrackVertexPosition_Y'].array(library='numpy')
+        vposz = phspf['TrackVertexPosition_Z'].array(library='numpy')
+        vpos_enabled = True
 
     print('count nb of pairs ...')
     unique, counts = np.unique(event_id, return_counts=True)
@@ -105,9 +121,19 @@ def go(root_filename, output, time_col):
         # however it can be 3 or more ! FIXME !!!!
         if i % 1e5 == 0:
             print(f' {i}/{n} {i / n * 100:1f}%: event id {eid} ; idx={idx}')
-        if len(idx) != 2:
-            i = i + 1
-            continue
+        if single:
+            if len(idx) != 2 and len(idx) != 1:
+                i = i + 1
+                continue
+        else:
+            if len(idx) != 2:
+                i = i + 1
+                continue
+
+        # single event -> duplicate
+        if len(idx) == 1:
+            idx = [0, 0]
+
         # Get the energies of the two events
         idx1 = i + idx[0]
         idx2 = i + idx[1]
@@ -115,21 +141,24 @@ def go(root_filename, output, time_col):
         e1 = ekine[idx1]
         e2 = ekine[idx2]
         # print(f' {eid} {i} --> {event_id[i + idx[0]]} {event_id[i + idx[1]]} => {e1} {e2}')
+
+        z = [e1, e2,
+             posx[idx1], posy[idx1], posz[idx1],
+             posx[idx2], posy[idx2], posz[idx2],
+             dx[idx1], dy[idx1], dz[idx1],
+             dx[idx2], dy[idx2], dz[idx2],
+             time[idx1], time[idx2]]
+
         if weight_enabled:
-            x.append([e1, e2,
-                      posx[idx1], posy[idx1], posz[idx1],
-                      posx[idx2], posy[idx2], posz[idx2],
-                      dx[idx1], dy[idx1], dz[idx1],
-                      dx[idx2], dy[idx2], dz[idx2],
-                      time[idx1], time[idx2],
-                      weights[idx1], weights[idx2]])
-        else:
-            x.append([e1, e2,
-                      posx[idx1], posy[idx1], posz[idx1],
-                      posx[idx2], posy[idx2], posz[idx2],
-                      dx[idx1], dy[idx1], dz[idx1],
-                      dx[idx2], dy[idx2], dz[idx2],
-                      time[idx1], time[idx2]])
+            z.extend([weights[idx1], weights[idx2]])
+
+        if vdir_enabled:
+            z.extend([vdirx[idx1], vdiry[idx1], vdirz[idx1]])
+
+        if vpos_enabled:
+            z.extend([vposx[idx1], vposy[idx1], vposz[idx1]])
+
+        x.append(z)
         i = i + 1
 
     print('Pairs: ', len(x))
@@ -138,8 +167,12 @@ def go(root_filename, output, time_col):
             'dX1', 'dY1', 'dZ1', 'dX2', 'dY2', 'dZ2',
             't1', 't2']
     if weight_enabled:
-        keys.append('w1')
-        keys.append('w2')
+        keys.extend(['w1', 'w2'])
+    if vdir_enabled:
+        keys.extend(['vdX', 'vdY', 'vdZ'])
+    if vpos_enabled:
+        keys.extend(['vX', 'vY', 'vZ'])
+
     print('Keys', keys)
     x = np.reshape(x, newshape=(len(x), len(keys)))
     print(x.shape)

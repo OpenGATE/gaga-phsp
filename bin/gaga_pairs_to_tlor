@@ -15,8 +15,10 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 @click.option('--cyl_height', required=True, type=float, help='Cylindrical height in mm')
 @click.option('-n', default='-1', help='Number of samples')
 @click.option('--shuffle', '-s', is_flag=True, default=False, help='Shuffle the n samples (slow if file is large)')
+@click.option('--vdist', is_flag=True, default=False, help='Add distance to vertex position')
+@click.option('--vang', is_flag=True, default=False, help='Add vertex direction angle')
 @click.option('--output', '-o', required=True, help='output filename (npy)')
-def go(pairs_filename, det_radius, cyl_height, n, output, shuffle):
+def go(pairs_filename, det_radius, cyl_height, n, output, shuffle, vdist, vang):
     """
         input : consider A (X1, Y1, Z2) and B (X2, Y2, Z2) points on a cylinder (no need to know the radius)
         output: parametrize with timed-LOR with several methods
@@ -36,6 +38,10 @@ def go(pairs_filename, det_radius, cyl_height, n, output, shuffle):
         'det_radius': float(det_radius), # FIXME unused
         'keys_list': keys
     }
+    if vdist:
+        params['use_vertex_distance'] = True
+    if vang:
+        params['use_vertex_angle'] = True
     x, keys_out = gaga.from_pairs_to_tlor(phsp, params)
 
     # save

@@ -107,7 +107,7 @@ def from_pairs_to_tlor(x, params):
         x is numpy array
         Convert pairs into tlor parametrisation
         Input:  t1 t2 X1 Y1 Z1 X2 Y2 Z2 dX1 dY1 dZ1 dX2 dY2 dZ2 E1 E2
-        Output: Cx Cy Cz Vx Vy Vz dAx dAy dAz dBx dBy dBz t1 E1 E2
+        Output: Cx Cy Cz Vx Vy Vz dAx dAy dAz dBx dBy dBz t1 E1 E2 + others
     """
 
     keys = params['keys_list']
@@ -141,9 +141,42 @@ def from_pairs_to_tlor(x, params):
     # t3 = np.linalg.norm(Bp - D, axis=1)
 
     # Step4: stack
-    x = np.column_stack([C, V, dA, dB, t1, E1, E2, w1])
+    y = np.column_stack([C, V, dA, dB, t1, E1, E2, w1])
+    done_keys = ['X1', 'Y1', 'Z1', 'Ax', 'Ay', 'Az',
+                 'X2', 'Y2', 'Z2', 'Bx', 'By', 'Bz',
+                 'dX1', 'dY1', 'dZ1',
+                 'dX2', 'dY2', 'dZ2',
+                 't1', 't2', 'E1', 'E2', 'w', 'w1', 'w2']
 
-    return x, keys_output
+    # optional vertex info
+    c = scipy.constants.speed_of_light * 1000  # in mm/s
+    if 'use_vertex_distance' in params:
+        print('add distance from vertex to point (convert in time ns)')
+        vertex_pos = get_key_3d(x, keys, ['vX'])[0]
+        dv1 = np.linalg.norm(vertex_pos - A, axis=1) / c * 1e9
+        dv2 = np.linalg.norm(vertex_pos - B, axis=1) / c * 1e9
+        y = np.column_stack([y, dv1, dv2])
+        keys_output += ['dv1', 'dv2']
+        done_keys += ['vX', 'vY', 'vZ']
+
+    # optional vertex info
+    if 'use_vertex_angle' in params:
+        print('add distance from vertex to point')
+        vertex_dir = get_key_3d(x, keys, ['vdX'])[0]
+        vangle1 = (vertex_dir * dA).sum(1)
+        vangle2 = (vertex_dir * dB).sum(1)
+        y = np.column_stack([y, vangle1, vangle2])
+        keys_output += ['av1', 'av2']
+        done_keys += ['vdX', 'vdY', 'vdZ']
+
+    # Step5: additional keys
+    for k in keys:
+        if k not in done_keys:
+            z = x[:, keys.index(k)]
+            y = np.column_stack([y, z])
+            keys_output += [k]
+
+    return y, keys_output
 
 
 def compute_time_weighted_position(A, B, tA, tB):

@@ -4,6 +4,7 @@ import torch
 from tqdm import tqdm
 from .gaga_functions import *
 from .gaga_helpers import *
+import gaga_phsp
 
 '''
 Initial code from :
