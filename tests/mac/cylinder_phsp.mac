@@ -1,0 +1,14 @@
+
+# Cylinder around the patient for the phsp
+
+/gate/world/daughters/name                    phantom_phsp
+/gate/world/daughters/insert                  cylinder
+/gate/phantom_phsp/placement/setTranslation   0.0 0.0 0.0 cm
+/gate/phantom_phsp/geometry/setRmax           301 mm
+/gate/phantom_phsp/geometry/setRmin           300 mm
+/gate/phantom_phsp/geometry/setHeight         205 cm
+/gate/phantom_phsp/setMaterial                G4_AIR
+
+/gate/phantom_phsp/vis/forceWireframe
+/gate/phantom_phsp/vis/setColor               white
+/gate/phantom_phsp/vis/setVisible             1

@@ -1,0 +1,35 @@
+
+# global stat
+/gate/actor/addActor  SimulationStatisticActor stat
+/gate/actor/stat/save output/stat_phsp_necr.txt
+
+/gate/actor/addActor PhaseSpaceActor      phsp
+/gate/actor/phsp/save                     output/phsp_necr.root
+/gate/actor/phsp/attachTo                 phantom_phsp
+
+/gate/actor/phsp/enableCharge             false
+/gate/actor/phsp/enableMass               false
+/gate/actor/phsp/enableCompact            false ## for eventID
+/gate/actor/phsp/enablePDGCode            false
+/gate/actor/phsp/enableXPosition          true
+/gate/actor/phsp/enableYPosition          true
+/gate/actor/phsp/enableZPosition          true
+/gate/actor/phsp/enableXDirection         true
+/gate/actor/phsp/enableYDirection         true
+/gate/actor/phsp/enableZDirection         true
+/gate/actor/phsp/enableProductionProcess  false
+/gate/actor/phsp/enableProductionVolume   false
+/gate/actor/phsp/enableParticleName       false
+/gate/actor/phsp/enableWeight             false
+/gate/actor/phsp/enableTime               true
+/gate/actor/phsp/enableLocalTime          false
+/gate/actor/phsp/enableTimeFromBeginOfEvent true
+
+/gate/actor/phsp/useVolumeFrame           true
+/gate/actor/phsp/storeOutgoingParticles   true
+/gate/actor/phsp/storeSecondaries         true
+/gate/actor/phsp/killParticle             true
+
+/gate/actor/phsp/addFilter                       particleFilter
+/gate/actor/phsp/particleFilter/addParticle      gamma
+

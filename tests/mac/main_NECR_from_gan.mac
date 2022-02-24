@@ -1,0 +1,43 @@
+
+/control/execute mac/verbose.mac
+/gate/verbose Beam 10
+#/control/execute mac/visu.mac
+
+# GEOMETRY
+/control/execute mac/world.mac
+/control/execute mac/pet_geometry.mac
+/control/execute mac/table_geometry.mac
+/control/execute mac/phantom_NECR.mac
+/control/execute mac/pet_digitizer.mac
+/control/execute mac/cylinder_phsp.mac
+/control/execute mac/detector.mac
+
+# PHYSICS
+/control/execute mac/physics.mac
+
+# OUTPUT
+/control/execute mac/output_pet.mac
+/gate/output/root/setFileName output/output_necr_from_gan
+
+# INITIALISATION
+/gate/run/initialize
+
+# SOURCE
+/control/execute mac/actors.mac
+/control/execute mac/output_pet.mac
+/control/alias   SOURCE_PHSP_PT   data/a_with_pairs.pt
+/control/alias   SOURCE_PHSP_JSON data/a_with_pairs.json
+/control/execute mac/source_NECR_gan.mac
+
+# START
+/gate/random/setEngineName MersenneTwister
+/gate/random/setEngineSeed 123456
+
+/gate/application/setTotalNumberOfPrimaries 5
+/gate/application/start
+
+#/gate/application/setTimeStart 0 s
+#/gate/application/setTimeSlice 0.00001 s
+#/gate/application/setTimeStop  0.00001 s
+#/gate/application/startDAQ
+
