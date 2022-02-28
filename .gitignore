@@ -43,3 +43,4 @@ aa.png
 /bin/gaga_add_param_to_G
 /bin/gaga_test_G_with_transform
 
+/tests/*.png
