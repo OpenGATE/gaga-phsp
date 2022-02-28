@@ -15,14 +15,14 @@
     "g_layers": 3,
 
     "#": "Number of neurons by layer for D and G",
-    "d_dim": 50,
-    "g_dim": 50,
+    "d_dim": 60,
+    "g_dim": 60,
 
     "#": "relu or leaky_relu (required)",
     "activation": "leaky_relu",
 
     "#": "Number of dimension of the latent variable",
-    "z_dim": 10,
+    "z_dim": 15,
 
     "#" : "Random distribution for z: uniform normal",
     "z_rand_type": "normal",
@@ -73,8 +73,8 @@
 
     "#": "optimiser: decrease learning rate. 1000-0.2 means, that every 1000 step the lr is x 0.2",
     "#": "comment the following line to disable scheduler",
-    "schedule_learning_rate_step": 10000,
-    "schedule_learning_rate_gamma": 0.8,
+    "schedule_learning_rate_step": 500,
+    "schedule_learning_rate_gamma": 0.9,
 
     "#": "optimiser: number of D and G update by epoch",
     "d_nb_update": 2,
@@ -92,7 +92,8 @@
     "#": "---------------------------------------------------------------------",
     "#": " DATA ",
     "#": "---------------------------------------------------------------------",
-    "keys": "X Y",
+    "keys": "X Y cx cy",
+    "cond_keys": "cx cy",
 
     "#": "---------------------------------------------------------------------",
     "#": " GENERAL ",
@@ -101,12 +102,9 @@
     "#": "gpu_mode: true false auto",
     "gpu_mode": "auto",
 
-    "#": "validation dataset",
-    "validation_dataset": "gauss_1.npy",
-    
     "#": "print info during training",
     "epoch_dump": 500,
 
     "#": "store mode every n epoch",
-    "epoch_store_model_every": 10000
+    "epoch_store_model_every": 500
 }

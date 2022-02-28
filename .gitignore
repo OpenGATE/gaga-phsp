@@ -19,9 +19,12 @@ aa.png
 /src/gaga.save.py
 /src/gaga.save2.py
 
-/tests/*npy
+/tests/*.npy
+/tests/npy/*.npy
 /tests/*pth
 /tests/*pt
+
+/save/
 
 /notes-push-to-pypi.txt
 
@@ -31,6 +34,8 @@ aa.png
 /tests/jobs
 /tests_old
 /tests/a.pdf
+/tests/jz/
+/tests/output/
 
 *OLD*
 /gaga/gaga_helpers_pet_before_dw_change.py

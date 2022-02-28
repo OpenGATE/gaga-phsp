@@ -304,6 +304,13 @@ class Gan(object):
         optim = self.init_optim_data()
         self.optim = optim
 
+        # init conditional
+        condn = len(self.params['cond_keys'])
+        nx = self.params['x_dim']
+        conditional = condn > 0
+        if conditional:
+            print(f'Conditional : {self.params["cond_keys"]} {condn=}')
+
         # Sampler
         print('Dataloader')
         batch_size = self.params['batch_size']
@@ -365,9 +372,18 @@ class Gan(object):
                 # generate z noise (latent)
                 z = Variable(self.z_rand(batch_size, z_dim)).type(self.dtypef)
 
+                # concat conditional vector (if any)
+                if conditional:
+                    condx = x[:, nx - condn:nx]
+                    z = torch.cat((z.float(), condx.float()), dim=1)
+
                 # generate fake data
                 # (detach to avoid training G on these labels)
                 d_fake_data = self.G(z).detach()  # FIXME detach ?
+
+                # concat conditional vector (if any)
+                if conditional:
+                    d_fake_data = torch.cat((d_fake_data.float(), condx.float()), dim=1)
 
                 # add instance noise
                 d_fake_data = self.add_Gaussian_noise(d_fake_data, self.params['f_instance_noise_sigma'])
@@ -412,8 +428,16 @@ class Gan(object):
                 # generate z noise (latent)
                 z = Variable(self.z_rand(batch_size, z_dim)).type(self.dtypef)
 
+                # conditional
+                if conditional:
+                    z = torch.cat((z.float(), condx.float()), dim=1)
+
                 # generate the fake data
                 g_fake_data = self.G(z)
+
+                # concat conditional vector (if any)
+                if conditional:
+                    g_fake_data = torch.cat((g_fake_data.float(), condx.float()), dim=1)
 
                 # add instance noise
                 g_fake_data = self.add_Gaussian_noise(g_fake_data, self.params['f_instance_noise_sigma'])

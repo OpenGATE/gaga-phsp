@@ -73,7 +73,7 @@ def gaga_train(phsp_filename, json_filename,
     params.start_date = start.strftime(gaga.date_format)
     params.hostname = socket.gethostname()
 
-    # check parameters
+    # check and init parameters (required)
     gaga.check_input_params(params)
 
     # print parameters
