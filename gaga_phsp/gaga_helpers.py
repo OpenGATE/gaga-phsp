@@ -484,6 +484,10 @@ def generate_samples2(params, G, D, n, batch_size=-1, normalize=False, to_numpy=
         # normalize the condition
         cond = (cond - xmeanc) / xstdc
         print('cond', cond.shape)
+    else:
+        if len(params['cond_keys']) > 0:
+            print(f'Error : GAN is conditional, you should provide the condition: {params["cond_keys"]}')
+            exit(0)
 
     langevin_latent_sampling_flag = False
     if 'langevin_latent_sampling' in params:
@@ -507,7 +511,8 @@ def generate_samples2(params, G, D, n, batch_size=-1, normalize=False, to_numpy=
 
         # condition ?
         if is_conditional:
-            condx = Variable(torch.from_numpy(cond[m:m + batch_size])).type(dtypef).view(n, cn)
+            print('condx', m, m + batch_size)
+            condx = Variable(torch.from_numpy(cond[m:m + batch_size])).type(dtypef).view(batch_size, cn)
             print('condx', condx.shape)
             z = torch.cat((z.float(), condx.float()), dim=1)
 

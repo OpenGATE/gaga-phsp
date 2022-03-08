@@ -18,9 +18,8 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 @click.option('--epoch', default=-1, help='Use G at this epoch')
 @click.option('--radius', default=350, help='When convert angle, need the radius (in mm)')
 @click.option('--cond_phsp', default=None, help='Conditional phsp')
-@click.option('--cond_keys', default=None, help='Conditional phsp keys')
 def gaga_generate(pth_filename, n, output, output_folder, toggle,
-                  radius, epoch, cond_phsp, cond_keys):
+                  radius, epoch, cond_phsp):
     """
     Generate a PHSP from a (trained) GAN
 
@@ -37,10 +36,12 @@ def gaga_generate(pth_filename, n, output, output_folder, toggle,
 
     # cond ?
     if not cond_phsp is None:
+        cond_keys = params['cond_keys']
+        print(f'Conditional keys {cond_keys}')
         cond_data, cond_read_keys, m = phsp.load(cond_phsp, nmax=n)
         cond_keys = phsp.str_keys_to_array_keys(cond_keys)
         cond_data = phsp.select_keys(cond_data, cond_read_keys, cond_keys)
-        print(cond_keys)
+        print(f'Conditional keys {cond_keys} {cond_data.shape}')
 
     # generate samples (b is batch size)
     b = 1e5

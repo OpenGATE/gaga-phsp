@@ -95,6 +95,13 @@ def go(root_filename, output, time_col, single):
         vposz = phspf['TrackVertexPosition_Z'].array(library='numpy')
         vpos_enabled = True
 
+    epos_enabled = False
+    if 'EventPosition_X' in phspf:
+        eposx = phspf['EventPosition_X'].array(library='numpy')
+        eposy = phspf['EventPosition_Y'].array(library='numpy')
+        eposz = phspf['EventPosition_Z'].array(library='numpy')
+        epos_enabled = True
+
     print('count nb of pairs ...')
     unique, counts = np.unique(event_id, return_counts=True)
     print(unique, counts)
@@ -158,6 +165,9 @@ def go(root_filename, output, time_col, single):
         if vpos_enabled:
             z.extend([vposx[idx1], vposy[idx1], vposz[idx1]])
 
+        if epos_enabled:
+            z.extend([eposx[idx1], eposy[idx1], eposz[idx1]])
+
         x.append(z)
         i = i + 1
 
@@ -172,6 +182,8 @@ def go(root_filename, output, time_col, single):
         keys.extend(['vdX', 'vdY', 'vdZ'])
     if vpos_enabled:
         keys.extend(['vX', 'vY', 'vZ'])
+    if epos_enabled:
+        keys.extend(['eX', 'eY', 'eZ'])
 
     print('Keys', keys)
     x = np.reshape(x, newshape=(len(x), len(keys)))
