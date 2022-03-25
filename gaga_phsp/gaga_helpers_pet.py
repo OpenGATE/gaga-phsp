@@ -54,6 +54,8 @@ def from_tlor_to_pairs(x, params):
     # print('B h', torch.unique(non_valid, return_counts=True))
     non_valid = torch.logical_or(B[:, 2] < -h, non_valid)
     # print('B -h', torch.unique(non_valid, return_counts=True))
+    removed = torch.unique(non_valid, return_counts=True)[1][0]
+    print(f'Remove non valid (out of cylinder): {removed}/{len(A)}')
 
     # Step3: retrieve time weighted position
     tA, tB = compute_times_wrt_weighted_position(C, A, B, t1)
@@ -80,6 +82,8 @@ def from_tlor_to_pairs(x, params):
     # print('E1', torch.unique(non_valid, return_counts=True))
     non_valid = torch.logical_or((E2 <= 0).squeeze(), non_valid)
     # print('E2', torch.unique(non_valid, return_counts=True))
+    removed = torch.unique(non_valid, return_counts=True)[1][0]
+    print(f'Remove non valid (E<=0):            {removed} {len(A)}')
 
     # Step4: stack
     x = torch.stack((tA, tB), dim=0).T
