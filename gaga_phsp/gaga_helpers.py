@@ -483,7 +483,6 @@ def generate_samples2(params, G, D, n, batch_size=-1, normalize=False, to_numpy=
         xstdnc = xstd[0:xn - cn]
         # normalize the condition
         cond = (cond - xmeanc) / xstdc
-        print('cond', cond.shape)
     else:
         if len(params['cond_keys']) > 0:
             print(f'Error : GAN is conditional, you should provide the condition: {params["cond_keys"]}')
@@ -498,7 +497,7 @@ def generate_samples2(params, G, D, n, batch_size=-1, normalize=False, to_numpy=
     x_dim = params['x_dim']
     rfake = np.empty((0, x_dim - ncond))
     while m < n:
-        print('m n', m, n)
+        print(f'Batch {m}/{n}')
         # no more samples than needed
         current_gpu_batch_size = batch_size
         if current_gpu_batch_size > n - m:
@@ -511,9 +510,7 @@ def generate_samples2(params, G, D, n, batch_size=-1, normalize=False, to_numpy=
 
         # condition ?
         if is_conditional:
-            print('condx', m, m + batch_size)
             condx = Variable(torch.from_numpy(cond[m:m + batch_size])).type(dtypef).view(batch_size, cn)
-            print('condx', condx.shape)
             z = torch.cat((z.float(), condx.float()), dim=1)
 
         # FIXME test langevin

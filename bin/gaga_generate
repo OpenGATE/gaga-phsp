@@ -17,7 +17,7 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 @click.option('--toggle/--no-toggle', default=False, help='Convert XY to angle')
 @click.option('--epoch', default=-1, help='Use G at this epoch')
 @click.option('--radius', default=350, help='When convert angle, need the radius (in mm)')
-@click.option('--cond_phsp', default=None, help='Conditional phsp')
+@click.option('--cond_phsp', '-c', default=None, help='Conditional phsp')
 def gaga_generate(pth_filename, n, output, output_folder, toggle,
                   radius, epoch, cond_phsp):
     """
