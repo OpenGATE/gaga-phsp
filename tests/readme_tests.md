@@ -28,6 +28,16 @@ result:
 
 # Test 3: pairs parametrisation
 
+The initial data was obtained with (phsp sphere of 210 mm): 
+
+    gaga_pet_to_pairs pet_iec.root -o pairs.npy -n 1e4
+
+Convert pairs to tlor then convert back to pairs: 
+
+    gaga_pairs_to_tlor npy/pairs.npy -o npy/tlor.npy
+    gaga_tlor_to_pairs npy/tlor.npy -o npy/pairs2.npy -r 210
+    gt_phsp_plot npy/pairs.npy npy/pairs2.npy
+
 ==> See GateBenchmark/t14_phsp_pairs
 
 

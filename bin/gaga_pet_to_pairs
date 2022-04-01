@@ -131,6 +131,7 @@ def go(root_filename, output, time_col, unpaired, n):
     nb_ignored = 0
     nb_unpaired = 0
     nb_pairs = 0
+    nb_absorbed = 0
     # mm.ns-1
     c = scipy.constants.speed_of_light * 1000 / 1e9
 
@@ -138,6 +139,7 @@ def go(root_filename, output, time_col, unpaired, n):
     for i in range(len(event_id)):
         # skip negative event id (a negative index means: already considered)
         eid = event_id[i]
+        #print(i, eid)
         if eid < 0:
             continue
         # look for same event ID within the max_u next values
@@ -152,6 +154,7 @@ def go(root_filename, output, time_col, unpaired, n):
             if len(idx) != 2 and len(idx) != 1:
                 nb_ignored = nb_ignored + len(idx)
                 # prevent the other events to be later considered as valid event
+                #print('triple', idx)
                 for ii in idx:
                     event_id[i + ii] = -1
                 continue
@@ -175,6 +178,7 @@ def go(root_filename, output, time_col, unpaired, n):
             is_unpaired = True
             nb_unpaired = nb_unpaired + 1
             idx = [0, 0]
+            #print('unpaired')
 
         # Get the indexes of the two events
         idx1 = i + idx[0]
@@ -184,6 +188,10 @@ def go(root_filename, output, time_col, unpaired, n):
         e1 = ekine[idx1]
         e2 = ekine[idx2]
         # print(f' {eid} {i} --> {event_id[i + idx[0]]} {event_id[i + idx[1]]} => {e1} {e2}')
+
+        if e1 == 0:
+            nb_absorbed += 1
+            nb_unpaired = nb_unpaired - 1
 
         if is_unpaired:
             # set energy to 0 (will be ignored)
@@ -225,9 +233,10 @@ def go(root_filename, output, time_col, unpaired, n):
     # nb_pairs = len(x) - nb_unpaired
     print('Pairs:            ', nb_pairs)
     print('Unpaired:         ', nb_unpaired)
-    print('All:              ', len(x))
-    print('Ignored:          ', nb_ignored)
-    print(f'Total:             {nb_pairs * 2 + nb_unpaired + nb_ignored} / {n}')
+    print('Absorbed:         ', nb_absorbed)
+    print(f'All:               {len(x)}/{nb_pairs + nb_unpaired + nb_absorbed}')
+    print(f'Ignored:           {nb_ignored} (triplet x3, quadruplet x4 etc)')
+    print(f'Total:             {nb_pairs * 2 + nb_unpaired + nb_absorbed + nb_ignored} / {n}')
 
     keys = ['E1', 'E2',
             'X1', 'Y1', 'Z1', 'X2', 'Y2', 'Z2',

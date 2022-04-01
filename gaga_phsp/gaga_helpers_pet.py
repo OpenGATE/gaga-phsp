@@ -4,6 +4,7 @@
 import scipy
 import numpy as np
 import torch
+import gaga_phsp as gaga
 
 speed_of_light = scipy.constants.speed_of_light * 1000 / 1e9
 
@@ -34,7 +35,7 @@ def from_tlor_to_pairs(x, params):
         params['keys_output'].remove('dZ2')
     else:
         dA, dB = get_key_3d(x, keys, ['dAx', 'dBx'])
-    t1, E1, E2 = get_key(x, keys, ['t1', 'E1', 'E2'])
+    tt, E1, E2 = get_key(x, keys, ['t1', 'E1', 'E2'])
 
     # FIXME weights optional
     w = False
@@ -42,50 +43,26 @@ def from_tlor_to_pairs(x, params):
         w = get_key(x, keys, ['w1'])[0]
         params['keys_output'].append('w')
 
-    # Step2: find intersections with cylinder
-    A, B, non_valid = line_cylinder_intersections(params['cyl_radius'], C, V)
-    h = params['cyl_height']
-    # print('cyl inter', torch.unique(non_valid, return_counts=True))
-    non_valid = torch.logical_or(A[:, 2] > h, non_valid)
-    # print('A h', torch.unique(non_valid, return_counts=True))
-    non_valid = torch.logical_or(A[:, 2] < -h, non_valid)
-    # print('A -h', torch.unique(non_valid, return_counts=True))
-    non_valid = torch.logical_or(B[:, 2] > h, non_valid)
-    # print('B h', torch.unique(non_valid, return_counts=True))
-    non_valid = torch.logical_or(B[:, 2] < -h, non_valid)
-    # print('B -h', torch.unique(non_valid, return_counts=True))
-    removed = torch.unique(non_valid, return_counts=True)[1][0]
-    print(f'Remove non valid (out of cylinder): {removed}/{len(A)}')
+    # Step1: find intersection between line C V and sphere
+    A, B, non_valid = line_sphere_intersection_torch(params['radius'], C, V)
+    to_remove = torch.unique(non_valid, return_counts=True)[1][0]
+    print(f'Remove non valid (out of sphere): {to_remove}/{len(A)}')
 
-    # Step3: retrieve time weighted position
-    tA, tB = compute_times_wrt_weighted_position(C, A, B, t1)
+    # Step2: retrieve time weighted position
+    tA, tB = compute_times_wrt_weighted_position(C, A, B, tt)
 
-    # alternative to step4 -> intersection with virtual spherical detector ? (no need t2, t3 ??)
-    """dtypef, device = gaga.init_pytorch_cuda('auto', verbose=False)
-    D = D.cpu().data.numpy()
-    W = W.cpu().data.numpy()
-    Ap = line_sphere_intersection(500, D, -W)
-    Bp = line_sphere_intersection(500, D, W)
-    Ap = Variable(torch.from_numpy(Ap).type(dtypef))
-    Bp = Variable(torch.from_numpy(Bp).type(dtypef))
+    # Detect non valid data (negative energy). Keep energy == 0
+    non_valid = torch.logical_or((E1 < 0).squeeze(), non_valid)
+    non_valid = torch.logical_or((E2 < 0).squeeze(), non_valid)
+    to_remove = torch.unique(non_valid, return_counts=True)[1][0]
+    print(f'Remove non valid (E<=0): {to_remove} {len(A)}')
 
-    dA = Ap - A
-    dA = F.normalize(dA, p=2, dim=1)
-    dB = Bp - B
-    dB = F.normalize(dB, p=2, dim=1)"""
+    '''non_valid = torch.logical_and((E1 != 0).squeeze(), non_valid)
+    non_valid = torch.logical_and((E2 != 0).squeeze(), non_valid)
+    to_remove = torch.unique(non_valid, return_counts=True)[1][0]
+    print(f'Put back event with energy == 0: {to_remove} {len(A)}')'''
 
-    # Step4: direction
-    # dA, dB = compute_directions(D, W, t2, t3, A, B)
-
-    # clean non valid data (negative energy)
-    non_valid = torch.logical_or((E1 <= 0).squeeze(), non_valid)
-    # print('E1', torch.unique(non_valid, return_counts=True))
-    non_valid = torch.logical_or((E2 <= 0).squeeze(), non_valid)
-    # print('E2', torch.unique(non_valid, return_counts=True))
-    removed = torch.unique(non_valid, return_counts=True)[1][0]
-    print(f'Remove non valid (E<=0):            {removed} {len(A)}')
-
-    # Step4: stack
+    # Step3: stack
     x = torch.stack((tA, tB), dim=0).T
     x = torch.hstack([x, A])
     x = torch.hstack([x, B])
@@ -115,7 +92,10 @@ def from_pairs_to_tlor(x, params):
     """
 
     keys = params['keys_list']
-    keys_output = ['Cx', 'Cy', 'Cz', 'Vx', 'Vy', 'Vz', 'dAx', 'dAy', 'dAz', 'dBx', 'dBy', 'dBz',
+    keys_output = ['Cx', 'Cy', 'Cz',
+                   'Vx', 'Vy', 'Vz',
+                   'dAx', 'dAy', 'dAz',
+                   'dBx', 'dBy', 'dBz',
                    't1', 'E1', 'E2', 'w1']
 
     # Step1: name the columns according to key
@@ -128,23 +108,11 @@ def from_pairs_to_tlor(x, params):
     else:
         w1 = np.ones_like(tA)
 
-    # Step2: compute intersection and times with a virtual spherical detector
-    # radius = params['det_radius']  # FIXME arbitrary !
-    # Ap = line_sphere_intersection(radius, A, dA)
-    # Bp = line_sphere_intersection(radius, B, dB)
-
-    # Step3: compute time weighted position for AB (relative to time at Ap not A)
+    # Step2: compute time weighted position for AB (relative to time at Ap not A)
     # t1 is sum of tA+tB
     C, V, t1 = compute_time_weighted_position(A, B, tA, tB)
 
-    # compute time weighted position for A'B'
-    # tAp, tBp = compute_time_at_detector(A, B, Ap, Bp, tA, tB)
-    # D, W, tt = compute_time_weighted_position(Ap, Bp, tAp, tBp)
-    # t2 and t3 are distances (not time!) # FIXME
-    # t2 = np.linalg.norm(Ap - D, axis=1)
-    # t3 = np.linalg.norm(Bp - D, axis=1)
-
-    # Step4: stack
+    # Step3: stack
     y = np.column_stack([C, V, dA, dB, t1, E1, E2, w1])
     done_keys = ['X1', 'Y1', 'Z1', 'Ax', 'Ay', 'Az',
                  'X2', 'Y2', 'Z2', 'Bx', 'By', 'Bz',
@@ -152,28 +120,7 @@ def from_pairs_to_tlor(x, params):
                  'dX2', 'dY2', 'dZ2',
                  't1', 't2', 'E1', 'E2', 'w', 'w1', 'w2']
 
-    # optional vertex info
-    c = scipy.constants.speed_of_light * 1000  # in mm/s
-    if 'use_vertex_distance' in params:
-        print('add distance from vertex to point (convert in time ns)')
-        vertex_pos = get_key_3d(x, keys, ['vX'])[0]
-        dv1 = np.linalg.norm(vertex_pos - A, axis=1) / c * 1e9
-        dv2 = np.linalg.norm(vertex_pos - B, axis=1) / c * 1e9
-        y = np.column_stack([y, dv1, dv2])
-        keys_output += ['dv1', 'dv2']
-        done_keys += ['vX', 'vY', 'vZ']
-
-    # optional vertex info
-    if 'use_vertex_angle' in params:
-        print('add distance from vertex to point')
-        vertex_dir = get_key_3d(x, keys, ['vdX'])[0]
-        vangle1 = (vertex_dir * dA).sum(1)
-        vangle2 = (vertex_dir * dB).sum(1)
-        y = np.column_stack([y, vangle1, vangle2])
-        keys_output += ['av1', 'av2']
-        done_keys += ['vdX', 'vdY', 'vdZ']
-
-    # Step5: additional keys
+    # Step4: additional keys
     for k in keys:
         if k not in done_keys:
             z = x[:, keys.index(k)]
@@ -190,6 +137,14 @@ def compute_time_weighted_position(A, B, tA, tB):
     n = np.linalg.norm(V, axis=1)[:, np.newaxis]
     # relative timing
     tt = tA + tB
+
+    # special case for t = 0 (to avoid divide by zero)
+    mask = tt == 0
+    tt[mask] = 1.0
+    mask = n == 0
+    n[mask] = 1
+    print(f'Number of total time is 0: {mask.sum()}/{len(tt)}')
+
     tAr = tA / tt
     tBr = tB / tt
     # relative time weighted position
@@ -197,12 +152,8 @@ def compute_time_weighted_position(A, B, tA, tB):
     CB = B - tBr * V
     # CA should be equal to CB, consider the mean
     C = (CA + CB) / 2
-    # normalize vector
+    # normalize direction vector
     V = V / n
-    # t1 factor
-    # tt = tt[:, np.newaxis]
-    # print('shape tt and n', tt.shape, n.shape)
-    # t1 = tt / n  # FIXME total time divided by segment length
     return C, V, tt
 
 
@@ -218,25 +169,57 @@ def compute_time_at_detector(A, B, Ap, Bp, tA, tB):
     return tAp, tBp
 
 
-def line_sphere_intersection(radius, P, dir):
+def line_sphere_intersection_np(radius, P, dir):
     # print('line sphere intersection', radius, P.shape, dir.shape)
+
+    print(f'TODO')
+    exit()
 
     # https://en.wikipedia.org/wiki/Line%E2%80%93sphere_intersection
     # nabla ∇
     nabla = np.einsum('ij, ij->i', P, dir)
     nabla = np.square(nabla)
-    nabla = nabla - (np.linalg.norm(P, axis=1, ord=2) - radius ** 2)
+    nabla = nabla - (np.linalg.norm(P, axis=1) ** 2 - radius ** 2)
 
     # check >0 -> ok
     # print('nabla', nabla)
     # mask = nabla <= 0
     # print('nabla<0', np.count_nonzero(mask))
+    non_valid = nabla <= 0
 
     # distances
     d = -np.einsum('ij, ij->i', P, dir) + np.sqrt(nabla)
     # compute points
     x = P + d[:, np.newaxis] * dir
-    return x
+    return x, non_valid
+
+
+def line_sphere_intersection_torch(radius, P, dir):
+    # https://en.wikipedia.org/wiki/Line%E2%80%93sphere_intersection
+    a = torch.linalg.norm(dir, axis=1, ord=None) ** 2
+    b = 2 * torch.sum(P * dir, dim=-1)
+    d = torch.linalg.norm(P, axis=1, ord=None) ** 2
+    c = (d - radius ** 2)
+    # delta
+    delta = b ** 2 - 4 * a * c
+    # consider non valid even if tangent
+    non_valid = delta <= 0
+    # d
+    d1 = (-b - torch.sqrt(delta)) / (2 * a)
+    d2 = (-b + torch.sqrt(delta)) / (2 * a)
+    x = P + d1[:, np.newaxis] * dir
+    y = P + d2[:, np.newaxis] * dir
+
+    ## alternative (idem)
+    '''dotp = torch.einsum('ij, ij->i', P, dir)
+    nabla = torch.square(dotp)
+    nabla = nabla - (torch.linalg.norm(P, axis=1) ** 2 - radius ** 2)
+    d1 = -dotp - torch.sqrt(nabla)
+    d2 = -dotp + torch.sqrt(nabla)
+    x = P + d1[:, np.newaxis] * dir
+    y = P + d2[:, np.newaxis] * dir'''
+
+    return x, y, non_valid
 
 
 def get_key(x, keys_list, keys):
@@ -300,8 +283,14 @@ def compute_times_wrt_weighted_position(C, A, B, t1):
     compute the times at A and B (tA and tB)
     """
     distance = torch.linalg.norm(B - A, axis=1)
+    # timing (t1 is the sum tA+tB)
     t1 = torch.squeeze(t1)
     f = t1 / distance
+    # prevent nan -> set both time to zero
+    mask = distance == 0
+    f[mask] = 0
+    print(f'Number of distance==0 {mask.sum()}/{len(distance)}')
+    # distances
     distA = torch.linalg.norm(C - A, axis=1)
     distB = torch.linalg.norm(C - B, axis=1)
     tA = distA * f
@@ -343,3 +332,39 @@ def line_cylinder_intersections(radius, point, direction):
     # print('B', B.shape)
 
     return A, B, non_valid
+
+
+def plot_sphere_LOR(ax, phsp, keys, x, keys_out, radius):
+    # debug
+    phsp = phsp[39:42, :]
+    x = x[39:42, :]
+
+    # A and B points
+    A, B, dA, dB = gaga.get_key_3d(x, keys_out, ['X1', 'X2', 'dX1', 'dX2'])
+    ax.plot(A[:, 0], A[:, 1], A[:, 2], '.')
+    ax.plot(B[:, 0], B[:, 1], B[:, 2], '.')
+    for i in range(len(x)):
+        print('A ', A[i])
+        print('B', B[i])
+
+    # vectors
+    d = B - A
+    ax.quiver(A[:, 0], A[:, 1], A[:, 2], d[:, 0], d[:, 1], d[:, 2], arrow_length_ratio=0.1, alpha=0.5)
+
+    # C and V
+    C, V, = gaga.get_key_3d(phsp, keys, ['Cx', 'Vx'])
+    ax.plot(C[:, 0], C[:, 1], C[:, 2], '.')
+    d = 20 * V
+    ax.quiver(C[:, 0], C[:, 1], C[:, 2], d[:, 0], d[:, 1], d[:, 2], arrow_length_ratio=0.1, color='b')
+    for i in range(len(x)):
+        print('C ', C[i])
+        print('V', V[i])
+
+    # draw sphere
+    u, v = np.mgrid[0:2 * np.pi:20j, 0:np.pi:10j]
+    x = np.cos(u) * np.sin(v) * radius
+    y = np.sin(u) * np.sin(v) * radius
+    z = np.cos(v) * radius
+    ax.plot_wireframe(x, y, z, color="r", linewidth=0.1, alpha=0.8)
+    # ax.set_aspect("auto")
+    ax.set_box_aspect((np.ptp(x), np.ptp(y), np.ptp(z)))
