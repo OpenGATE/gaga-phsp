@@ -7,6 +7,7 @@ import gatetools as gt
 import gatetools.phsp as phsp
 from matplotlib import pyplot as plt
 import numpy as np
+import gaga_phsp as gaga
 import os
 import scipy
 
@@ -19,8 +20,7 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 @click.option('--tree', '-t', default='phase_space', help='Name of the tree to analyse')
 @click.option('--n', '-n', default='-1', help='Number of samples to read (-1 for all)')
 @click.option('--unpaired', default=False, is_flag=True, help='Also insert unpaired events')
-@click.option('--time_col', '-t', default='TimeFromBeginOfEvent', help='Time column ? TimeFromBeginOfEvent or Time')
-def go(phsp_filename, tree, output, time_col, unpaired, n):
+def go(phsp_filename, tree, output, unpaired, n):
     # read the phsp file
     n = int(float(n))
     data, keys, m = phsp.load(phsp_filename, treename=tree, nmax=n)
@@ -33,11 +33,12 @@ def go(phsp_filename, tree, output, time_col, unpaired, n):
     event_id = data[:, keys.index('EventID')]
     print(event_id.shape)
     ve = data[:, keys.index('KineticEnergy')]
-    vpos = data[:, keys.index('PrePosition_X'):keys.index('PrePosition_Z')]
-    vdir = data[:, keys.index('PreDirection_X'):keys.index('PreDirection_Z')]
+    vpos = data[:, keys.index('PrePosition_X'):keys.index('PrePosition_Z') + 1]
+    print('vpos', vpos.shape)
+    vdir = data[:, keys.index('PreDirection_X'):keys.index('PreDirection_Z') + 1]
     vt = data[:, keys.index('TimeFromBeginOfEvent')]
-    vp0 = data[:, keys.index('EventPosition_X'):keys.index('EventPosition_Z')]
-    vd0 = data[:, keys.index('TrackVertexMomentumDirection_X'):keys.index('TrackVertexMomentumDirection_Z')]
+    vp0 = data[:, keys.index('EventPosition_X'):keys.index('EventPosition_Z') + 1]
+    vd0 = data[:, keys.index('TrackVertexMomentumDirection_X'):keys.index('TrackVertexMomentumDirection_Z') + 1]
 
     # count
     print('Count the nb of unpaired, pairs etc ...')
@@ -57,6 +58,7 @@ def go(phsp_filename, tree, output, time_col, unpaired, n):
     nb_pairs = 0
     nb_absorbed = 0
     c = scipy.constants.speed_of_light * 1000 / 1e9
+    radius = 210  # FIXME
 
     # main loop, 'i' is the index of the current hit
     for i in range(len(event_id)):
@@ -72,7 +74,7 @@ def go(phsp_filename, tree, output, time_col, unpaired, n):
             print(f' {i}/{n} {i / n * 100:1f}%: event id {eid} ; idx={idx}')
         n = len(idx)
         # switch
-        print(n)
+        print(n, idx)
         if n > 2:
             for ii in idx:
                 event_id[i + ii] = -1
@@ -90,26 +92,34 @@ def go(phsp_filename, tree, output, time_col, unpaired, n):
             e1 = ve[idx1]
             if e1 == 0:
                 # case 2: fully absorbed
-                z = [0, 0] + \
-                    list(vpos[idx1]) + list(p2) \
-                    + list(vdir[idx1]) + list(d2) + \
-                    [vt[idx1], t2]
+                z = [0, 0]  # + \
+                # list(vpos[idx1]) + list(p2) \
+                # + list(vdir[idx1]) + list(d2) + \
+                # [vt[idx1], t2]
             else:
                 # case 3: single
                 idx1 = i + idx[0]
                 p1 = vpos[idx1]
+                t1 = vt[idx1]
+                d1 = vdir[idx1]
                 p0 = vp0[idx1]
-                d0 = vpd[idex1]
-                d1 = vdir[idex]
-                a, b, nv = line_sphere_intersection_np(radius, p0, d0)
-                t1 = vt[idx1]  # FIXME !!
-                d = vdir[idx1]
-                p2 = vpos[idx1] - t2 * c * d
+                d0 = vd0[idx1]
+                a, b, nv = gaga.line_sphere_intersection_one(radius, p0, d0)
+                print('p0d0', p0, d0)
+                print('p1, ab', p1, a, b)
+                dia = np.linalg.norm(p1,a)
+                dib = np.linalg.norm(p1,b)
+                if dia<dib:
+                    p2 = b  # or b ?
+                    d2 = d0  # or -d0
+                t2 = np.linalg.norm((p0 - p2)) / c
+                print('d2', d2)
+                print('t ', t1, t2)
                 z = [e1, 0] + \
                     list(p1) + list(p2) + \
                     list(d1), list(d2) + \
                     [t1, t2]
-        print(n, z)
+        print(f'n z', n, z)
         # todo : additional cond event xyz
         x.append(z)
 
