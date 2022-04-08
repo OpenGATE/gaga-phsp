@@ -55,6 +55,10 @@ def gaga_generate(pth_filename, n, output, output_folder, toggle,
     else:
         keys = f_keys
 
+    if not cond_phsp is None:
+        for k in cond_keys:
+            keys.remove(k)
+
     # write    
     if output == 'AUTO':
         gp = params['penalty']

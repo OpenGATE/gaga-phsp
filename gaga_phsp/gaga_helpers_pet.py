@@ -169,7 +169,7 @@ def compute_time_at_detector(A, B, Ap, Bp, tA, tB):
     return tAp, tBp
 
 
-def line_sphere_intersection_np(radius, P, dir):
+def line_sphere_intersection_np_old(radius, P, dir):
     # print('line sphere intersection', radius, P.shape, dir.shape)
 
     print(f'TODO')
@@ -192,6 +192,46 @@ def line_sphere_intersection_np(radius, P, dir):
     # compute points
     x = P + d[:, np.newaxis] * dir
     return x, non_valid
+
+
+def line_sphere_intersection_np(radius, P, dir):
+    # https://en.wikipedia.org/wiki/Line%E2%80%93sphere_intersection
+    a = np.linalg.norm(dir, axis=1, ord=None) ** 2
+    b = 2 * np.sum(P * dir, dim=-1)
+    d = np.linalg.norm(P, axis=1, ord=None) ** 2
+    c = (d - radius ** 2)
+    # delta
+    delta = b ** 2 - 4 * a * c
+    # consider non valid even if tangent
+    non_valid = delta <= 0
+    # d
+    d1 = (-b - np.sqrt(delta)) / (2 * a)
+    d2 = (-b + np.sqrt(delta)) / (2 * a)
+    x = P + d1[:, np.newaxis] * dir
+    y = P + d2[:, np.newaxis] * dir
+
+    return x, y, non_valid
+
+
+def line_sphere_intersection_one(radius, P, dir):
+    # https://en.wikipedia.org/wiki/Line%E2%80%93sphere_intersection
+    a = np.linalg.norm(dir) ** 2
+    b = 2 * np.sum(P * dir)
+    d = np.linalg.norm(P) ** 2
+    c = (d - radius ** 2)
+    # delta
+    delta = b ** 2 - 4 * a * c
+    # consider non valid even if tangent
+    non_valid = delta <= 0
+    if non_valid:
+        return 0, 0, non_valid
+    # d
+    d1 = (-b - np.sqrt(delta)) / (2 * a)
+    d2 = (-b + np.sqrt(delta)) / (2 * a)
+    x = P + d1 * dir
+    y = P + d2 * dir
+
+    return x, y, non_valid
 
 
 def line_sphere_intersection_torch(radius, P, dir):
@@ -335,10 +375,6 @@ def line_cylinder_intersections(radius, point, direction):
 
 
 def plot_sphere_LOR(ax, phsp, keys, x, keys_out, radius):
-    # debug
-    phsp = phsp[39:42, :]
-    x = x[39:42, :]
-
     # A and B points
     A, B, dA, dB = gaga.get_key_3d(x, keys_out, ['X1', 'X2', 'dX1', 'dX2'])
     ax.plot(A[:, 0], A[:, 1], A[:, 2], '.')
@@ -368,3 +404,139 @@ def plot_sphere_LOR(ax, phsp, keys, x, keys_out, radius):
     ax.plot_wireframe(x, y, z, color="r", linewidth=0.1, alpha=0.8)
     # ax.set_aspect("auto")
     ax.set_box_aspect((np.ptp(x), np.ptp(y), np.ptp(z)))
+
+
+def plot_sphere_pairing(ax, x, keys, radius, type):
+    if (type == 'pairs'):
+        e1 = x[:, keys.index('E1')]
+        mask = e1 != 0
+        x = x[mask, :]
+        e2 = x[:, keys.index('E2')]
+        mask = e2 != 0
+        x = x[mask, :]
+        plot_sphere_pairing_color(ax, x, keys, radius, 'r')
+    if (type == 'singles'):
+        e1 = x[:, keys.index('E1')]
+        mask = e1 != 0
+        x = x[mask, :]
+        e2 = x[:, keys.index('E2')]
+        mask = e2 == 0
+        x = x[mask, :]
+        plot_sphere_pairing_color(ax, x, keys, radius, 'g')
+    if (type == 'absorbed'):
+        e1 = x[:, keys.index('E1')]
+        mask = e1 == 0
+        x = x[mask, :]
+        e2 = x[:, keys.index('E2')]
+        mask = e2 == 0
+        x = x[mask, :]
+        plot_sphere_pairing_color(ax, x, keys, radius, 'b')
+
+
+def plot_sphere_pairing_color(ax, x, keys_out, radius, color):
+    # energy
+    e1 = x[:, keys_out.index('E1')]
+    e2 = x[:, keys_out.index('E2')]
+    t1 = x[:, keys_out.index('t1')]
+    t2 = x[:, keys_out.index('t2')]
+
+    # P0
+    P0 = gaga.get_key_3d(x, keys_out, ['eX'])[0]
+    ax.plot(P0[:, 0], P0[:, 1], P0[:, 2], '.', color=color)
+    for i in range(len(P0)):
+        ax.text(P0[i, 0], P0[i, 1], P0[i, 2], '%s' % (str(i)), size=8, zorder=1, color='k', alpha=0.7)
+
+    # A and B points
+    A, B, dA, dB = gaga.get_key_3d(x, keys_out, ['X1', 'X2', 'dX1', 'dX2'])
+    ax.plot(A[:, 0], A[:, 1], A[:, 2], '.')
+    ax.plot(B[:, 0], B[:, 1], B[:, 2], '.')
+    for i in range(len(A)):
+        ax.text(A[i, 0] + 5, A[i, 1] + 5, A[i, 2] + 5, '%s' % (str(i)), size=8, zorder=1, color='k', alpha=0.6)
+        ax.text(A[i, 0], A[i, 1], A[i, 2], f'{e1[i]:.2f}', size=8, zorder=1, color='g', alpha=0.6)
+        ax.text(B[i, 0], B[i, 1], B[i, 2], f'{e2[i]:.2f}', size=8, zorder=1, color='g', alpha=0.6)
+        ax.text(A[i, 0]-10, A[i, 1]-10, A[i, 2]-10, f'{t1[i]:.2f}', size=8, zorder=1, color='b', alpha=0.6)
+        ax.text(B[i, 0]-10, B[i, 1]-10, B[i, 2]-10, f'{t2[i]:.2f}', size=8, zorder=1, color='b', alpha=0.6)
+
+    # vectors
+    d = B - A
+    ax.quiver(A[:, 0], A[:, 1], A[:, 2], d[:, 0], d[:, 1], d[:, 2], arrow_length_ratio=0.01, alpha=0.5)
+
+    # vectors outgoing
+    d = dA * 30
+    ax.quiver(A[:, 0], A[:, 1], A[:, 2], d[:, 0], d[:, 1], d[:, 2], arrow_length_ratio=0.1, alpha=0.5, color='b')
+    d = dB * 30
+    ax.quiver(B[:, 0], B[:, 1], B[:, 2], d[:, 0], d[:, 1], d[:, 2], arrow_length_ratio=0.1, alpha=0.5, color='b')
+
+    # draw sphere
+    u, v = np.mgrid[0:2 * np.pi:20j, 0:np.pi:10j]
+    x = np.cos(u) * np.sin(v) * radius
+    y = np.sin(u) * np.sin(v) * radius
+    z = np.cos(v) * radius
+    ax.plot_wireframe(x, y, z, color="k", linewidth=0.1, alpha=0.8)
+    # ax.set_aspect("auto")
+    ax.set_box_aspect((np.ptp(x), np.ptp(y), np.ptp(z)))
+
+
+def pet_pairing(n, i, idx, energy, pos, dir, time, p0, d0, out, nbs):
+    if n == 2:
+        return pet_pairing_pairs(i, i + idx[1], energy, pos, dir, time, p0, out, nbs)
+    if n == 1:
+        e1 = energy[i]
+        if e1 == 0:
+            return pet_pairing_absorbed(i, pos, dir, time, p0, d0, out, nbs)
+        else:
+            return pet_pairing_singles(i, e1, pos, dir, time, p0, d0, out, nbs)
+    nbs.ignored += n
+
+
+def pet_pairing_pairs(idx1, idx2, energy, pos, dir, time, p0, out, nbs):
+    out.append([energy[idx1], energy[idx2]] + \
+               list(pos[idx1, :]) + list(pos[idx2, :]) + \
+               list(dir[idx1, :]) + list(dir[idx2, :]) + \
+               [time[idx1], time[idx2]] + \
+               list(p0[idx1]))
+    nbs.pairs += 1
+
+
+def pet_pairing_absorbed(i, pos, dir, time, p0, d0, out, nbs):
+    p0 = p0[i]
+    a, b, nv = gaga.line_sphere_intersection_one(nbs.radius, p0, d0[i])
+    if nv:
+        nbs.ignored += 1
+        return
+    t1 = np.linalg.norm(a - p0) / speed_of_light
+    t2 = np.linalg.norm(b - p0) / speed_of_light
+    out.append([0, 0] + \
+               list(a) + list(b) + \
+               list(-d0[i]) + list(d0[i]) + \
+               [t1, t2] + \
+               list(p0))
+    nbs.absorbed += 1
+
+
+def pet_pairing_singles(i, e1, pos, dir, time, p0, d0, out, nbs):
+    p0 = p0[i]
+    p1 = pos[i]
+    d1 = dir[i]
+    t1 = time[i]
+    a, b, nv = gaga.line_sphere_intersection_one(nbs.radius, p0, d0[i])
+    if nv:
+        nbs.ignored += 1
+        return
+    dia = np.linalg.norm(p1 - a)
+    dib = np.linalg.norm(p1 - b)
+    # consider the farest
+    if dia > dib:
+        p2 = a
+    else:
+        p2 = b
+    d2 = p2 - p0
+    n2 = np.linalg.norm(d2)
+    t2 = n2 / speed_of_light
+    d2 = d2 / n2
+    out.append([e1, 0] + \
+               list(p1) + list(p2) + \
+               list(d1) + list(d2) + \
+               [t1, t2] + \
+               list(p0))
+    nbs.singles += 1

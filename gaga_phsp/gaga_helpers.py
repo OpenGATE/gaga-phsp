@@ -445,7 +445,8 @@ def get_z_rand(params):
     return torch.randn
 
 
-def generate_samples2(params, G, D, n, batch_size=-1, normalize=False, to_numpy=False, z=None, cond=None):
+def generate_samples2(params, G, D, n, batch_size=-1, normalize=False, to_numpy=False, z=None, cond=None,
+                      silence=False):
     if params['current_gpu']:
         dtypef = torch.cuda.FloatTensor
     else:
@@ -497,7 +498,8 @@ def generate_samples2(params, G, D, n, batch_size=-1, normalize=False, to_numpy=
     x_dim = params['x_dim']
     rfake = np.empty((0, x_dim - ncond))
     while m < n:
-        print(f'Batch {m}/{n}')
+        if not silence:
+            print(f'Batch {m}/{n}')
         # no more samples than needed
         current_gpu_batch_size = batch_size
         if current_gpu_batch_size > n - m:
