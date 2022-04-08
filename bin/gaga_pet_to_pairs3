@@ -1,0 +1,129 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+import uproot
+import click
+import gatetools as gt
+import gatetools.phsp as phsp
+from matplotlib import pyplot as plt
+import numpy as np
+import gaga_phsp as gaga
+import os
+import scipy
+
+CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
+
+
+@click.command(context_settings=CONTEXT_SETTINGS)
+@click.argument('phsp_filename', nargs=1)
+@click.option('--output', '-o', default='auto', help='output filename (npy)')
+@click.option('--tree', '-t', default='phase_space', help='Name of the tree to analyse')
+@click.option('--n', '-n', default='-1', help='Number of samples to read (-1 for all)')
+@click.option('--unpaired', default=False, is_flag=True, help='Also insert unpaired events')
+def go(phsp_filename, tree, output, unpaired, n):
+    # read the phsp file
+    n = int(float(n))
+    data, keys, m = phsp.load(phsp_filename, treename=tree, nmax=n)
+    if n == -1:
+        n = m
+    print(f'PHSP read with {n}/{m}')
+    print(f'{keys}')
+
+    # get some branches
+    event_id = data[:, keys.index('EventID')]
+    print(event_id.shape)
+    ve = data[:, keys.index('KineticEnergy')]
+    vpos = data[:, keys.index('PrePosition_X'):keys.index('PrePosition_Z') + 1]
+    print('vpos', vpos.shape)
+    vdir = data[:, keys.index('PreDirection_X'):keys.index('PreDirection_Z') + 1]
+    vt = data[:, keys.index('TimeFromBeginOfEvent')]
+    vp0 = data[:, keys.index('EventPosition_X'):keys.index('EventPosition_Z') + 1]
+    vd0 = data[:, keys.index('TrackVertexMomentumDirection_X'):keys.index('TrackVertexMomentumDirection_Z') + 1]
+
+    # count
+    print('Count the nb of unpaired, pairs etc ...')
+    unique, counts = np.unique(event_id, return_counts=True)
+    u, c = np.unique(counts, return_counts=True)
+    print(u)
+    max_u = u[len(u) - 1]
+    print('Count max: ', c, max_u)
+    info = [f'{c[i] * (i + 1) / n * 100}%' for i in range(len(c))]
+    print('Count max: ', info)
+
+    # x will be the total list of pairs (and unpairs)
+    x = []
+    # number of ignored events and unpaired events
+    nb_ignored = 0
+    nb_unpaired = 0
+    nb_pairs = 0
+    nb_absorbed = 0
+    c = scipy.constants.speed_of_light * 1000 / 1e9
+    radius = 210  # FIXME
+
+    # main loop, 'i' is the index of the current hit
+    for i in range(len(event_id)):
+        # skip negative event id (a negative index means: already considered)
+        eid = event_id[i]
+        if eid < 0:
+            continue
+        # look for same event ID within the max_u next values
+        r = event_id[i:i + max_u]
+        idx = np.where(r == eid)[0]
+        # print
+        if i % 1e5 == 0:
+            print(f' {i}/{n} {i / n * 100:1f}%: event id {eid} ; idx={idx}')
+        n = len(idx)
+        # switch
+        print(n, idx)
+        if n > 2:
+            for ii in idx:
+                event_id[i + ii] = -1
+            nb_ignored = nb_ignored + len(idx)
+            continue
+        idx1 = i + idx[0]
+        if n == 2:
+            idx2 = i + idx[1]
+            # case 1 : pairs
+            z = [ve[idx1], ve[idx2]] + \
+                list(vpos[idx1]) + list(vpos[idx2]) + \
+                list(vdir[idx1]) + list(vdir[idx2]) + \
+                [vt[idx1], vt[idx2]]
+        if n == 1:
+            e1 = ve[idx1]
+            if e1 == 0:
+                # case 2: fully absorbed
+                z = [0, 0]  # + \
+                # list(vpos[idx1]) + list(p2) \
+                # + list(vdir[idx1]) + list(d2) + \
+                # [vt[idx1], t2]
+            else:
+                # case 3: single
+                idx1 = i + idx[0]
+                p1 = vpos[idx1]
+                t1 = vt[idx1]
+                d1 = vdir[idx1]
+                p0 = vp0[idx1]
+                d0 = vd0[idx1]
+                a, b, nv = gaga.line_sphere_intersection_one(radius, p0, d0)
+                print('p0d0', p0, d0)
+                print('p1, ab', p1, a, b)
+                dia = np.linalg.norm(p1,a)
+                dib = np.linalg.norm(p1,b)
+                if dia<dib:
+                    p2 = b  # or b ?
+                    d2 = d0  # or -d0
+                t2 = np.linalg.norm((p0 - p2)) / c
+                print('d2', d2)
+                print('t ', t1, t2)
+                z = [e1, 0] + \
+                    list(p1) + list(p2) + \
+                    list(d1), list(d2) + \
+                    [t1, t2]
+        print(f'n z', n, z)
+        # todo : additional cond event xyz
+        x.append(z)
+
+
+# --------------------------------------------------------------------------
+if __name__ == '__main__':
+    go()

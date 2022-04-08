@@ -82,8 +82,9 @@ class Generator(nn.Module):
     def __init__(self, params):
         super(Generator, self).__init__()
         self.params = params
-        z_dim = params['z_dim']
-        x_dim = params['x_dim']
+        # the total input dim for the G is z_dim + conditional_keys (if any)
+        z_dim = params['z_dim'] + len(params['cond_keys'])
+        x_dim = params['x_dim'] - len(params['cond_keys'])
         g_dim = params['g_dim']
         g_l = params['g_layers']
         # activation function

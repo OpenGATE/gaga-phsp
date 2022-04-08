@@ -15,7 +15,7 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 @click.argument('pth_filename')
 @click.option('--n', '-n', default=1e4, help='Number of samples to generate')
 @click.option('--nb_bins', '-b', default=int(200), help='Number of bins')
-@click.option('--toggle/--no-toggle', default=False, help='convert angle to XY')
+@click.option('--toggle/--no-toggle', default=False, help='convert angle to XY (DEBUG)')
 @click.option('--quantile', '-q', default=float(0), help='Restrict histogram to quantile')
 @click.option('--radius', default=350, help='When convert angle, need the radius (in mm)')
 @click.option('--plot2d',
@@ -24,9 +24,10 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 @click.option('--epoch', '-e', default=-1, help='Load the G net at the given epoch (-1 for last stored epoch)')
 @click.option('--no-title', is_flag=True, default=False)
 @click.option('--output', '-o', type=str, help='Do not plot, only output a pdf with the given name')
+@click.option('--cond_phsp', '-c', default=None, help='Conditional phsp')
 def gaga_plot(phsp_filename, pth_filename, n, nb_bins,
               toggle, radius, quantile, plot2d, epoch,
-              output, no_title):
+              output, no_title, cond_phsp):
     """
     \b
     Plot marginal distributions from a GAN-PHSP
@@ -53,16 +54,29 @@ def gaga_plot(phsp_filename, pth_filename, n, nb_bins,
         f_keys = params['keys_list']
     keys = f_keys.copy()
 
+    # cond ?
+    cond_data = None
+    if not cond_phsp is None:
+        cond_keys = params['cond_keys']
+        cond_data, cond_read_keys, m = phsp.load(cond_phsp, nmax=n)
+        cond_keys = phsp.str_keys_to_array_keys(cond_keys)
+        cond_data = phsp.select_keys(cond_data, cond_read_keys, cond_keys)
+        print(f'Conditional keys {cond_keys} {cond_data.shape}')
+
     # generate samples
-    fake = gaga.generate_samples2(params, G, D, n, int(1e5), False, True)
+    fake = gaga.generate_samples2(params, G, D, n, int(1e5), normalize=False, to_numpy=True, cond=cond_data)
+
+    # add cond dimensions
+    if not cond_phsp is None:
+        fake = np.column_stack((fake, cond_data))
 
     # Keep X,Y or convert to toggle
     if toggle:
         keys = phsp.keys_toggle_angle(keys)
-
     real, r_keys = phsp.add_missing_angle(real, r_keys, keys, radius)
     fake, f_keys = phsp.add_missing_angle(fake, f_keys, keys, radius)
 
+    # select the required keys
     real = phsp.select_keys(real, r_keys, keys)
     fake = phsp.select_keys(fake, f_keys, keys)
 

@@ -17,7 +17,9 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 @click.option('--toggle/--no-toggle', default=False, help='Convert XY to angle')
 @click.option('--epoch', default=-1, help='Use G at this epoch')
 @click.option('--radius', default=350, help='When convert angle, need the radius (in mm)')
-def gaga_generate(pth_filename, n, output, output_folder, toggle, radius, epoch):
+@click.option('--cond_phsp', '-c', default=None, help='Conditional phsp')
+def gaga_generate(pth_filename, n, output, output_folder, toggle,
+                  radius, epoch, cond_phsp):
     """
     Generate a PHSP from a (trained) GAN
 
@@ -32,9 +34,18 @@ def gaga_generate(pth_filename, n, output, output_folder, toggle, radius, epoch)
     params, G, D, optim, dtypef = gaga.load(pth_filename, 'auto', verbose=False, epoch=epoch)
     f_keys = list(params['keys_list'])
 
+    # cond ?
+    if not cond_phsp is None:
+        cond_keys = params['cond_keys']
+        print(f'Conditional keys {cond_keys}')
+        cond_data, cond_read_keys, m = phsp.load(cond_phsp, nmax=n)
+        cond_keys = phsp.str_keys_to_array_keys(cond_keys)
+        cond_data = phsp.select_keys(cond_data, cond_read_keys, cond_keys)
+        print(f'Conditional keys {cond_keys} {cond_data.shape}')
+
     # generate samples (b is batch size)
     b = 1e5
-    fake = gaga.generate_samples2(params, G, D, n, b, False, True)
+    fake = gaga.generate_samples2(params, G, D, n, b, False, True, cond=cond_data)
 
     # Keep X,Y or convert to toggle
     if toggle:
@@ -43,6 +54,10 @@ def gaga_generate(pth_filename, n, output, output_folder, toggle, radius, epoch)
         fake = phsp.select_keys(fake, f_keys, keys)
     else:
         keys = f_keys
+
+    if not cond_phsp is None:
+        for k in cond_keys:
+            keys.remove(k)
 
     # write    
     if output == 'AUTO':

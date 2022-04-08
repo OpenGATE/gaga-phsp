@@ -8,7 +8,8 @@ aa.png
 /bin.save/
 /build/
 /.idea/
-/.idea_save
+/.idea_save/
+
 
 /dist/
 *.srctrl*
@@ -19,9 +20,12 @@ aa.png
 /src/gaga.save.py
 /src/gaga.save2.py
 
-/tests/*npy
+/tests/*.npy
+/tests/npy/*.npy
 /tests/*pth
 /tests/*pt
+
+/save/
 
 /notes-push-to-pypi.txt
 
@@ -31,6 +35,8 @@ aa.png
 /tests/jobs
 /tests_old
 /tests/a.pdf
+/tests/jz/
+/tests/output/
 
 *OLD*
 /gaga/gaga_helpers_pet_before_dw_change.py
@@ -38,3 +44,4 @@ aa.png
 /bin/gaga_add_param_to_G
 /bin/gaga_test_G_with_transform
 
+/tests/*.png

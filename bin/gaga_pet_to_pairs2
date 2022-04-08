@@ -3,167 +3,108 @@
 
 import uproot
 import click
+import gatetools as gt
 import gatetools.phsp as phsp
+from matplotlib import pyplot as plt
 import numpy as np
+import gaga_phsp as gaga
 import os
-import time
+import scipy
+from box import Box
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 
 
 @click.command(context_settings=CONTEXT_SETTINGS)
-@click.argument('root_filename', nargs=1)
+@click.argument('phsp_filename', nargs=1)
 @click.option('--output', '-o', default='auto', help='output filename (npy)')
-@click.option('--n', '-n', default=None, help='Number of samples to generate')
-@click.option('--time_col', '-t', default='TimeFromBeginOfEvent', help='Time column ? TimeFromBeginOfEvent or Time')
-def go(root_filename, n, output, time_col):
-    # read the root file
-    try:
-        f = uproot.open(root_filename)
-    except Exception:
-        print(f'Cannot open the file {root_filename}. Is this a root file ?')
-        exit(-1)
+@click.option('--tree', '-t', default='phase_space', help='Name of the tree to analyse')
+@click.option('--n', '-n', default='-1', help='Number of samples to read (-1 for all)')
+@click.option('--radius', '-r', required=False, default=210.0, help='phsp sphere radius in mm')
+@click.option('--plot', is_flag=True, default=False, help='Plot for debug')
+def go(phsp_filename, tree, output, n, radius, plot):
+    # read the phsp file
+    n = int(float(n))
+    data, keys, m = phsp.load(phsp_filename, treename=tree, nmax=n)
+    if n == -1:
+        n = m
+    print(f'PHSP read with {n}/{m}')
+    print(f'{keys}')
+    print(f'Shape {data.shape}')
 
-    if output == 'auto':
-        output = os.path.splitext(root_filename)[0] + '_pairs.npy'
-    print(output)
+    # get some branches
+    event_id = data[:, keys.index('EventID')]
+    ve = data[:, keys.index('KineticEnergy')]
+    vpos = data[:, keys.index('PrePosition_X'):keys.index('PrePosition_Z') + 1]
+    vdir = data[:, keys.index('PreDirection_X'):keys.index('PreDirection_Z') + 1]
+    vt = data[:, keys.index('TimeFromBeginOfEvent')]
+    vp0 = data[:, keys.index('EventPosition_X'):keys.index('EventPosition_Z') + 1]
+    vd0 = data[:, keys.index('TrackVertexMomentumDirection_X'):keys.index('TrackVertexMomentumDirection_Z') + 1]
 
-    print(f)
-    print(f.keys())
-    phspf = f[f.keys()[0]]  # first branch
-    print(phspf)
-    phspf.show()
-
-    # names of the branches
-    sekine = 'Ekine'
-    if sekine not in phspf:
-        sekine = 'KineticEnergy'
-    sx = 'X'
-    sy = 'Y'
-    sz = 'Z'
-    if sx not in phspf:
-        sx = 'PrePosition_X'
-        sy = 'PrePosition_Y'
-        sz = 'PrePosition_Z'
-    sdx = 'dX'
-    sdy = 'dY'
-    sdz = 'dZ'
-    if sdx not in phspf:
-        sdx = 'PreDirection_X'
-        sdy = 'PreDirection_Y'
-        sdz = 'PreDirection_Z'
-    st = time_col  # 'TimeFromBeginOfEvent'
-    if st not in phspf:
-        st = 'LocalTime'
-    print('Timing column is ', st)
-
-    if not n:
-        n = phspf['EventID'].num_entries
-    else:
-        n = int(float(n))
-    print(f'{n=}')
-    print(f'reading event id {n} / {phspf["EventID"].num_entries}')
-    event_id = phspf['EventID'].array(entry_stop=n, library='numpy')
-
-    print('len ', len(event_id))
-
-    print('reading ekine')
-    ekine = phspf[sekine].array(entry_stop=n, library='numpy')
-    print('reading pos')
-    posx = phspf[sx].array(entry_stop=n, library='numpy')
-    posy = phspf[sy].array(entry_stop=n, library='numpy')
-    posz = phspf[sz].array(entry_stop=n, library='numpy')
-    print('reading dir')
-    dx = phspf[sdx].array(entry_stop=n, library='numpy')
-    dy = phspf[sdy].array(entry_stop=n, library='numpy')
-    dz = phspf[sdz].array(entry_stop=n, library='numpy')
-    print('reading time')
-    ttime = phspf[st].array(entry_stop=n, library='numpy')
-    weight_enabled = False
-    if 'Weight' in phspf:
-        weights = phspf['Weight'].array(entry_stop=n, library='numpy')
-        weight_enabled = True
-        print('weights', len(weights))
-
-    print('count nb of pairs ...')
+    # count
+    print('Count the nb of unpaired, pairs etc ...')
     unique, counts = np.unique(event_id, return_counts=True)
-    print(unique, counts)
-    n = len(event_id)  # .num_entries
-    print('len', n)
-
     u, c = np.unique(counts, return_counts=True)
     print(u)
     max_u = u[len(u) - 1]
-    print('count max', c, max_u)
+    print('Count max: ', c, max_u)
+    info = [f'{c[i] * (i + 1) / n * 100}%' for i in range(len(c))]
+    print('Count max: ', info)
+    ign = [c[i] * (i + 1) for i in range(2, len(c))]
+    ign = np.array(ign).sum()
 
-    # debug print first values
-    # for eid, en in zip(event_id[:30], ekine[:30]):
-    #    print(eid, en)
+    # store pairs, unpaired independently
+    out = []
+    nbs = Box()
+    nbs.absorbed = 0
+    nbs.singles = 0
+    nbs.pairs = 0
+    nbs.ignored = 0
+    nbs.radius = radius
 
-    x = []
-    i = 0
-    idxs1 = []
-    idxs2 = []
-    print('Starting identifying pairs')
-    start = time.time()
-    for eid in event_id:
-        # look for same event ID in the XX (max_u) next values
+    # main loop, 'i' is the index of the current hit
+    for i in range(len(event_id)):
+        # skip negative event id (a negative index means: already considered)
+        eid = event_id[i]
+        if eid < 0:
+            continue
+        # look for same event ID within the max_u next values
         r = event_id[i:i + max_u]
-        # print('r', eid, r)
         idx = np.where(r == eid)[0]
-        # if we dont have 2 events, we ignore ftm
-        # however it can be 3 or more ! FIXME !!!!
+        # print
         if i % 1e5 == 0:
             print(f' {i}/{n} {i / n * 100:1f}%: event id {eid} ; idx={idx}')
-        if len(idx) != 2:
-            i = i + 1
-            continue
-        # Get the energies of the two events
-        idxs1.append(i + idx[0])
-        idxs2.append(i + idx[1])
-        i = i + 1
+        # pair the events
+        ne = len(idx)
+        gaga.pet_pairing(ne, i, idx, ve, vpos, vdir, vt, vp0, vd0, out, nbs)
+        # store they were considered
+        for ii in idx:
+            event_id[i + ii] = -1
 
-    end = time.time()
-    print(f'Time {end - start:0.1f} seconds')
-    print('Indexes done: ', len(idxs1))
+    keys_out = ['E1', 'E2',
+                'X1', 'Y1', 'Z1',
+                'X2', 'Y2', 'Z2',
+                'dX1', 'dY1', 'dZ1',
+                'dX2', 'dY2', 'dZ2',
+                't1', 't2', 'eX', 'eY', 'eZ']
+    out = np.reshape(out, newshape=(len(out), len(keys_out)))
+    phsp.save_npy(output, out, keys_out)
 
-    print('Building pairs')
-    start = time.time()
-    x = np.array([[ekine[idx1], ekine[idx2],
-                   posx[idx1], posy[idx1], posz[idx1],
-                   posx[idx2], posy[idx2], posz[idx2],
-                   dx[idx1], dy[idx1], dz[idx1],
-                   dx[idx2], dy[idx2], dz[idx2],
-                   ttime[idx1], ttime[idx2],
-                   weights[idx1], weights[idx2]]
-                  for idx1, idx2 in zip(idxs1, idxs2)])
-    end = time.time()
-    print(f'Time {end - start:0.1f} seconds')
-    print('x shape', x.shape)
+    print(f'Number of pairs    {nbs.pairs}')
+    print(f'Number of singles  {nbs.singles}')
+    print(f'Number of absorbed {nbs.absorbed} -> {nbs.singles + nbs.absorbed} ')
+    print(f'Number of ignored  {nbs.ignored} / {ign}')
+    total = nbs.absorbed + nbs.singles + 2 * nbs.pairs + nbs.ignored
+    print(f'Total              {total}/{n}')
 
-    print('Selecting pairs')
-    start = time.time()
-    dir1 = x[:, 8:11]
-    dir2 = x[:, 11:14]
-    cp = np.cross(dir1, dir2)
-    cpn = np.linalg.norm(cp, axis=1)
-    mask = cpn < 1e-4
-    x = x[mask]
-    end = time.time()
-    print(f'Time {end - start:0.1f} seconds')
-    print('Pairs: ', x.shape)
-
-    keys = ['E1', 'E2',
-            'X1', 'Y1', 'Z1', 'X2', 'Y2', 'Z2',
-            'dX1', 'dY1', 'dZ1', 'dX2', 'dY2', 'dZ2',
-            't1', 't2']
-    if weight_enabled:
-        keys.append('w1')
-        keys.append('w2')
-    print('Keys', keys, len(keys))
-    x = np.reshape(x, newshape=(x.shape[0], len(keys)))
-    print(x.shape)
-    phsp.save_npy(output, x, keys)
+    # plot ?
+    if plot:
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+        gaga.plot_sphere_pairing(ax, out, keys_out, radius=radius, type='pairs')
+        gaga.plot_sphere_pairing(ax, out, keys_out, radius=radius, type='singles')
+        gaga.plot_sphere_pairing(ax, out, keys_out, radius=radius, type='absorbed')
+        plt.show()
 
 
 # --------------------------------------------------------------------------

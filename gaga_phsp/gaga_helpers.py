@@ -12,7 +12,7 @@ import SimpleITK as sitk
 import logging
 import sys
 import os
-from box import Box
+from box import Box, BoxList
 
 logger = logging.getLogger(__name__)
 
@@ -68,13 +68,31 @@ def check_input_params(params, fatal_on_unknown_keys=True):
                 'activation', 'z_rand_type', 'shuffle', 'keys', 'epoch_dump', 'keys_list']
     automated = ['params_filename', 'training_size', 'x_dim', 'progress_bar', 'training_filename',
                  'start_date', 'hostname', 'd_nb_weights', 'g_nb_weights', 'x_mean', 'x_std', 'end_epoch',
-                 'Duration', 'duration', 'end_date', 'output_filename']
+                 'Duration', 'duration', 'end_date', 'output_filename', 'cond_keys']
 
     # forced
     if 'r_instance_noise_sigma' not in params:
         params['r_instance_noise_sigma'] = -1
     if 'f_instance_noise_sigma' not in params:
         params['f_instance_noise_sigma'] = -1
+
+    """ 
+        WARNING: management of the list of keys
+        - user defined value in json is 'keys', but this is a reserve keyword :(
+        - also user provide a simple str with space between the keys
+        -> we convert into a list of str, named keys_list
+        
+        When the gan is trained, the params saved in the gan file is already a list. 
+        
+        Same for cond_keys.
+    """
+
+    # automated cond keys
+    if 'cond_keys' not in params:
+        params['cond_keys'] = []
+    else:
+        if type(params['cond_keys']) != list and type(params['cond_keys']) != BoxList:
+            params['cond_keys'] = phsp.str_keys_to_array_keys(params['cond_keys'])
 
     # keys (for backward compatible)
     if 'keys_list' not in params:
@@ -427,12 +445,14 @@ def get_z_rand(params):
     return torch.randn
 
 
-def generate_samples2(params, G, D, n, batch_size=-1, normalize=False, to_numpy=False, z=None):
+def generate_samples2(params, G, D, n, batch_size=-1, normalize=False, to_numpy=False, z=None, cond=None,
+                      silence=False):
     if params['current_gpu']:
         dtypef = torch.cuda.FloatTensor
     else:
         dtypef = torch.FloatTensor
 
+    # batch size -> if n is lower, batch size is n
     batch_size = int(batch_size)
     if batch_size == -1:
         batch_size = int(n)
@@ -441,7 +461,33 @@ def generate_samples2(params, G, D, n, batch_size=-1, normalize=False, to_numpy=
     if batch_size > n:
         batch_size = int(n)
 
+    # get z random (gauss or uniform)
     z_rand = get_z_rand(params)
+
+    # is this a conditional GAN ?
+    is_conditional = not cond is None
+
+    # normalize the input condition
+    ncond = 0
+    if is_conditional:
+        # normalize the conditional vector
+        xmean = params["x_mean"][0]
+        xstd = params["x_std"][0]
+        xn = params['x_dim']
+        cn = len(params['cond_keys'])
+        ncond = cn
+        # mean and std for cond only
+        xmeanc = xmean[xn - cn:xn]
+        xstdc = xstd[xn - cn:xn]
+        # mean and std for non cond
+        xmeannc = xmean[0:xn - cn]
+        xstdnc = xstd[0:xn - cn]
+        # normalize the condition
+        cond = (cond - xmeanc) / xstdc
+    else:
+        if len(params['cond_keys']) > 0:
+            print(f'Error : GAN is conditional, you should provide the condition: {params["cond_keys"]}')
+            exit(0)
 
     langevin_latent_sampling_flag = False
     if 'langevin_latent_sampling' in params:
@@ -450,9 +496,10 @@ def generate_samples2(params, G, D, n, batch_size=-1, normalize=False, to_numpy=
     m = 0
     z_dim = params['z_dim']
     x_dim = params['x_dim']
-    rfake = np.empty((0, x_dim))
+    rfake = np.empty((0, x_dim - ncond))
     while m < n:
-        print('m n', m, n)
+        if not silence:
+            print(f'Batch {m}/{n}')
         # no more samples than needed
         current_gpu_batch_size = batch_size
         if current_gpu_batch_size > n - m:
@@ -462,6 +509,11 @@ def generate_samples2(params, G, D, n, batch_size=-1, normalize=False, to_numpy=
         # (checking Z allow to reuse z for some special test case)
         # if None == z:
         z = Variable(z_rand(current_gpu_batch_size, z_dim)).type(dtypef)
+
+        # condition ?
+        if is_conditional:
+            condx = Variable(torch.from_numpy(cond[m:m + batch_size])).type(dtypef).view(batch_size, cn)
+            z = torch.cat((z.float(), condx.float()), dim=1)
 
         # FIXME test langevin
         if langevin_latent_sampling_flag:
@@ -477,6 +529,10 @@ def generate_samples2(params, G, D, n, batch_size=-1, normalize=False, to_numpy=
     if not normalize:
         x_mean = params['x_mean']
         x_std = params['x_std']
+        if is_conditional:
+            # do not consider the mean/std of the condition part
+            x_mean = xmeannc
+            x_std = xstdnc
         rfake = (rfake * x_std) + x_mean
 
     if to_numpy:
@@ -765,9 +821,13 @@ def gaga_garf_generate_image(p):
     return img, sq_img
 
 
-def append_gaussian(data, mean, cov, n):
+def append_gaussian(data, mean, cov, n, vx=None, vy=None):
     x, y = np.random.multivariate_normal(mean, cov, n).T
     d = np.column_stack((x, y))
+    if not vx is None:
+        d = np.column_stack((d, vx))
+    if not vy is None:
+        d = np.column_stack((d, vy))
     if data is None:
         return d
     data = np.vstack((data, d))
