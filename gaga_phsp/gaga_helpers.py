@@ -504,7 +504,7 @@ def generate_samples2(params, G, D, n, batch_size=-1, normalize=False, to_numpy=
         current_gpu_batch_size = batch_size
         if current_gpu_batch_size > n - m:
             current_gpu_batch_size = n - m
-        # print('(G) current_gpu_batch_size', current_gpu_batch_size)
+        #print('(G) current_gpu_batch_size', current_gpu_batch_size)
 
         # (checking Z allow to reuse z for some special test case)
         # if None == z:
@@ -512,7 +512,7 @@ def generate_samples2(params, G, D, n, batch_size=-1, normalize=False, to_numpy=
 
         # condition ?
         if is_conditional:
-            condx = Variable(torch.from_numpy(cond[m:m + batch_size])).type(dtypef).view(batch_size, cn)
+            condx = Variable(torch.from_numpy(cond[m:m + current_gpu_batch_size])).type(dtypef).view(current_gpu_batch_size, cn)
             z = torch.cat((z.float(), condx.float()), dim=1)
 
         # FIXME test langevin

@@ -198,6 +198,7 @@ def line_sphere_intersection_np(radius, P, dir):
     # https://en.wikipedia.org/wiki/Line%E2%80%93sphere_intersection
     a = np.linalg.norm(dir, axis=1, ord=None) ** 2
     b = 2 * np.sum(P * dir, dim=-1)
+    # b = 2 * np.sum(P * dir)
     d = np.linalg.norm(P, axis=1, ord=None) ** 2
     c = (d - radius ** 2)
     # delta
@@ -454,8 +455,8 @@ def plot_sphere_pairing_color(ax, x, keys_out, radius, color):
         ax.text(A[i, 0] + 5, A[i, 1] + 5, A[i, 2] + 5, '%s' % (str(i)), size=8, zorder=1, color='k', alpha=0.6)
         ax.text(A[i, 0], A[i, 1], A[i, 2], f'{e1[i]:.2f}', size=8, zorder=1, color='g', alpha=0.6)
         ax.text(B[i, 0], B[i, 1], B[i, 2], f'{e2[i]:.2f}', size=8, zorder=1, color='g', alpha=0.6)
-        ax.text(A[i, 0]-10, A[i, 1]-10, A[i, 2]-10, f'{t1[i]:.2f}', size=8, zorder=1, color='b', alpha=0.6)
-        ax.text(B[i, 0]-10, B[i, 1]-10, B[i, 2]-10, f'{t2[i]:.2f}', size=8, zorder=1, color='b', alpha=0.6)
+        ax.text(A[i, 0] - 10, A[i, 1] - 10, A[i, 2] - 10, f'{t1[i]:.2f}', size=8, zorder=1, color='b', alpha=0.6)
+        ax.text(B[i, 0] - 10, B[i, 1] - 10, B[i, 2] - 10, f'{t2[i]:.2f}', size=8, zorder=1, color='b', alpha=0.6)
 
     # vectors
     d = B - A
