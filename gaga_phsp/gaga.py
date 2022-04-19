@@ -309,7 +309,7 @@ class Gan(object):
         nx = self.params['x_dim']
         conditional = condn > 0
         if conditional:
-            print(f'Conditional : {self.params["cond_keys"]} {condn=}')
+            print(f'Conditional : {self.params["cond_keys"]} ' + str(condn))
 
         # Sampler
         print('Dataloader')
