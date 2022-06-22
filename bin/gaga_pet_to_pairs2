@@ -20,12 +20,14 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 @click.option('--output', '-o', default='auto', help='output filename (npy)')
 @click.option('--tree', '-t', default='phase_space', help='Name of the tree to analyse')
 @click.option('--n', '-n', default='-1', help='Number of samples to read (-1 for all)')
+@click.option('--nstart', default=0.0, help='Starting samples to read')
 @click.option('--radius', '-r', required=False, default=210.0, help='phsp sphere radius in mm')
 @click.option('--plot', is_flag=True, default=False, help='Plot for debug')
-def go(phsp_filename, tree, output, n, radius, plot):
+def go(phsp_filename, tree, output, n, nstart, radius, plot):
     # read the phsp file
     n = int(float(n))
-    data, keys, m = phsp.load(phsp_filename, treename=tree, nmax=n)
+    nstart = int(float(nstart))
+    data, keys, m = phsp.load(phsp_filename, treename=tree, nmax=n, nstart=nstart)
     if n == -1:
         n = m
     print(f'PHSP read with {n}/{m}')
