@@ -43,9 +43,9 @@ def param_check_keys(params, read_keys):
     if 'keys' not in params:
         params['keys'] = read_keys.join(' ')
 
-    # on command line, '_' may be used to replace space, so we put it back
-    if '_' in params['keys']:
-        params['keys'] = params['keys'].replace('_', ' ')
+    # on command line, '#' may be used to replace space, so we put it back
+    if '#' in params['keys']:
+        params['keys'] = params['keys'].replace('#', ' ')
 
     # build the list of keys
     params.keys_list = phsp.str_keys_to_array_keys(params['keys'])

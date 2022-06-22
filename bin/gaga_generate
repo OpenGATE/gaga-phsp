@@ -5,6 +5,7 @@ import click
 import gaga_phsp as gaga
 import gatetools.phsp as phsp
 import os
+import time
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 
@@ -35,7 +36,8 @@ def gaga_generate(pth_filename, n, output, output_folder, toggle,
     f_keys = list(params['keys_list'])
 
     # cond ?
-    if not cond_phsp is None:
+    cond_data = None
+    if cond_phsp is not None:
         cond_keys = params['cond_keys']
         print(f'Conditional keys {cond_keys}')
         cond_data, cond_read_keys, m = phsp.load(cond_phsp, nmax=n)
@@ -45,7 +47,12 @@ def gaga_generate(pth_filename, n, output, output_folder, toggle,
 
     # generate samples (b is batch size)
     b = 1e5
+    start = time.time()
     fake = gaga.generate_samples2(params, G, D, n, b, False, True, cond=cond_data)
+    end = time.time()
+    elapsed = end - start
+    pps = n / elapsed
+    print(f'Timing: {end - start:0.1f} s   PPS = {pps:0.0f}')
 
     # Keep X,Y or convert to toggle
     if toggle:
@@ -55,7 +62,9 @@ def gaga_generate(pth_filename, n, output, output_folder, toggle,
     else:
         keys = f_keys
 
-    if not cond_phsp is None:
+    if cond_phsp is not None:
+        print(cond_keys)
+        print(keys)
         for k in cond_keys:
             keys.remove(k)
 

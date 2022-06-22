@@ -9,7 +9,7 @@ import gaga_phsp as gaga
 speed_of_light = scipy.constants.speed_of_light * 1000 / 1e9
 
 
-def from_tlor_to_pairs(x, params):
+def from_tlor_to_pairs(x, params, verbose=False):
     """
         WARNING: the input 'x' is considered to be a torch Variable (not numpy)
         Expected options in params: keys_lists, cyl_radius, ignore_directions
@@ -46,7 +46,8 @@ def from_tlor_to_pairs(x, params):
     # Step1: find intersection between line C V and sphere
     A, B, non_valid = line_sphere_intersection_torch(params['radius'], C, V)
     to_remove = torch.unique(non_valid, return_counts=True)[1][0]
-    print(f'Remove non valid (out of sphere): {to_remove}/{len(A)}')
+    if verbose:
+        print(f'Remove non valid (out of sphere): {to_remove}/{len(A)}')
 
     # Step2: retrieve time weighted position
     tA, tB = compute_times_wrt_weighted_position(C, A, B, tt)
@@ -55,7 +56,8 @@ def from_tlor_to_pairs(x, params):
     non_valid = torch.logical_or((E1 < 0).squeeze(), non_valid)
     non_valid = torch.logical_or((E2 < 0).squeeze(), non_valid)
     to_remove = torch.unique(non_valid, return_counts=True)[1][0]
-    print(f'Remove non valid (E<=0): {to_remove} {len(A)}')
+    if verbose:
+        print(f'Remove non valid (E<=0): {to_remove} {len(A)}')
 
     '''non_valid = torch.logical_and((E1 != 0).squeeze(), non_valid)
     non_valid = torch.logical_and((E2 != 0).squeeze(), non_valid)
@@ -330,7 +332,7 @@ def compute_times_wrt_weighted_position(C, A, B, t1):
     # prevent nan -> set both time to zero
     mask = distance == 0
     f[mask] = 0
-    print(f'Number of distance==0 {mask.sum()}/{len(distance)}')
+    #print(f'Number of distance==0 {mask.sum()}/{len(distance)}')
     # distances
     distA = torch.linalg.norm(C - A, axis=1)
     distB = torch.linalg.norm(C - B, axis=1)
