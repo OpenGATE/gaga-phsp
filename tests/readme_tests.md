@@ -7,6 +7,8 @@
 
 # Test 2: Gaussian
 
+(need to save npy folder before)
+
 generate:
 
     cd tests
