@@ -332,7 +332,7 @@ def compute_times_wrt_weighted_position(C, A, B, t1):
     # prevent nan -> set both time to zero
     mask = distance == 0
     f[mask] = 0
-    #print(f'Number of distance==0 {mask.sum()}/{len(distance)}')
+    # print(f'Number of distance==0 {mask.sum()}/{len(distance)}')
     # distances
     distA = torch.linalg.norm(C - A, axis=1)
     distB = torch.linalg.norm(C - B, axis=1)
@@ -485,6 +485,7 @@ def pet_pairing(n, i, idx, energy, pos, dir, time, p0, d0, out, nbs):
         return pet_pairing_pairs(i, i + idx[1], energy, pos, dir, time, p0, out, nbs)
     if n == 1:
         e1 = energy[i]
+        e1 = energy[i]
         if e1 == 0:
             return pet_pairing_absorbed(i, pos, dir, time, p0, d0, out, nbs)
         else:
@@ -493,10 +494,10 @@ def pet_pairing(n, i, idx, energy, pos, dir, time, p0, d0, out, nbs):
 
 
 def pet_pairing_pairs(idx1, idx2, energy, pos, dir, time, p0, out, nbs):
-    out.append([energy[idx1], energy[idx2]] + \
-               list(pos[idx1, :]) + list(pos[idx2, :]) + \
-               list(dir[idx1, :]) + list(dir[idx2, :]) + \
-               [time[idx1], time[idx2]] + \
+    out.append([energy[idx1], energy[idx2]] +
+               list(pos[idx1, :]) + list(pos[idx2, :]) +
+               list(dir[idx1, :]) + list(dir[idx2, :]) +
+               [time[idx1], time[idx2]] +
                list(p0[idx1]))
     nbs.pairs += 1
 
@@ -509,11 +510,11 @@ def pet_pairing_absorbed(i, pos, dir, time, p0, d0, out, nbs):
         return
     t1 = np.linalg.norm(a - p0) / speed_of_light
     t2 = np.linalg.norm(b - p0) / speed_of_light
-    out.append([0, 0] + \
-               list(a) + list(b) + \
-               list(-d0[i]) + list(d0[i]) + \
-               [t1, t2] + \
-               list(p0))
+    out.append([0, 0] +  # energy
+               list(a) + list(b) +  # position (unused)
+               list(-d0[i]) + list(d0[i]) +  # direction (unused)
+               [t1, t2] +  # time (unused)
+               list(p0))  # event position
     nbs.absorbed += 1
 
 
@@ -528,7 +529,7 @@ def pet_pairing_singles(i, e1, pos, dir, time, p0, d0, out, nbs):
         return
     dia = np.linalg.norm(p1 - a)
     dib = np.linalg.norm(p1 - b)
-    # consider the farest
+    # consider the more far
     if dia > dib:
         p2 = a
     else:
@@ -537,9 +538,9 @@ def pet_pairing_singles(i, e1, pos, dir, time, p0, d0, out, nbs):
     n2 = np.linalg.norm(d2)
     t2 = n2 / speed_of_light
     d2 = d2 / n2
-    out.append([e1, 0] + \
-               list(p1) + list(p2) + \
-               list(d1) + list(d2) + \
-               [t1, t2] + \
+    out.append([e1, 0] +
+               list(p1) + list(p2) +  # p2 position is unused
+               list(d1) + list(d2) +  # d2 direction is unused
+               [t1, t2] +  # t2 time is unused
                list(p0))
     nbs.singles += 1

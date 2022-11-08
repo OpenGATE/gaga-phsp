@@ -40,15 +40,15 @@ def param_check_keys(params, read_keys):
     """
 
     # if no keys, just consider the read ones
-    if 'keys' not in params:
-        params['keys'] = read_keys.join(' ')
+    if "keys" not in params:
+        params["keys"] = read_keys.join(" ")
 
     # on command line, '#' may be used to replace space, so we put it back
-    if '#' in params['keys']:
-        params['keys'] = params['keys'].replace('#', ' ')
+    if "#" in params["keys"]:
+        params["keys"] = params["keys"].replace("#", " ")
 
     # build the list of keys
-    params.keys_list = phsp.str_keys_to_array_keys(params['keys'])
+    params.keys_list = phsp.str_keys_to_array_keys(params["keys"])
 
     # check
     for k in params.keys_list:
@@ -62,19 +62,58 @@ def param_check_keys(params, read_keys):
 
 
 def check_input_params(params, fatal_on_unknown_keys=True):
-    required = ['gpu_mode', 'model', 'd_layers', 'g_layers', 'd_learning_rate', 'g_learning_rate', 'optimiser',
-                'd_nb_update', 'g_nb_update', 'loss', 'penalty', 'penalty_weight', 'batch_size', 'epoch',
-                'd_dim', 'g_dim', 'z_dim', 'r_instance_noise_sigma', 'f_instance_noise_sigma',
-                'activation', 'z_rand_type', 'shuffle', 'keys', 'epoch_dump', 'keys_list']
-    automated = ['params_filename', 'training_size', 'x_dim', 'progress_bar', 'training_filename',
-                 'start_date', 'hostname', 'd_nb_weights', 'g_nb_weights', 'x_mean', 'x_std', 'end_epoch',
-                 'Duration', 'duration', 'end_date', 'output_filename', 'cond_keys']
+    required = [
+        "gpu_mode",
+        "model",
+        "d_layers",
+        "g_layers",
+        "d_learning_rate",
+        "g_learning_rate",
+        "optimiser",
+        "d_nb_update",
+        "g_nb_update",
+        "loss",
+        "penalty",
+        "penalty_weight",
+        "batch_size",
+        "epoch",
+        "d_dim",
+        "g_dim",
+        "z_dim",
+        "r_instance_noise_sigma",
+        "f_instance_noise_sigma",
+        "activation",
+        "z_rand_type",
+        "shuffle",
+        "keys",
+        "epoch_dump",
+        "keys_list",
+    ]
+    automated = [
+        "params_filename",
+        "training_size",
+        "x_dim",
+        "progress_bar",
+        "training_filename",
+        "start_date",
+        "hostname",
+        "d_nb_weights",
+        "g_nb_weights",
+        "x_mean",
+        "x_std",
+        "end_epoch",
+        "Duration",
+        "duration",
+        "end_date",
+        "output_filename",
+        "cond_keys",
+    ]
 
     # forced
-    if 'r_instance_noise_sigma' not in params:
-        params['r_instance_noise_sigma'] = -1
-    if 'f_instance_noise_sigma' not in params:
-        params['f_instance_noise_sigma'] = -1
+    if "r_instance_noise_sigma" not in params:
+        params["r_instance_noise_sigma"] = -1
+    if "f_instance_noise_sigma" not in params:
+        params["f_instance_noise_sigma"] = -1
 
     """ 
         WARNING: management of the list of keys
@@ -88,34 +127,34 @@ def check_input_params(params, fatal_on_unknown_keys=True):
     """
 
     # automated cond keys
-    if 'cond_keys' not in params:
-        params['cond_keys'] = []
+    if "cond_keys" not in params:
+        params["cond_keys"] = []
     else:
-        if type(params['cond_keys']) != list and type(params['cond_keys']) != BoxList:
-            params['cond_keys'] = phsp.str_keys_to_array_keys(params['cond_keys'])
+        if type(params["cond_keys"]) != list and type(params["cond_keys"]) != BoxList:
+            params["cond_keys"] = phsp.str_keys_to_array_keys(params["cond_keys"])
 
     # keys (for backward compatible)
-    if 'keys_list' not in params:
-        if type(params['keys']) == list:
-            params['keys_list'] = params['keys'].copy()
+    if "keys_list" not in params:
+        if type(params["keys"]) == list:
+            params["keys_list"] = params["keys"].copy()
         else:
-            params['keys_list'] = phsp.str_keys_to_array_keys(params['keys'])
+            params["keys_list"] = phsp.str_keys_to_array_keys(params["keys"])
 
-    # old versions does not have some tags  
-    if 'activation' not in params:
-        params['activation'] = 'relu'
-    if 'loss' not in params:
-        params['loss'] = 'wasserstein'
-    if 'model' not in params:
-        params['model'] = 'v3'
-    if 'penalty' not in params:
-        params['penalty'] = 'clamp'
-    if 'penalty_weight' not in params:
-        params['penalty_weight'] = 0
-    if 'z_rand_type' not in params:
-        params['z_rand_type'] = 'randn'
-    if 'epoch_dump' not in params:
-        params['epoch_dump'] = -1
+    # old versions does not have some tags
+    if "activation" not in params:
+        params["activation"] = "relu"
+    if "loss" not in params:
+        params["loss"] = "wasserstein"
+    if "model" not in params:
+        params["model"] = "v3"
+    if "penalty" not in params:
+        params["penalty"] = "clamp"
+    if "penalty_weight" not in params:
+        params["penalty_weight"] = 0
+    if "z_rand_type" not in params:
+        params["z_rand_type"] = "randn"
+    if "epoch_dump" not in params:
+        params["epoch_dump"] = -1
 
     # check required
     for req in required:  # + automated
@@ -124,25 +163,41 @@ def check_input_params(params, fatal_on_unknown_keys=True):
             exit(0)
 
     # look unknown param
-    optional = ['start_pth', 'start_epoch', 'schedule_learning_rate_step', 'schedule_learning_rate_gamma',
-                'label_smoothing', 'spectral_norm', 'epoch_store_model_every', 'RMSprop_d_momentum',
-                'RMSprop_g_momentum', 'RMSProp_d_alpha', 'RMSProp_g_alpha', 'GAN_model',
-                'RMSProp_d_weight_decay', 'RMSProp_g_weight_decay', 'RMSProp_d_centered', 'RMSProp_g_centered']
+    optional = [
+        "start_pth",
+        "start_epoch",
+        "schedule_learning_rate_step",
+        "schedule_learning_rate_gamma",
+        "label_smoothing",
+        "spectral_norm",
+        "epoch_store_model_every",
+        "RMSprop_d_momentum",
+        "RMSprop_g_momentum",
+        "RMSProp_d_alpha",
+        "RMSProp_g_alpha",
+        "GAN_model",
+        "RMSProp_d_weight_decay",
+        "RMSProp_g_weight_decay",
+        "RMSProp_d_centered",
+        "RMSProp_g_centered",
+    ]
     for p in params:
-        if p[0] == '#':
+        if p[0] == "#":
             continue
         if p in optional:
             # print('Found optional: ', p)
             pass
         else:
             if p not in required + automated:
-                print(f'Warning unknown key named "{p}" in the parameters (deprecated?)')
+                print(
+                    f'Warning unknown key named "{p}" in the parameters (deprecated?)'
+                )
                 if fatal_on_unknown_keys:
                     exit(0)
 
     # special for adam
-    if params['optimiser'] == "adam":
-        required_adam = ['g_weight_decay', 'd_weight_decay', 'beta_1', 'beta_2']
+    if params["optimiser"] == "adam":
+        required_adam = ["g_weight_decay", "d_weight_decay", "beta_1", "beta_2"]
         for req in required_adam:
             if req not in params:
                 print(f'Error, the Adam parameters "{req}" is required in {params}')
@@ -165,39 +220,39 @@ def init_pytorch_cuda(gpu_mode, verbose=False):
     """
 
     if verbose:
-        print('pytorch version', torch.__version__)
+        print("pytorch version", torch.__version__)
     dtypef = torch.FloatTensor
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     if verbose:
         if torch.cuda.is_available():
-            print('CUDA is available')
+            print("CUDA is available")
         else:
-            print('CUDA is *NOT* available')
+            print("CUDA is *NOT* available")
 
-    if gpu_mode == 'auto':
+    if gpu_mode == "auto":
         if torch.cuda.is_available():
             dtypef = torch.cuda.FloatTensor
-    elif gpu_mode == 'true':
+    elif gpu_mode == "true":
         if torch.cuda.is_available():
             dtypef = torch.cuda.FloatTensor
         else:
-            print('Error GPU mode not available')
+            print("Error GPU mode not available")
             exit(0)
     else:
-        device = torch.device('cpu')
+        device = torch.device("cpu")
 
     if verbose:
-        if str(device) != 'cpu':
-            print('GPU is enabled')
-            print('CUDA version         ', torch.version.cuda)
-            print('CUDA device counts   ', torch.cuda.device_count())
-            print('CUDA current device  ', torch.cuda.current_device())
+        if str(device) != "cpu":
+            print("GPU is enabled")
+            print("CUDA version         ", torch.version.cuda)
+            print("CUDA device counts   ", torch.cuda.device_count())
+            print("CUDA current device  ", torch.cuda.current_device())
             n = torch.cuda.current_device()
-            print('CUDA device name     ', torch.cuda.get_device_name(n))
-            print('CUDA device address  ', torch.cuda.device(n))
+            print("CUDA device name     ", torch.cuda.get_device_name(n))
+            print("CUDA device address  ", torch.cuda.device(n))
         else:
-            print('CPU only (no GPU)')
+            print("CPU only (no GPU)")
 
     return dtypef, device
 
@@ -208,7 +263,7 @@ def print_network(net):
     """
     num_params = get_network_nb_parameters(net)
     print(net)
-    print('Total number of parameters: %d' % num_params)
+    print("Total number of parameters: %d" % num_params)
 
 
 def get_network_nb_parameters(net):
@@ -227,46 +282,48 @@ def print_info(params, optim):
     """
     # print parameters
     for e in sorted(params):
-        if (e[0] != '#') and (e != 'x_mean') and (e != 'x_std'):
-            print('   {:22s} {}'.format(e, str(params[e])))
+        if (e[0] != "#") and (e != "x_mean") and (e != "x_std"):
+            print("   {:22s} {}".format(e, str(params[e])))
 
     # additional info
     try:
-        start = datetime.datetime.strptime(params['start date'], gaga.date_format)
-        end = datetime.datetime.strptime(params['end date'], gaga.date_format)
+        start = datetime.datetime.strptime(params["start date"], gaga.date_format)
+        end = datetime.datetime.strptime(params["end date"], gaga.date_format)
     except:
         start = 0
         end = 0
     delta = end - start
-    print('   {:22s} {}'.format('Duration', delta))
+    print("   {:22s} {}".format("Duration", delta))
 
-    d_loss_real = np.asarray(optim['d_loss_real'][-1])
-    d_loss_fake = np.asarray(optim['d_loss_fake'][-1])
+    d_loss_real = np.asarray(optim["d_loss_real"][-1])
+    d_loss_fake = np.asarray(optim["d_loss_fake"][-1])
     d_loss = d_loss_real + d_loss_fake
-    g_loss = np.asarray(optim['g_loss'][-1])
-    print('   {:22s} {}'.format('Final d_loss', d_loss))
-    print('   {:22s} {}'.format('Final g_loss', g_loss))
-    if 'd_best_loss' in optim:
-        print('   {:22s} {}'.format('d_best_loss', optim['d_best_loss']))
-        print('   {:22s} {}'.format('d_best_epoch', optim['d_best_epoch']))
+    g_loss = np.asarray(optim["g_loss"][-1])
+    print("   {:22s} {}".format("Final d_loss", d_loss))
+    print("   {:22s} {}".format("Final g_loss", g_loss))
+    if "d_best_loss" in optim:
+        print("   {:22s} {}".format("d_best_loss", optim["d_best_loss"]))
+        print("   {:22s} {}".format("d_best_epoch", optim["d_best_epoch"]))
 
     # version
-    p = 'python'
-    v = sys.version.replace('\n', '')
-    print(f'   {p:22s} {v}')
-    p = 'pytorch'
-    print(f'   {p:22s} {torch.__version__}')
+    p = "python"
+    v = sys.version.replace("\n", "")
+    print(f"   {p:22s} {v}")
+    p = "pytorch"
+    print(f"   {p:22s} {torch.__version__}")
 
 
 def print_info_short(params, optim):
     p = Box(params)
-    s = f'H {p.params_filename} {p.d_dim} {p.g_dim} L {p.d_layers} {p.g_layers} Z {p.z_dim} ' \
-        f'{p.penalty} {p.penalty_weight} lr {p.d_learning_rate} {p.g_learning_rate} '
+    s = (
+        f"H {p.params_filename} {p.d_dim} {p.g_dim} L {p.d_layers} {p.g_layers} Z {p.z_dim} "
+        f"{p.penalty} {p.penalty_weight} lr {p.d_learning_rate} {p.g_learning_rate} "
+    )
     try:
-        s += f'sc {p.schedule_learning_rate_step} {p.schedule_learning_rate_gamma} '
+        s += f"sc {p.schedule_learning_rate_step} {p.schedule_learning_rate_gamma} "
     except:
         pass
-    s += f'D:G {p.d_nb_update}:{p.g_nb_update} {p.epoch} {p.batch_size} {p.duration}'
+    s += f"D:G {p.d_nb_update}:{p.g_nb_update} {p.epoch} {p.batch_size} {p.duration}"
 
     print(s)
 
@@ -274,28 +331,30 @@ def print_info_short(params, optim):
 def create_G_and_D_model(params):
     G = None
     D = None
-    if params['model'] == 'v3':
+    if params["model"] == "v3":
         G = gaga.Generator(params)
         D = gaga.Discriminator(params)
         return G, D
     if not D or not G:
-        print('Error in create G and D model, unknown model version?')
-        print(params['model'])
-        print(params['GAN_model'])
+        print("Error in create G and D model, unknown model version?")
+        print(params["model"])
+        print(params["GAN_model"])
         exit(0)
 
 
 def auto_output_filename(params, output, output_folder):
-    if output != 'auto':
+    if output != "auto":
         params.output_filename = output
         return
     # create an output name with some params
     b, extension = os.path.splitext(os.path.basename(params.params_filename))
-    output = f'{b}_{params.penalty}_{params.penalty_weight}_{params.end_epoch}.pth'
+    output = f"{b}_{params.penalty}_{params.penalty_weight}_{params.end_epoch}.pth"
     params.output_filename = os.path.join(output_folder, output)
 
 
-def load(filename, gpu_mode='auto', verbose=False, epoch=-1, fatal_on_unknown_keys=True):
+def load(
+    filename, gpu_mode="auto", verbose=False, epoch=-1, fatal_on_unknown_keys=True
+):
     """
     Load a GAN-PHSP
     Output params   = dict with all parameters
@@ -304,40 +363,40 @@ def load(filename, gpu_mode='auto', verbose=False, epoch=-1, fatal_on_unknown_ke
     """
 
     dtypef, device = init_pytorch_cuda(gpu_mode, verbose)
-    if str(device) == 'cpu':
+    if str(device) == "cpu":
         nn = torch.load(filename, map_location=lambda storage, loc: storage)
     else:
         nn = torch.load(filename)
 
     # get elements
-    params = nn['params']
+    params = nn["params"]
 
     gaga.check_input_params(params, fatal_on_unknown_keys)
-    if not 'optim' in nn:
-        optim = nn['model']  ## FIXME compatibility --> to remove
+    if not "optim" in nn:
+        optim = nn["model"]  ## FIXME compatibility --> to remove
     else:
-        optim = nn['optim']
+        optim = nn["optim"]
 
-    D_state = nn['d_model_state']
+    D_state = nn["d_model_state"]
     if epoch == -1:
-        G_state = nn['g_model_state']
+        G_state = nn["g_model_state"]
     else:
         try:
-            index = optim['current_epoch'].index(epoch)
+            index = optim["current_epoch"].index(epoch)
         except:
             print(f"Epoch {epoch} is not in the list : {optim['current_epoch']}")
             exit(0)
-        G_state = optim['g_model_state'][index]
+        G_state = optim["g_model_state"][index]
 
     # create the Generator and the Discriminator (Critic)
     G, D = create_G_and_D_model(params)
 
-    if str(device) != 'cpu':
+    if str(device) != "cpu":
         G.cuda()
         D.cuda()
-        params['current_gpu'] = True
+        params["current_gpu"] = True
     else:
-        params['current_gpu'] = False
+        params["current_gpu"] = False
 
     G.load_state_dict(G_state)
     D.load_state_dict(D_state)
@@ -351,9 +410,9 @@ def get_min_max_constraints(params):
     """
 
     # clamp take normalisation into account
-    x_dim = params['x_dim']
-    keys = params['keys']
-    ckeys = params['constraints']
+    x_dim = params["x_dim"]
+    keys = params["keys"]
+    ckeys = params["constraints"]
     cmin = np.ones((1, x_dim)) * -9999  # FIXME min value
     cmax = np.ones((1, x_dim)) * 9999  # FIXME max value
     for k, v in ckeys.items():
@@ -364,8 +423,8 @@ def get_min_max_constraints(params):
         except:
             continue
 
-    x_std = params['x_std']
-    x_mean = params['x_mean']
+    x_std = params["x_std"]
+    x_mean = params["x_mean"]
 
     cmin = (cmin - x_mean) / x_std
     cmax = (cmax - x_mean) / x_std
@@ -375,79 +434,93 @@ def get_min_max_constraints(params):
 
 def get_RMSProp_optimisers(self, p):
     """
-        momentum (float, optional) – momentum factor (default: 0)
-        alpha (float, optional) – smoothing constant (default: 0.99)
-        centered (bool, optional) – if True, compute the centered RMSProp,
-                 the gradient is normalized by an estimation of its variance
-        weight_decay (float, optional) – weight decay (L2 penalty) (default: 0)
+    momentum (float, optional) – momentum factor (default: 0)
+    alpha (float, optional) – smoothing constant (default: 0.99)
+    centered (bool, optional) – if True, compute the centered RMSProp,
+             the gradient is normalized by an estimation of its variance
+    weight_decay (float, optional) – weight decay (L2 penalty) (default: 0)
     """
 
-    d_learning_rate = p['d_learning_rate']
-    g_learning_rate = p['g_learning_rate']
+    d_learning_rate = p["d_learning_rate"]
+    g_learning_rate = p["g_learning_rate"]
 
-    if 'RMSprop_d_momentum' not in p:
-        p['RMSprop_d_momentum'] = 0
-    if 'RMSprop_g_momentum' not in p:
-        p['RMSprop_g_momentum'] = 0
+    if "RMSprop_d_momentum" not in p:
+        p["RMSprop_d_momentum"] = 0
+    if "RMSprop_g_momentum" not in p:
+        p["RMSprop_g_momentum"] = 0
 
-    if 'RMSProp_d_alpha' not in p:
-        p['RMSProp_d_alpha'] = 0.99
-    if 'RMSProp_g_alpha' not in p:
-        p['RMSProp_g_alpha'] = 0.99
+    if "RMSProp_d_alpha" not in p:
+        p["RMSProp_d_alpha"] = 0.99
+    if "RMSProp_g_alpha" not in p:
+        p["RMSProp_g_alpha"] = 0.99
 
-    if 'RMSProp_d_weight_decay' not in p:
-        p['RMSProp_d_weight_decay'] = 0
-    if 'RMSProp_g_weight_decay' not in p:
-        p['RMSProp_g_weight_decay'] = 0
+    if "RMSProp_d_weight_decay" not in p:
+        p["RMSProp_d_weight_decay"] = 0
+    if "RMSProp_g_weight_decay" not in p:
+        p["RMSProp_g_weight_decay"] = 0
 
-    if 'RMSProp_d_centered' not in p:
-        p['RMSProp_d_centered'] = False
-    if 'RMSProp_g_centered' not in p:
-        p['RMSProp_g_centered'] = False
+    if "RMSProp_d_centered" not in p:
+        p["RMSProp_d_centered"] = False
+    if "RMSProp_g_centered" not in p:
+        p["RMSProp_g_centered"] = False
 
-    RMSprop_d_momentum = p['RMSprop_d_momentum']
-    RMSprop_g_momentum = p['RMSprop_g_momentum']
-    RMSProp_d_alpha = p['RMSProp_d_alpha']
-    RMSProp_g_alpha = p['RMSProp_g_alpha']
-    RMSProp_d_weight_decay = p['RMSProp_d_weight_decay']
-    RMSProp_g_weight_decay = p['RMSProp_g_weight_decay']
-    RMSProp_d_centered = p['RMSProp_d_centered']
-    RMSProp_g_centered = p['RMSProp_g_centered']
+    RMSprop_d_momentum = p["RMSprop_d_momentum"]
+    RMSprop_g_momentum = p["RMSprop_g_momentum"]
+    RMSProp_d_alpha = p["RMSProp_d_alpha"]
+    RMSProp_g_alpha = p["RMSProp_g_alpha"]
+    RMSProp_d_weight_decay = p["RMSProp_d_weight_decay"]
+    RMSProp_g_weight_decay = p["RMSProp_g_weight_decay"]
+    RMSProp_d_centered = p["RMSProp_d_centered"]
+    RMSProp_g_centered = p["RMSProp_g_centered"]
 
-    d_optimizer = torch.optim.RMSprop(self.D.parameters(),
-                                      lr=d_learning_rate,
-                                      momentum=RMSprop_d_momentum,
-                                      alpha=RMSProp_d_alpha,
-                                      weight_decay=RMSProp_d_weight_decay,
-                                      centered=RMSProp_d_centered)
-    g_optimizer = torch.optim.RMSprop(self.G.parameters(),
-                                      lr=g_learning_rate,
-                                      momentum=RMSprop_g_momentum,
-                                      alpha=RMSProp_g_alpha,
-                                      weight_decay=RMSProp_g_weight_decay,
-                                      centered=RMSProp_g_centered)
+    d_optimizer = torch.optim.RMSprop(
+        self.D.parameters(),
+        lr=d_learning_rate,
+        momentum=RMSprop_d_momentum,
+        alpha=RMSProp_d_alpha,
+        weight_decay=RMSProp_d_weight_decay,
+        centered=RMSProp_d_centered,
+    )
+    g_optimizer = torch.optim.RMSprop(
+        self.G.parameters(),
+        lr=g_learning_rate,
+        momentum=RMSprop_g_momentum,
+        alpha=RMSProp_g_alpha,
+        weight_decay=RMSProp_g_weight_decay,
+        centered=RMSProp_g_centered,
+    )
 
     return d_optimizer, g_optimizer
 
 
 def get_z_rand(params):
-    if 'z_rand_type' in params:
-        if params['z_rand_type'] == 'rand':
+    if "z_rand_type" in params:
+        if params["z_rand_type"] == "rand":
             return torch.rand
-        if params['z_rand_type'] == 'randn':
+        if params["z_rand_type"] == "randn":
             return torch.randn
-    if 'z_rand' in params:
-        if params['z_rand'] == 'uniform':
+    if "z_rand" in params:
+        if params["z_rand"] == "uniform":
             return torch.rand
-        if params['z_rand'] == 'normal':
+        if params["z_rand"] == "normal":
             return torch.randn
-    params['z_rand_type'] = 'randn'
+    params["z_rand_type"] = "randn"
     return torch.randn
 
 
-def generate_samples2(params, G, D, n, batch_size=-1, normalize=False, to_numpy=False, z=None, cond=None,
-                      silence=False):
-    if params['current_gpu']:
+def generate_samples2(
+    params,
+    G,
+    D,
+    n,
+    batch_size=-1,
+    normalize=False,
+    to_numpy=False,
+    z=None,
+    cond=None,
+    silence=False,
+):
+    if params["current_gpu"]:
         dtypef = torch.cuda.FloatTensor
     else:
         dtypef = torch.FloatTensor
@@ -473,38 +546,40 @@ def generate_samples2(params, G, D, n, batch_size=-1, normalize=False, to_numpy=
         # normalize the conditional vector
         xmean = params["x_mean"][0]
         xstd = params["x_std"][0]
-        xn = params['x_dim']
-        cn = len(params['cond_keys'])
+        xn = params["x_dim"]
+        cn = len(params["cond_keys"])
         ncond = cn
         # mean and std for cond only
-        xmeanc = xmean[xn - cn:xn]
-        xstdc = xstd[xn - cn:xn]
+        xmeanc = xmean[xn - cn : xn]
+        xstdc = xstd[xn - cn : xn]
         # mean and std for non cond
-        xmeannc = xmean[0:xn - cn]
-        xstdnc = xstd[0:xn - cn]
+        xmeannc = xmean[0 : xn - cn]
+        xstdnc = xstd[0 : xn - cn]
         # normalize the condition
         cond = (cond - xmeanc) / xstdc
     else:
-        if len(params['cond_keys']) > 0:
-            print(f'Error : GAN is conditional, you should provide the condition: {params["cond_keys"]}')
+        if len(params["cond_keys"]) > 0:
+            print(
+                f'Error : GAN is conditional, you should provide the condition: {params["cond_keys"]}'
+            )
             exit(0)
 
     langevin_latent_sampling_flag = False
-    if 'langevin_latent_sampling' in params:
+    if "langevin_latent_sampling" in params:
         langevin_latent_sampling_flag = True
 
     m = 0
-    z_dim = params['z_dim']
-    x_dim = params['x_dim']
+    z_dim = params["z_dim"]
+    x_dim = params["x_dim"]
     rfake = np.empty((0, x_dim - ncond))
     while m < n:
         if not silence:
-            print(f'Batch {m}/{n}')
+            print(f"Batch {m}/{n}")
         # no more samples than needed
         current_gpu_batch_size = batch_size
         if current_gpu_batch_size > n - m:
             current_gpu_batch_size = n - m
-        #print('(G) current_gpu_batch_size', current_gpu_batch_size)
+        # print('(G) current_gpu_batch_size', current_gpu_batch_size)
 
         # (checking Z allow to reuse z for some special test case)
         # if None == z:
@@ -512,7 +587,11 @@ def generate_samples2(params, G, D, n, batch_size=-1, normalize=False, to_numpy=
 
         # condition ?
         if is_conditional:
-            condx = Variable(torch.from_numpy(cond[m:m + current_gpu_batch_size])).type(dtypef).view(current_gpu_batch_size, cn)
+            condx = (
+                Variable(torch.from_numpy(cond[m : m + current_gpu_batch_size]))
+                .type(dtypef)
+                .view(current_gpu_batch_size, cn)
+            )
             z = torch.cat((z.float(), condx.float()), dim=1)
 
         # FIXME test langevin
@@ -527,8 +606,8 @@ def generate_samples2(params, G, D, n, batch_size=-1, normalize=False, to_numpy=
         m = m + current_gpu_batch_size
 
     if not normalize:
-        x_mean = params['x_mean']
-        x_std = params['x_std']
+        x_mean = params["x_mean"]
+        x_std = params["x_std"]
         if is_conditional:
             # do not consider the mean/std of the condition part
             x_mean = xmeannc
@@ -603,7 +682,7 @@ def sliced_wasserstein(x, y, l, p=1):
 def wasserstein1D(x, y, p=1):
     sx, indices = torch.sort(x)
     sy, indices = torch.sort(y)
-    z = (sx - sy)
+    z = sx - sy
     return torch.sum(torch.pow(torch.abs(z), p)) / len(z)
 
 
@@ -613,10 +692,10 @@ def init_plane(n, angle, radius):
     """
 
     n = int(n)
-    logger.info(f'Initialisation of plane with radius {radius} ')
+    logger.info(f"Initialisation of plane with radius {radius} ")
     plane_U = np.array([1, 0, 0])
     plane_V = np.array([0, 1, 0])
-    r = Rotation.from_euler('y', angle, degrees=True)
+    r = Rotation.from_euler("y", angle, degrees=True)
     plane_U = r.apply(plane_U)
     plane_V = r.apply(plane_V)
 
@@ -626,13 +705,20 @@ def init_plane(n, angle, radius):
 
     center = np.array([0, 0, -radius])
     center = r.apply(center)
-    plane_center = np.array([center, ] * n)
+    plane_center = np.array(
+        [
+            center,
+        ]
+        * n
+    )
 
-    plane = {'plane_U': plane_U,
-             'plane_V': plane_V,
-             'rotation': r,
-             'plane_normal': plane_normal,
-             'plane_center': plane_center}
+    plane = {
+        "plane_U": plane_U,
+        "plane_V": plane_V,
+        "rotation": r,
+        "plane_normal": plane_normal,
+        "plane_center": plane_center,
+    }
     # logger.info(f'Initialisation of plane {plane} ')
     return plane
 
@@ -643,19 +729,19 @@ def project_on_plane(x, plane, image_plane_size_mm, debug=False):
     on the image plane defined by plane_U, plane_V, plane_center, plane_normal
     """
 
-    logger.info(f'Projection of {len(x)} particles on the plane')
-    logger.info(f'Plane size is {image_plane_size_mm} mm')
+    logger.info(f"Projection of {len(x)} particles on the plane")
+    logger.info(f"Plane size is {image_plane_size_mm} mm")
 
     # shorter variable names
 
     # n is the normal plane, duplicated n times
-    n = plane['plane_normal'][0:len(x)]
+    n = plane["plane_normal"][0 : len(x)]
 
     # c0 is the center of the plane, duplicated n times
-    c0 = plane['plane_center'][0:len(x)]
+    c0 = plane["plane_center"][0 : len(x)]
 
     # r is the rotation matrix of the plane, according to the current rotation angle (around Y)
-    r = plane['rotation'][0:len(x)]
+    r = plane["rotation"][0 : len(x)]
 
     # p is the set of points position generated by the GAN
     p = x[:, 1:4]
@@ -672,7 +758,9 @@ def project_on_plane(x, plane, image_plane_size_mm, debug=False):
     # http://geomalgorithms.com/a05-_intersect-1.html
     # https://github.com/pytorch/pytorch/issues/18027
     ndotu = (n * u).sum(-1)  # dot product between normal plane (n) and direction (u)
-    si = -(n * w).sum(-1) / ndotu  # dot product between normal plane and vector from plane to point (w)
+    si = (
+        -(n * w).sum(-1) / ndotu
+    )  # dot product between normal plane and vector from plane to point (w)
 
     # only positive (direction to the plane)
     mask = si > 0
@@ -684,7 +772,7 @@ def project_on_plane(x, plane, image_plane_size_mm, debug=False):
     mp = p[mask]
     msi = si[mask]
     mnb = len(msi)
-    logger.info(f'Remove negative direction, remains {mnb}/{len(x)}')
+    logger.info(f"Remove negative direction, remains {mnb}/{len(x)}")
 
     # si is a (nb) size vector, expand it to (nb x 3)
     msi = np.array([msi] * 3).T
@@ -711,7 +799,7 @@ def project_on_plane(x, plane, image_plane_size_mm, debug=False):
     mx = mx[m]
     mc0 = mc0[m]
     nb = len(psip)
-    logger.info(f'Remove points that are out of detector, remains {nb}/{len(x)}')
+    logger.info(f"Remove points that are out of detector, remains {nb}/{len(x)}")
 
     # reshape results
     pu = psip[:, 0].reshape((nb, 1))  # u
@@ -770,31 +858,42 @@ def gaga_garf_generate_image(p):
 
         # Step 1 : GAN
         t1 = time.time()
-        logger.info(f'Generating {current_batch_size} events')
-        x = gaga.generate_samples2(gan_params, G, D, current_batch_size, gan_batch_size, normalize=False, to_numpy=True)
+        logger.info(f"Generating {current_batch_size} events")
+        x = gaga.generate_samples2(
+            gan_params,
+            G,
+            D,
+            current_batch_size,
+            gan_batch_size,
+            normalize=False,
+            to_numpy=True,
+        )
         # print('batch / x', current_batch_size, len(x))
-        logger.info('Computation time: {0:.3f} sec'.format(time.time() - t1))
+        logger.info("Computation time: {0:.3f} sec".format(time.time() - t1))
 
         # Step 2 : Projection
         t1 = time.time()
-        px = gaga.project_on_plane(x, plane, image_plane_size_mm=image_plane_size_mm, debug=debug)
-        logger.info('Computation time: {0:.3f} sec'.format(time.time() - t1))
+        px = gaga.project_on_plane(
+            x, plane, image_plane_size_mm=image_plane_size_mm, debug=debug
+        )
+        logger.info("Computation time: {0:.3f} sec".format(time.time() - t1))
 
         # Step3 : GARF
         # output image expressed in counts/samples (generated samples)
         t1 = time.time()
-        logger.info(f'Building image with {len(px)}/{current_batch_size} particles')
-        garf_param['N_dataset'] = current_batch_size
-        img, sq_img = garf.build_arf_image_with_nn(garf_nn, garf_model, px,
-                                                   garf_param, verbose=False, debug=debug)
+        logger.info(f"Building image with {len(px)}/{current_batch_size} particles")
+        garf_param["N_dataset"] = current_batch_size
+        img, sq_img = garf.build_arf_image_with_nn(
+            garf_nn, garf_model, px, garf_param, verbose=False, debug=debug
+        )
         images.append(img)
         sq_images.append(sq_img)
-        logger.info('Computation time: {0:.3f} sec'.format(time.time() - t1))
+        logger.info("Computation time: {0:.3f} sec".format(time.time() - t1))
 
         ev += current_batch_size
         pbar.update(current_batch_size)
         ev = min(ev, n)
-        logger.info('')
+        logger.info("")
 
     # mean images
     im_iter = iter(images)
