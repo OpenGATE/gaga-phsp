@@ -7,6 +7,8 @@
 
 # Test 2: Gaussian
 
+(need to save npy folder before)
+
 generate:
 
     cd tests
@@ -55,3 +57,14 @@ result:
     
     # warning x and y not independent here! 
     gaga_gauss_plot npy/xgauss_10_1e6.npy pth/cg1_GP_SquareHinge_1_4000.pth -n 1e5 -x 3.5 -m 1e4 -y 1.16666
+
+
+# Test 5 : spect parametrisation
+
+Convert root dataset to parametrisation, replace P_exit by P_ideal = P_exit - c x t x Dir 
+
+    gaga_exit_pos_to_ideal_pos run.wjmkh2ve/training_dataset.root -n 1e4 -o a.npy
+    gaga_ideal_pos_to_exit_pos a.npy -n 1e4 -o b.npy
+    gt_phsp_plot b.npy run.wjmkh2ve/training_dataset.root -n 1e4
+
+

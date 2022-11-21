@@ -6,6 +6,7 @@ aa.png
 .DS_Store
 
 /bin.save/
+/bin/save/
 /build/
 /.idea/
 /.idea_save/

@@ -40,11 +40,13 @@ def gaga_gauss_plot(phsp_filename, pth_filename, n, m, epoch, x, y):
     params, G, D, optim, dtypef = gaga.load(pth_filename, epoch=epoch)
 
     # generate samples with condition
-    condx = np.ones(m) * x
-    condy = np.ones(m) * y
-    print(condx.shape, condy.shape)
-    cond = np.column_stack((condx, condy))
-    print(cond.shape)
+    cond = None
+    if len(params['cond_keys']) > 0:
+        condx = np.ones(m) * x
+        condy = np.ones(m) * y
+        print(condx.shape, condy.shape)
+        cond = np.column_stack((condx, condy))
+        print(cond.shape)
     fake = gaga.generate_samples2(params, G, D, m, m, False, True, cond=cond)
 
     # get 2D points

@@ -44,25 +44,22 @@ def from_tlor_to_pairs(x, params, verbose=False):
         params['keys_output'].append('w')
 
     # Step1: find intersection between line C V and sphere
-    A, B, non_valid = line_sphere_intersection_torch(params['radius'], C, V)
-    to_remove = torch.unique(non_valid, return_counts=True)[1][0]
+    A, B, non_valid_index = line_sphere_intersection_torch(params['radius'], C, V)
     if verbose:
-        print(f'Remove non valid (out of sphere): {to_remove}/{len(A)}')
+        nb_to_remove = torch.unique(non_valid_index, return_counts=True)[1][1]
+        print(f'Remove non valid (out of sphere): {nb_to_remove}/{len(A)}')
 
     # Step2: retrieve time weighted position
     tA, tB = compute_times_wrt_weighted_position(C, A, B, tt)
 
     # Detect non valid data (negative energy). Keep energy == 0
-    non_valid = torch.logical_or((E1 < 0).squeeze(), non_valid)
-    non_valid = torch.logical_or((E2 < 0).squeeze(), non_valid)
-    to_remove = torch.unique(non_valid, return_counts=True)[1][0]
+    non_valid_index = torch.logical_or((E1 <= 0).squeeze(), non_valid_index)
+    non_valid_index = torch.logical_or((E2 <= 0).squeeze(), non_valid_index)
+    non_valid_index = torch.logical_or((tA <= 0).squeeze(), non_valid_index)
+    non_valid_index = torch.logical_or((tB <= 0).squeeze(), non_valid_index)
     if verbose:
-        print(f'Remove non valid (E<=0): {to_remove} {len(A)}')
-
-    '''non_valid = torch.logical_and((E1 != 0).squeeze(), non_valid)
-    non_valid = torch.logical_and((E2 != 0).squeeze(), non_valid)
-    to_remove = torch.unique(non_valid, return_counts=True)[1][0]
-    print(f'Put back event with energy == 0: {to_remove} {len(A)}')'''
+        nb_to_remove = torch.unique(non_valid_index, return_counts=True)[1][1]
+        print(f'Remove non valid (E<=0): {nb_to_remove}/{len(A)}')
 
     # Step3: stack
     x = torch.stack((tA, tB), dim=0).T
@@ -74,12 +71,12 @@ def from_tlor_to_pairs(x, params, verbose=False):
     x = torch.hstack([x, E1])
     x = torch.hstack([x, E2])
 
-    # FIXME weights
+    # weights
     if 'w1' in keys:
         x = torch.hstack([x, w])
 
     # mask non valid samples
-    x = x[~non_valid]
+    x = x[~non_valid_index]
 
     # end
     return x
@@ -246,7 +243,7 @@ def line_sphere_intersection_torch(radius, P, dir):
     # delta
     delta = b ** 2 - 4 * a * c
     # consider non valid even if tangent
-    non_valid = delta <= 0
+    non_valid_index = delta <= 0
     # d
     d1 = (-b - torch.sqrt(delta)) / (2 * a)
     d2 = (-b + torch.sqrt(delta)) / (2 * a)
@@ -262,7 +259,7 @@ def line_sphere_intersection_torch(radius, P, dir):
     x = P + d1[:, np.newaxis] * dir
     y = P + d2[:, np.newaxis] * dir'''
 
-    return x, y, non_valid
+    return x, y, non_valid_index
 
 
 def get_key(x, keys_list, keys):
@@ -332,7 +329,7 @@ def compute_times_wrt_weighted_position(C, A, B, t1):
     # prevent nan -> set both time to zero
     mask = distance == 0
     f[mask] = 0
-    #print(f'Number of distance==0 {mask.sum()}/{len(distance)}')
+    # print(f'Number of distance==0 {mask.sum()}/{len(distance)}')
     # distances
     distA = torch.linalg.norm(C - A, axis=1)
     distB = torch.linalg.norm(C - B, axis=1)
@@ -480,44 +477,80 @@ def plot_sphere_pairing_color(ax, x, keys_out, radius, color):
     ax.set_box_aspect((np.ptp(x), np.ptp(y), np.ptp(z)))
 
 
-def pet_pairing(n, i, idx, energy, pos, dir, time, p0, d0, out, nbs):
+def pet_pairing_v1(n, i, idx, energy, pos, dir, time, p0, d0, out, nbs):
     if n == 2:
         return pet_pairing_pairs(i, i + idx[1], energy, pos, dir, time, p0, out, nbs)
     if n == 1:
         e1 = energy[i]
         if e1 == 0:
-            return pet_pairing_absorbed(i, pos, dir, time, p0, d0, out, nbs)
+            return pet_pairing_absorbed_v1(i, pos, dir, time, p0, d0, out, nbs)
         else:
-            return pet_pairing_singles(i, e1, pos, dir, time, p0, d0, out, nbs)
+            return pet_pairing_singles_v1(i, e1, pos, dir, time, p0, d0, out, nbs)
+    nbs.ignored += n
+
+
+def pet_pairing_v2(n, i, idx, energy, pos, dir, time, p0, d0, out, nbs):
+    if n == 2:
+        return pet_pairing_pairs(i, i + idx[1], energy, pos, dir, time, p0, out, nbs)
+    if n == 1:
+        e1 = energy[i]
+        if e1 == 0:
+            return pet_pairing_absorbed_v2(i, pos, dir, time, p0, d0, out, nbs)
+        else:
+            return pet_pairing_singles_v2(i, e1, pos, dir, time, p0, d0, out, nbs)
     nbs.ignored += n
 
 
 def pet_pairing_pairs(idx1, idx2, energy, pos, dir, time, p0, out, nbs):
-    out.append([energy[idx1], energy[idx2]] + \
-               list(pos[idx1, :]) + list(pos[idx2, :]) + \
-               list(dir[idx1, :]) + list(dir[idx2, :]) + \
-               [time[idx1], time[idx2]] + \
+    out.append([energy[idx1], energy[idx2]] +
+               list(pos[idx1, :]) + list(pos[idx2, :]) +
+               list(dir[idx1, :]) + list(dir[idx2, :]) +
+               [time[idx1], time[idx2]] +
                list(p0[idx1]))
     nbs.pairs += 1
 
 
-def pet_pairing_absorbed(i, pos, dir, time, p0, d0, out, nbs):
+def pet_pairing_absorbed_v1(i, pos, dir, time, p0, d0, out, nbs):
     p0 = p0[i]
-    a, b, nv = gaga.line_sphere_intersection_one(nbs.radius, p0, d0[i])
-    if nv:
-        nbs.ignored += 1
+    a, b, non_valid = gaga.line_sphere_intersection_one(nbs.radius, p0, d0[i])
+    if non_valid:
         return
     t1 = np.linalg.norm(a - p0) / speed_of_light
     t2 = np.linalg.norm(b - p0) / speed_of_light
-    out.append([0, 0] + \
-               list(a) + list(b) + \
-               list(-d0[i]) + list(d0[i]) + \
-               [t1, t2] + \
-               list(p0))
+    out.append([0, 0] +  # energy
+               list(a) + list(b) +  # position (unused)
+               list(-d0[i]) + list(d0[i]) +  # direction (unused)
+               [t1, t2] +  # time (unused)
+               list(p0))  # event position
     nbs.absorbed += 1
 
 
-def pet_pairing_singles(i, e1, pos, dir, time, p0, d0, out, nbs):
+def pet_pairing_absorbed_v2(i, pos, dir, time, p0, d0, out, nbs):
+    p0 = p0[i]
+    z = np.zeros_like(p0)
+    out.append([0, 0] +  # energy
+               list(z) + list(z) +  # position
+               list(d0[i]) + list(-d0[i]) +  # direction
+               [0, 0] +  # time (unused)
+               list(p0))  # event position
+    nbs.absorbed += 1
+
+
+def pet_pairing_singles_v2(i, e1, pos, dir, time, p0, d0, out, nbs):
+    p0 = p0[i]
+    p1 = pos[i]
+    d1 = dir[i]
+    t1 = time[i]
+    p2 = np.zeros_like(p0)
+    out.append([e1, 0] +
+               list(p1) + list(p2) +  # p2 position is unused
+               list(d1) + list(-d1) +  # d2 direction is unused
+               [t1, 0] +  # t2 time is unused
+               list(p0))
+    nbs.singles += 1
+
+
+def pet_pairing_singles_v1(i, e1, pos, dir, time, p0, d0, out, nbs):
     p0 = p0[i]
     p1 = pos[i]
     d1 = dir[i]
@@ -528,7 +561,7 @@ def pet_pairing_singles(i, e1, pos, dir, time, p0, d0, out, nbs):
         return
     dia = np.linalg.norm(p1 - a)
     dib = np.linalg.norm(p1 - b)
-    # consider the farest
+    # consider the more far
     if dia > dib:
         p2 = a
     else:
@@ -537,9 +570,9 @@ def pet_pairing_singles(i, e1, pos, dir, time, p0, d0, out, nbs):
     n2 = np.linalg.norm(d2)
     t2 = n2 / speed_of_light
     d2 = d2 / n2
-    out.append([e1, 0] + \
-               list(p1) + list(p2) + \
-               list(d1) + list(d2) + \
-               [t1, t2] + \
+    out.append([e1, 0] +
+               list(p1) + list(p2) +  # p2 position is unused
+               list(d1) + list(d2) +  # d2 direction is unused
+               [t1, t2] +  # t2 time is unused
                list(p0))
     nbs.singles += 1
