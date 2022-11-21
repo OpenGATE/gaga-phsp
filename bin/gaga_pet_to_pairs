@@ -1,15 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import uproot
 import click
-import gatetools as gt
 import gatetools.phsp as phsp
 from matplotlib import pyplot as plt
 import numpy as np
 import gaga_phsp as gaga
-import os
-import scipy
 from box import Box
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
@@ -42,8 +38,7 @@ def go(phsp_filename, tree, output, n, nstart, radius, plot):
     vt = data[:, keys.index('TimeFromBeginOfEvent')]
     vp0 = data[:, keys.index('EventPosition_X'):keys.index('EventPosition_Z') + 1]
 
-
-    #vd0 = data[:, keys.index('TrackVertexMomentumDirection_X'):keys.index('TrackVertexMomentumDirection_Z') + 1]
+    # vd0 = data[:, keys.index('TrackVertexMomentumDirection_X'):keys.index('TrackVertexMomentumDirection_Z') + 1]
     # FIXME vd0 is not really used. Only for absorbed or single events, to compute fake position/direction
     # (this may (?) help the GAN to learn instead of using a zero value)
     vd0 = data[:, keys.index('EventDirection_X'):keys.index('EventDirection_Z') + 1]
@@ -81,9 +76,11 @@ def go(phsp_filename, tree, output, n, nstart, radius, plot):
         # print
         if i % 1e5 == 0:
             print(f' {i}/{n} {i / n * 100:1f}%: event id {eid} ; idx={idx}')
-        # pair the events
+        # nb of events with the same eventID
         ne = len(idx)
-        gaga.pet_pairing(ne, i, idx, ve, vpos, vdir, vt, vp0, vd0, out, nbs)
+        # pairs them
+        #gaga.pet_pairing_v1(ne, i, idx, ve, vpos, vdir, vt, vp0, vd0, out, nbs)
+        gaga.pet_pairing_v2(ne, i, idx, ve, vpos, vdir, vt, vp0, vd0, out, nbs)
         # store they were considered
         for ii in idx:
             event_id[i + ii] = -1
