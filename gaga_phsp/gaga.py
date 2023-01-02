@@ -121,6 +121,18 @@ class Gan(object):
             self.d_optimizer = torch.optim.SGD(self.D.parameters(), lr=d_learning_rate)
             self.g_optimizer = torch.optim.SGD(self.G.parameters(), lr=g_learning_rate)
 
+        if p['optimiser'] == 'gdtuo-RMSprop':
+            from gradient_descent_the_ultimate_optimizer import gdtuo
+            self.d_optimizer_gdtuo = gdtuo.RMSProp(optimizer=gdtuo.SGD(1e-5))
+            self.g_optimizer_gdtuo = gdtuo.RMSProp(optimizer=gdtuo.SGD(1e-5))
+            self.d_optimizer = gdtuo.ModuleWrapper(self.D, optimizer=self.d_optimizer_gdtuo)
+            self.g_optimizer = gdtuo.ModuleWrapper(self.G, optimizer=self.g_optimizer_gdtuo)
+            self.d_optimizer.initialize()
+            self.g_optimizer.initialize()
+            print('NOT YET')
+            exit(0)
+
+
         # auto decreasing learning_rate
         self.is_scheduler_enabled = False
         try:
@@ -349,6 +361,8 @@ class Gan(object):
             for _ in range(self.params['d_nb_update']):
 
                 #
+                if self.params['optimiser'] == 'gdtuo-RMSprop':
+                    self.d_optimizer.begin()
                 self.D.zero_grad()
 
                 # the input data
@@ -421,6 +435,10 @@ class Gan(object):
                 p.requires_grad = False
 
             for _ in range(self.params['g_nb_update']):
+
+                #
+                if self.params['optimiser'] == 'gdtuo-RMSprop':
+                    self.g_optimizer.begin()
 
                 # required
                 self.G.zero_grad()

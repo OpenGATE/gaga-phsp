@@ -353,7 +353,7 @@ def auto_output_filename(params, output, output_folder):
 
 
 def load(
-    filename, gpu_mode="auto", verbose=False, epoch=-1, fatal_on_unknown_keys=True
+        filename, gpu_mode="auto", verbose=False, epoch=-1, fatal_on_unknown_keys=True
 ):
     """
     Load a GAN-PHSP
@@ -509,16 +509,16 @@ def get_z_rand(params):
 
 
 def generate_samples2(
-    params,
-    G,
-    D,
-    n,
-    batch_size=-1,
-    normalize=False,
-    to_numpy=False,
-    z=None,
-    cond=None,
-    silence=False,
+        params,
+        G,
+        D,
+        n,
+        batch_size=-1,
+        normalize=False,
+        to_numpy=False,
+        z=None,
+        cond=None,
+        silence=False,
 ):
     if params["current_gpu"]:
         dtypef = torch.cuda.FloatTensor
@@ -550,11 +550,11 @@ def generate_samples2(
         cn = len(params["cond_keys"])
         ncond = cn
         # mean and std for cond only
-        xmeanc = xmean[xn - cn : xn]
-        xstdc = xstd[xn - cn : xn]
+        xmeanc = xmean[xn - cn: xn]
+        xstdc = xstd[xn - cn: xn]
         # mean and std for non cond
-        xmeannc = xmean[0 : xn - cn]
-        xstdnc = xstd[0 : xn - cn]
+        xmeannc = xmean[0: xn - cn]
+        xstdnc = xstd[0: xn - cn]
         # normalize the condition
         cond = (cond - xmeanc) / xstdc
     else:
@@ -588,7 +588,7 @@ def generate_samples2(
         # condition ?
         if is_conditional:
             condx = (
-                Variable(torch.from_numpy(cond[m : m + current_gpu_batch_size]))
+                Variable(torch.from_numpy(cond[m: m + current_gpu_batch_size]))
                 .type(dtypef)
                 .view(current_gpu_batch_size, cn)
             )
@@ -618,6 +618,65 @@ def generate_samples2(
         return rfake
 
     return Variable(torch.from_numpy(rfake)).type(dtypef)
+
+
+def generate_samples3(params, G, n, cond):
+    """
+    Like generate_samples2 but with less options, to see if it can be faster
+
+    - batch size is managed elsewhere
+
+    """
+    if params["current_gpu"]:
+        dtypef = torch.cuda.FloatTensor
+    else:
+        dtypef = torch.FloatTensor
+
+    # normalize the conditional vector
+    xmean = params["x_mean"][0]
+    xstd = params["x_std"][0]
+    xn = params["x_dim"]
+    cn = len(params["cond_keys"])
+    ncond = cn
+    # mean and std for cond only
+    xmeanc = xmean[xn - cn: xn]
+    xstdc = xstd[xn - cn: xn]
+    # mean and std for non cond
+    xmeannc = xmean[0: xn - cn]
+    xstdnc = xstd[0: xn - cn]
+    # normalize the condition
+    cond = (cond - xmeanc) / xstdc
+
+    m = 0
+    z_dim = params["z_dim"]
+    x_dim = params["x_dim"]
+    rfake = np.empty((0, x_dim - ncond))
+
+    # (checking Z allow to reuse z for some special test case)
+    # if None == z:
+    z = Variable(torch.randn(n, z_dim)).type(dtypef)
+
+    # condition ?
+    condx = (
+        Variable(torch.from_numpy(cond[m: m + n]))
+        .type(dtypef)
+        .view(n, cn)
+    )
+    z = torch.cat((z.float(), condx.float()), dim=1)
+
+    # Go !!!
+    fake = G(z)
+
+    # put back to cpu to allow concatenation
+    fake = fake.cpu().data.numpy()
+    rfake = np.concatenate((rfake, fake), axis=0)
+
+    # do not consider the mean/std of the condition part
+    x_mean = xmeannc
+    x_std = xstdnc
+    rfake = (rfake * x_std) + x_mean
+
+    return rfake
 
 
 def Jensen_Shannon_divergence(x, y, bins, margin=0):
@@ -704,6 +763,7 @@ def init_plane(n, angle, radius):
     plane_normal = np.array([plane_normal] * n)
 
     center = np.array([0, 0, -radius])
+    center = np.array([0, 0, -radius])
     center = r.apply(center)
     plane_center = np.array(
         [
@@ -723,6 +783,39 @@ def init_plane(n, angle, radius):
     return plane
 
 
+def init_plane2(n, angle, radius, spect_table_shift_mm):
+    """
+    plane_U, plane_V, plane_point, plane_normal
+    """
+
+    n = int(n)
+    plane_U = np.array([1, 0, 0])
+    plane_V = np.array([0, 1, 0])
+    r1 = Rotation.from_euler("x", 90, degrees=True)
+    r2 = Rotation.from_euler("z", angle, degrees=True)
+    r = r2 * r1
+    plane_U = r.apply(plane_U)
+    plane_V = r.apply(plane_V)
+
+    # normal vector is the cross product of two direction vectors on the plane
+    plane_normal = np.cross(plane_U, plane_V)
+    plane_normal = np.array([plane_normal] * n)
+
+    center = np.array([0, -spect_table_shift_mm, -radius])
+    center = r.apply(center)
+    plane_center = np.array([center] * n)
+
+    plane = {
+        "plane_U": plane_U,
+        "plane_V": plane_V,
+        "rotation": r.inv(),  # [r] * n,
+        "plane_normal": plane_normal,
+        "plane_center": plane_center,
+    }
+
+    return plane
+
+
 def project_on_plane(x, plane, image_plane_size_mm, debug=False):
     """
     Project the x points (Ekine X Y Z dX dY dZ)
@@ -735,13 +828,13 @@ def project_on_plane(x, plane, image_plane_size_mm, debug=False):
     # shorter variable names
 
     # n is the normal plane, duplicated n times
-    n = plane["plane_normal"][0 : len(x)]
+    n = plane["plane_normal"][0: len(x)]
 
     # c0 is the center of the plane, duplicated n times
-    c0 = plane["plane_center"][0 : len(x)]
+    c0 = plane["plane_center"][0: len(x)]
 
     # r is the rotation matrix of the plane, according to the current rotation angle (around Y)
-    r = plane["rotation"][0 : len(x)]
+    r = plane["rotation"][0: len(x)]
 
     # p is the set of points position generated by the GAN
     p = x[:, 1:4]
@@ -759,7 +852,7 @@ def project_on_plane(x, plane, image_plane_size_mm, debug=False):
     # https://github.com/pytorch/pytorch/issues/18027
     ndotu = (n * u).sum(-1)  # dot product between normal plane (n) and direction (u)
     si = (
-        -(n * w).sum(-1) / ndotu
+            -(n * w).sum(-1) / ndotu
     )  # dot product between normal plane and vector from plane to point (w)
 
     # only positive (direction to the plane)
@@ -808,6 +901,107 @@ def project_on_plane(x, plane, image_plane_size_mm, debug=False):
 
     # rotate direction according to the plane
     mup = ri.apply(mu)
+    norm = np.linalg.norm(mup, axis=1, keepdims=True)
+    mup = mup / norm
+    dx = mup[:, 0]
+    dy = mup[:, 1]
+
+    # FIXME -> clip arcos -1;1 ?
+
+    # convert direction into theta/phi
+    # theta is acos(dy)
+    # phi is acos(dx)
+    theta = np.degrees(np.arccos(dy)).reshape((nb, 1))
+    phi = np.degrees(np.arccos(dx)).reshape((nb, 1))
+    y = np.concatenate((y, theta), axis=1)
+    y = np.concatenate((y, phi), axis=1)
+
+    # concat the E
+    E = mx[:, 0].reshape((nb, 1))
+    data = np.concatenate((y, E), axis=1)
+
+    return data
+
+
+def project_on_plane2(x, plane, image_plane_size_mm):
+    """
+    Project the x points (Ekine X Y Z dX dY dZ)
+    on the image plane defined by plane_U, plane_V, plane_center, plane_normal
+    """
+
+    # n is the normal plane, duplicated n times
+    n = plane["plane_normal"][0: len(x)]
+
+    # c0 is the center of the plane, duplicated n times
+    c0 = plane["plane_center"][0: len(x)]
+
+    # r is the rotation matrix of the plane, according to the current rotation angle (around Y)
+    r = plane["rotation"]  # [0: len(x)]
+
+    # p is the set of points position generated by the GAN
+    p = x[:, 1:4]  # FIXME indices of the position
+
+    # u is the set of points direction generated by the GAN
+    u = x[:, 4:7]  # FIXME indices of the position
+
+    # w is the set of vectors from all points to the plane center
+    w = p - c0
+
+    # project to plane
+    # dot product : out = (x*y).sum(-1)
+    # https://rosettacode.org/wiki/Find_the_intersection_of_a_line_with_a_plane#Python
+    # http://geomalgorithms.com/a05-_intersect-1.html
+    # https://github.com/pytorch/pytorch/issues/18027
+
+    # dot product between normal plane (n) and direction (u)
+    ndotu = (n * u).sum(-1)
+
+    # dot product between normal plane and vector from plane to point (w)
+    si = (-(n * w).sum(-1) / ndotu)
+
+    # only positive (direction to the plane)
+    mask = si > 0
+    mu = u[mask]
+    mc0 = c0[mask]
+    mx = x[mask]
+    mp = p[mask]
+    msi = si[mask]
+    mnb = len(msi)
+    # print(f"Remove negative direction, remains {mnb}/{len(x)}")
+
+    # si is a (nb) size vector, expand it to (nb x 3)
+    msi = np.array([msi] * 3).T
+
+    # intersection between point-direction and plane
+    psi = mp + msi * mu
+
+    # offset of the head
+    psi = psi + c0[:len(psi)]
+
+    # apply the inverse of the rotation
+    psip = r.apply(psi)
+
+    # remove out of plane (needed ??)
+    sizex = image_plane_size_mm[0] / 2.0
+    sizey = image_plane_size_mm[1] / 2.0
+    mask1 = psip[:, 0] < sizex
+    mask2 = psip[:, 0] > -sizex
+    mask3 = psip[:, 1] < sizey
+    mask4 = psip[:, 1] > -sizey
+    m = mask1 & mask2 & mask3 & mask4
+    psip = psip[m]
+    mu = mu[m]
+    mx = mx[m]
+    nb = len(psip)
+    # print(f"Remove points that are out of detector, remains {nb}/{len(x)}")
+
+    # reshape results
+    pu = psip[:, 0].reshape((nb, 1))  # u
+    pv = psip[:, 1].reshape((nb, 1))  # v
+    y = np.concatenate((pu, pv), axis=1)
+
+    # rotate direction according to the plane
+    mup = r.apply(mu)
     norm = np.linalg.norm(mup, axis=1, keepdims=True)
     mup = mup / norm
     dx = mup[:, 0]
