@@ -4,10 +4,9 @@
 import logging
 import os
 import time
-import SimpleITK as sitk
+import itk
 import click
 import gatetools as gt
-import itk
 from tqdm import tqdm
 import gaga_phsp as gaga
 import garf
@@ -112,11 +111,11 @@ def gaga_garf_generate_img(gan_pth_filename, garf_pth_filename,
         # save image
         b, extension = os.path.splitext(output)
         out = f'{b}_{str(angle).zfill(5)}{extension}'
-        sitk.WriteImage(image, out)
+        itk.imwrite(image, out)
 
         # save image
         sout = f'{b}_{str(angle).zfill(5)}-Squared{extension}'
-        sitk.WriteImage(sq_image, sout)
+        itk.imwrite(sq_image, sout)
 
         # compute sigma if needed
         if sigma:

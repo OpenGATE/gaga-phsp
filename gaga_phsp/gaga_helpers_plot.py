@@ -10,7 +10,6 @@ from scipy.stats import kde
 from matplotlib import pyplot as plt
 from scipy.stats import entropy
 from scipy.spatial.transform import Rotation
-import SimpleITK as sitk
 import logging
 import sys
 

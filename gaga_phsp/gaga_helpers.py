@@ -8,7 +8,7 @@ import garf
 import gatetools.phsp as phsp
 from scipy.stats import entropy
 from scipy.spatial.transform import Rotation
-import SimpleITK as sitk
+import itk
 import logging
 import sys
 import os
@@ -1092,23 +1092,23 @@ def gaga_garf_generate_image(p):
     # mean images
     im_iter = iter(images)
     im = next(im_iter)
-    data = sitk.GetArrayFromImage(im)
+    data = itk.GetArrayFromImage(im)
     for im in im_iter:
-        d = sitk.GetArrayViewFromImage(im)
+        d = itk.GetArrayViewFromImage(im)
         data += d
     data = data / len(images)
-    img = sitk.GetImageFromArray(data)
+    img = itk.GetImageFromArray(data)
     img.CopyInformation(images[0])
 
     # mean images
     im_iter = iter(sq_images)
     im = next(im_iter)
-    data = sitk.GetArrayFromImage(im)
+    data = itk.GetArrayFromImage(im)
     for im in im_iter:
-        d = sitk.GetArrayViewFromImage(im)
+        d = itk.GetArrayViewFromImage(im)
         data += d
     data = data / len(sq_images)
-    sq_img = sitk.GetImageFromArray(data)
+    sq_img = itk.GetImageFromArray(data)
     sq_img.CopyInformation(sq_images[0])
 
     return img, sq_img
