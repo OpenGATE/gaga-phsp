@@ -1,6 +1,7 @@
 import copy
 from torch.utils.data import DataLoader
 import torch
+from torch import Tensor
 from tqdm import tqdm
 from .gaga_functions import *
 from .gaga_helpers import *
@@ -30,7 +31,7 @@ class Gan(object):
         self.params = params
 
         # init gpu
-        self.dtypef, self.device = init_pytorch_cuda(self.params['gpu_mode'], True)
+        self.device = init_pytorch_gpu(self.params['gpu_mode'], True)
 
         # init model
         self.init_model()
@@ -64,7 +65,7 @@ class Gan(object):
         if 'start_pth' in p and p['start_pth'] is not None:
             f = p['start_pth']
             print('Loading previous pth ', f)
-            start_params, start_G, start_D, start_optim, start_dtypef = gaga_phsp.load(f)
+            start_params, start_G, start_D, start_optim = gaga_phsp.load(f)
             self.D = start_D
             self.G = start_G
             try:
@@ -227,16 +228,17 @@ class Gan(object):
         """
         Helper to init the Real=1.0 and Fake=0.0 labels. May be smoothed.
         """
+        device = torch.device(self.device)
 
         # Real/Fake labels (1/0)
         batch_size = self.params['batch_size']
-        self.real_labels = Variable(torch.ones(batch_size, 1)).type(self.dtypef)
-        self.fake_labels = Variable(torch.zeros(batch_size, 1)).type(self.dtypef)
+        self.real_labels = Tensor(torch.ones(batch_size, 1)).to(device)
+        self.fake_labels = Tensor(torch.zeros(batch_size, 1)).to(device)
         # One-sided label smoothing
         if 'label_smoothing' in self.params:
             s = self.params['label_smoothing']
-            self.real_labels = Variable((1.0 - s) + s * torch.rand(batch_size, 1)).type(self.dtypef)
-            self.fake_labels = Variable(s * torch.rand(batch_size, 1)).type(self.dtypef)
+            self.real_labels = Tensor((1.0 - s) + s * torch.rand(batch_size, 1)).to(device)
+            self.fake_labels = Tensor(s * torch.rand(batch_size, 1)).to(device)
 
     def init_optim_data(self):
         """
@@ -258,20 +260,19 @@ class Gan(object):
 
         return optim
 
-    def init_cuda(self):
-        if str(self.device) == 'cpu':
-            return
-        print('Set model to GPU')
-        self.G.cuda()
-        self.D.cuda()
+    def init_device(self):
+        device = torch.device(self.device)
+        print('Set model to ' + self.device)
+        self.G.to(device)
+        self.D.to(device)
 
         # print('Set data to GPU')
         # real_labels and fake_labels are set to cuda before
 
-        print('Set optim to GPU')
-        self.criterion_dr.cuda()
-        self.criterion_df.cuda()
-        self.criterion_g.cuda()
+        print('Set optim to ' + self.device)
+        self.criterion_dr.to(device)
+        self.criterion_df.to(device)
+        self.criterion_g.to(device)
 
     def add_Gaussian_noise(self, x, sigma):
         """
@@ -282,12 +283,10 @@ class Gan(object):
         if sigma <= 0:
             return x
 
-        if str(self.device) != 'cpu':
-            s = torch.std(x, 0).cuda()
-            sampled_noise = torch.randn(*x.size(), requires_grad=False).cuda() * sigma * s
-        else:
-            s = torch.std(x, 0)
-            sampled_noise = torch.randn(*x.size(), requires_grad=False) * sigma * s
+        device = torch.device(self.device)
+
+        s = torch.std(x, 0).to(device)
+        sampled_noise = torch.randn(*x.size(), requires_grad=False).to(device) * sigma * s
 
         x = x + sampled_noise * sigma
         return x
@@ -309,8 +308,9 @@ class Gan(object):
         self.x = x
         self.batch_size = self.params.batch_size
 
-        # init cuda
-        self.init_cuda()
+        # init cuda/mps
+        device = torch.device(self.device)
+        self.init_device()
 
         # initialise the data structure that will store info during training
         optim = self.init_optim_data()
@@ -373,7 +373,7 @@ class Gan(object):
                     print('dataset empty, restart from zero', epoch)  # restart from zero
                     it = iter(loader)
                     data = next(it)
-                x = Variable(data).type(self.dtypef)
+                x = Tensor(data).to(device)
 
                 ## torch.cuda.empty_cache() ??
 
@@ -384,7 +384,7 @@ class Gan(object):
                 d_real_decision = self.D(x)
 
                 # generate z noise (latent)
-                z = Variable(self.z_rand(batch_size, z_dim)).type(self.dtypef)
+                z = Tensor(self.z_rand(batch_size, z_dim)).to(device)
 
                 # concat conditional vector (if any)
                 if conditional:
@@ -444,7 +444,7 @@ class Gan(object):
                 self.G.zero_grad()
 
                 # generate z noise (latent)
-                z = Variable(self.z_rand(batch_size, z_dim)).type(self.dtypef)
+                z = Tensor(self.z_rand(batch_size, z_dim)).to(device)
 
                 # conditional
                 if conditional:

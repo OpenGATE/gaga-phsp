@@ -1,6 +1,6 @@
 import numpy as np
 import torch
-from torch.autograd import Variable
+from torch import Tensor
 import gaga_phsp as gaga
 import datetime
 import time
@@ -214,47 +214,49 @@ def normalize_data(x):
     return x, x_mean, x_std
 
 
-def init_pytorch_cuda(gpu_mode, verbose=False):
+def init_pytorch_gpu(gpu_mode, verbose=False):
     """
-    Test if pytorch use CUDA. Return type and device
+    Test if pytorch use CUDA or MPS. Return device
     """
 
     if verbose:
         print("pytorch version", torch.__version__)
-    dtypef = torch.FloatTensor
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    if verbose:
-        if torch.cuda.is_available():
-            print("CUDA is available")
-        else:
-            print("CUDA is *NOT* available")
-
-    if gpu_mode == "auto":
-        if torch.cuda.is_available():
-            dtypef = torch.cuda.FloatTensor
+    if gpu_mode == "false":
+        device = "cpu"
     elif gpu_mode == "true":
         if torch.cuda.is_available():
-            dtypef = torch.cuda.FloatTensor
+            device = "cuda"
+        elif torch.backends.mps.is_available():
+            device = "mps"
         else:
             print("Error GPU mode not available")
             exit(0)
-    else:
-        device = torch.device("cpu")
+    elif gpu_mode == "auto":
+        if torch.cuda.is_available():
+            device = "cuda"
+        elif torch.backends.mps.is_available():
+            device = "mps"
+        else:
+            device = "cpu"
 
     if verbose:
-        if str(device) != "cpu":
-            print("GPU is enabled")
-            print("CUDA version         ", torch.version.cuda)
-            print("CUDA device counts   ", torch.cuda.device_count())
-            print("CUDA current device  ", torch.cuda.current_device())
-            n = torch.cuda.current_device()
-            print("CUDA device name     ", torch.cuda.get_device_name(n))
-            print("CUDA device address  ", torch.cuda.device(n))
-        else:
-            print("CPU only (no GPU)")
+        if device == "cuda":
+                print("GPU is enabled")
+                print("CUDA version         ", torch.version.cuda)
+                print("CUDA device counts   ", torch.cuda.device_count())
+                print("CUDA current device  ", torch.cuda.current_device())
+                n = torch.cuda.current_device()
+                print("CUDA device name     ", torch.cuda.get_device_name(n))
+                print("CUDA device address  ", torch.cuda.device(n))
+        elif device == "mps":
+                print("GPU is enabled")
+                print("MPS is used")
+        elif device == "cpu":
+                print("CPU only (no GPU)")
 
-    return dtypef, device
+
+    return device
 
 
 def print_network(net):
@@ -362,11 +364,9 @@ def load(
     Output optim    = dict with information of the training process
     """
 
-    dtypef, device = init_pytorch_cuda(gpu_mode, verbose)
-    if str(device) == "cpu":
-        nn = torch.load(filename, map_location=lambda storage, loc: storage)
-    else:
-        nn = torch.load(filename)
+    device_type = init_pytorch_gpu(gpu_mode, verbose)
+    device = torch.device(device_type)
+    nn = torch.load(filename, map_location=torch.device("cpu"))
 
     # get elements
     params = nn["params"]
@@ -391,17 +391,14 @@ def load(
     # create the Generator and the Discriminator (Critic)
     G, D = create_G_and_D_model(params)
 
-    if str(device) != "cpu":
-        G.cuda()
-        D.cuda()
-        params["current_gpu"] = True
-    else:
-        params["current_gpu"] = False
+    G.to(device)
+    D.to(device)
+    params["current_gpu"] = device_type
 
     G.load_state_dict(G_state)
     D.load_state_dict(D_state)
 
-    return params, G, D, optim, dtypef
+    return params, G, D, optim
 
 
 def get_min_max_constraints(params):
@@ -520,11 +517,6 @@ def generate_samples2(
         cond=None,
         silence=False,
 ):
-    if params["current_gpu"]:
-        dtypef = torch.cuda.FloatTensor
-    else:
-        dtypef = torch.FloatTensor
-
     # batch size -> if n is lower, batch size is n
     batch_size = int(batch_size)
     if batch_size == -1:
@@ -568,6 +560,8 @@ def generate_samples2(
     if "langevin_latent_sampling" in params:
         langevin_latent_sampling_flag = True
 
+    device = torch.device(params["current_gpu"])
+
     m = 0
     z_dim = params["z_dim"]
     x_dim = params["x_dim"]
@@ -583,13 +577,13 @@ def generate_samples2(
 
         # (checking Z allow to reuse z for some special test case)
         # if None == z:
-        z = Variable(z_rand(current_gpu_batch_size, z_dim)).type(dtypef)
+        z = Tensor(z_rand(current_gpu_batch_size, z_dim)).to(device)
 
         # condition ?
         if is_conditional:
             condx = (
-                Variable(torch.from_numpy(cond[m: m + current_gpu_batch_size]))
-                .type(dtypef)
+                Tensor(torch.from_numpy(cond[m: m + current_gpu_batch_size]))
+                .to(device)
                 .view(current_gpu_batch_size, cn)
             )
             z = torch.cat((z.float(), condx.float()), dim=1)
@@ -617,7 +611,7 @@ def generate_samples2(
     if to_numpy:
         return rfake
 
-    return Variable(torch.from_numpy(rfake)).type(dtypef)
+    return Tensor(torch.from_numpy(rfake)).to(device)
 
 
 def generate_samples3(params, G, n, cond):
@@ -627,11 +621,6 @@ def generate_samples3(params, G, n, cond):
     - batch size is managed elsewhere
 
     """
-    if params["current_gpu"]:
-        dtypef = torch.cuda.FloatTensor
-    else:
-        dtypef = torch.FloatTensor
-
     # normalize the conditional vector
     xmean = params["x_mean"][0]
     xstd = params["x_std"][0]
@@ -652,14 +641,16 @@ def generate_samples3(params, G, n, cond):
     x_dim = params["x_dim"]
     rfake = np.empty((0, x_dim - ncond))
 
+    device = torch.device(params["current_gpu"])
+
     # (checking Z allow to reuse z for some special test case)
     # if None == z:
-    z = Variable(torch.randn(n, z_dim)).type(dtypef)
+    z = Tensor(torch.randn(n, z_dim)).to(device)
 
     # condition ?
     condx = (
-        Variable(torch.from_numpy(cond[m: m + n]))
-        .type(dtypef)
+        Tensor(torch.from_numpy(cond[m: m + n]))
+        .to(device)
         .view(n, cn)
     )
     z = torch.cat((z.float(), condx.float()), dim=1)
@@ -704,9 +695,6 @@ def sliced_wasserstein(x, y, l, p=1):
         d = d.data.cpu().numpy()
         return d
 
-    dtypef = torch.FloatTensor
-    if x.is_cuda:
-        dtypef = torch.cuda.FloatTensor
     l_batch_size = int(1e2)
     l_current = 0
     d = 0
@@ -717,7 +705,7 @@ def sliced_wasserstein(x, y, l, p=1):
         directions /= np.linalg.norm(directions, axis=0)
 
         # send to gpu if possible
-        directions = torch.from_numpy(directions).type(dtypef)
+        directions = torch.from_numpy(directions).to(device)
 
         # Projection (Radon) x = [n X ndim], px = [n X L]
         px = torch.matmul(x, directions)

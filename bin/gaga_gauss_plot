@@ -37,7 +37,7 @@ def gaga_gauss_plot(phsp_filename, pth_filename, n, m, epoch, x, y):
     real, r_keys, mm = phsp.load(phsp_filename, nmax=n, shuffle=True)
 
     # load pth
-    params, G, D, optim, dtypef = gaga.load(pth_filename, epoch=epoch)
+    params, G, D, optim = gaga.load(pth_filename, epoch=epoch)
 
     # generate samples with condition
     cond = None

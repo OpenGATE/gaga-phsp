@@ -1,6 +1,5 @@
 import numpy as np
 import torch
-from torch.autograd import Variable
 import gaga_phsp
 import datetime
 import time

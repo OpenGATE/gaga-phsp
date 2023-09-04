@@ -5,9 +5,9 @@ import click
 import gatetools as gt
 from gatetools import phsp
 import gaga_phsp as gaga
-from torch.autograd import Variable
 from matplotlib import pyplot as plt
 import torch
+from torch import Tensor
 import numpy as np
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
@@ -46,8 +46,8 @@ def go(tlor_filename, radius, n, output, shuffle, plot):
 
     # convert numpy to torch --> this function may be embedded in the Generator for Gate
     # (I need to copy, otherwise : 'warning NumPy array is not writeable')
-    dtypef, device = gaga.init_pytorch_cuda('auto', verbose=False)
-    phsp = Variable(torch.from_numpy(phsp.copy()).type(dtypef))
+    device = gaga.init_pytorch_gpu('auto', verbose=False)
+    phsp = Tensor(torch.from_numpy(phsp.copy()).to(device))
 
     # convert tlor to pairs
     x = gaga.from_tlor_to_pairs(phsp, params)

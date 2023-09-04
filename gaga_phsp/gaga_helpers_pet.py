@@ -11,7 +11,7 @@ speed_of_light = scipy.constants.speed_of_light * 1000 / 1e9
 
 def from_tlor_to_pairs(x, params, verbose=False):
     """
-        WARNING: the input 'x' is considered to be a torch Variable (not numpy)
+        WARNING: the input 'x' is considered to be a torch Tensor (not numpy)
         Expected options in params: keys_lists, cyl_radius, ignore_directions
 
         Input:  Cx Cy Cz Vx Vy Vz dAx dAy dAz dBx dBy dBz t1 E1 E2

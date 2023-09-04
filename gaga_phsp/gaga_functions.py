@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from torch.autograd import grad as torch_grad
-from torch.autograd import Variable
+from torch import Tensor
 import numpy as np
 
 '''
@@ -76,25 +76,21 @@ def get_interpolated_gradient(self, real_data, fake_data):
     """
     Common function to gradient penalty functions
     """
+    device = torch.device(self.device)
+
     alpha = torch.rand(self.batch_size, 1)  # , 1, 1)
     alpha = alpha.expand_as(real_data)
-    if str(self.device) != 'cpu':
-        alpha = alpha.cuda()
+    alpha = alpha.to(device)
 
     # interpolated
     interpolated = alpha * real_data + (1 - alpha) * fake_data
-    interpolated = Variable(interpolated, requires_grad=True)
-    if str(self.device) != 'cpu':
-        interpolated = interpolated.cuda()
+    interpolated = interpolated.clone().detach().requires_grad_(True).to(device)
 
     # Calculate probability of interpolated examples
     prob_interpolated = self.D(interpolated)
 
     # gradient
-    if str(self.device) != 'cpu':
-        ones = torch.ones(prob_interpolated.size()).cuda()
-    else:
-        ones = torch.ones(prob_interpolated.size())
+    ones = torch.ones(prob_interpolated.size()).to(device)
 
     gradients = torch_grad(outputs=prob_interpolated,
                            inputs=interpolated,

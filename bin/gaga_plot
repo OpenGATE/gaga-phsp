@@ -48,7 +48,7 @@ def gaga_plot(phsp_filename, pth_filename, n, nb_bins,
     real, r_keys, m = phsp.load(phsp_filename, nmax=n, shuffle=False)
 
     # load pth
-    params, G, D, optim, dtypef = gaga.load(pth_filename, epoch=epoch)
+    params, G, D, optim = gaga.load(pth_filename, epoch=epoch)
     f_keys = params['keys']
     if isinstance(f_keys, str):
         f_keys = params['keys_list']
