@@ -21,7 +21,7 @@ train:
     gaga_train npy/gauss_v2.npy json/g2.json -f pth/ -pi epoch 5000
 
 (linux is about 2 min for 1000)
-(os : not feasible with cpu ; bug with gpu)
+(WARNING bug with mps on osx, much too slow)
 
 result:
 
@@ -55,6 +55,8 @@ generate:
 train:
     
     gaga_train npy/xgauss_10_1e6.npy json/cg1.json -f pth -pi epoch 4000
+
+(OK with mps and with cuda)
 
 result:
     
