@@ -5,6 +5,7 @@ import gaga_phsp as gaga
 import datetime
 import time
 import garf
+from garf.helpers import get_gpu_device
 import gatetools.phsp as phsp
 from scipy.stats import entropy
 from scipy.spatial.transform import Rotation
@@ -107,6 +108,8 @@ def check_input_params(params, fatal_on_unknown_keys=True):
         "end_date",
         "output_filename",
         "cond_keys",
+        "current_gpu_mode",
+        "current_gpu_device",
     ]
 
     # forced
@@ -214,49 +217,24 @@ def normalize_data(x):
     return x, x_mean, x_std
 
 
-def init_pytorch_gpu(gpu_mode, verbose=False):
-    """
-    Test if pytorch use CUDA or MPS. Return device
-    """
-
-    if verbose:
-        print("pytorch version", torch.__version__)
-
-    if gpu_mode == "false":
-        device = "cpu"
-    elif gpu_mode == "true":
-        if torch.cuda.is_available():
-            device = "cuda"
-        elif torch.backends.mps.is_available():
-            device = "mps"
-        else:
-            print("Error GPU mode not available")
-            exit(0)
-    elif gpu_mode == "auto":
-        if torch.cuda.is_available():
-            device = "cuda"
-        elif torch.backends.mps.is_available():
-            device = "mps"
-        else:
-            device = "cpu"
-
-    if verbose:
-        if device == "cuda":
-                print("GPU is enabled")
-                print("CUDA version         ", torch.version.cuda)
-                print("CUDA device counts   ", torch.cuda.device_count())
-                print("CUDA current device  ", torch.cuda.current_device())
-                n = torch.cuda.current_device()
-                print("CUDA device name     ", torch.cuda.get_device_name(n))
-                print("CUDA device address  ", torch.cuda.device(n))
-        elif device == "mps":
-                print("GPU is enabled")
-                print("MPS is used")
-        elif device == "cpu":
-                print("CPU only (no GPU)")
-
-
-    return device
+def print_pytorch_gpu_info(current_gpu_mode):
+    print("pytorch version", torch.__version__)
+    if current_gpu_mode == "cuda":
+        print("GPU is enabled")
+        print("CUDA version         ", torch.version.cuda)
+        print("CUDA device counts   ", torch.cuda.device_count())
+        print("CUDA current device  ", torch.cuda.current_device())
+        n = torch.cuda.current_device()
+        print("CUDA device name     ", torch.cuda.get_device_name(n))
+        print("CUDA device address  ", torch.cuda.device(n))
+    elif current_gpu_mode == "mps":
+        print("GPU is enabled")
+        print("MPS is used")
+    elif current_gpu_mode == "cpu":
+        print("CPU only (no GPU)")
+    else:
+        print('Error with current_gpu_mode, must be "cpu", "cuda" or "mps"')
+        exit(-1)
 
 
 def print_network(net):
@@ -355,7 +333,7 @@ def auto_output_filename(params, output, output_folder):
 
 
 def load(
-        filename, gpu_mode="auto", verbose=False, epoch=-1, fatal_on_unknown_keys=True
+    filename, gpu_mode="auto", verbose=False, epoch=-1, fatal_on_unknown_keys=True
 ):
     """
     Load a GAN-PHSP
@@ -364,12 +342,13 @@ def load(
     Output optim    = dict with information of the training process
     """
 
-    device_type = init_pytorch_gpu(gpu_mode, verbose)
-    device = torch.device(device_type)
-    nn = torch.load(filename, map_location=torch.device("cpu"))
+    current_gpu_mode, current_gpu_device = get_gpu_device(gpu_mode)
+    nn = torch.load(filename, map_location=current_gpu_device)
 
     # get elements
     params = nn["params"]
+    params["current_gpu_mode"] = current_gpu_mode
+    params["current_gpu_device"] = current_gpu_device
 
     gaga.check_input_params(params, fatal_on_unknown_keys)
     if not "optim" in nn:
@@ -391,9 +370,8 @@ def load(
     # create the Generator and the Discriminator (Critic)
     G, D = create_G_and_D_model(params)
 
-    G.to(device)
-    D.to(device)
-    params["current_gpu"] = device_type
+    G.to(current_gpu_device)
+    D.to(current_gpu_device)
 
     G.load_state_dict(G_state)
     D.load_state_dict(D_state)
@@ -506,16 +484,16 @@ def get_z_rand(params):
 
 
 def generate_samples2(
-        params,
-        G,
-        D,
-        n,
-        batch_size=-1,
-        normalize=False,
-        to_numpy=False,
-        z=None,
-        cond=None,
-        silence=False,
+    params,
+    G,
+    D,
+    n,
+    batch_size=-1,
+    normalize=False,
+    to_numpy=False,
+    z=None,
+    cond=None,
+    silence=False,
 ):
     # batch size -> if n is lower, batch size is n
     batch_size = int(batch_size)
@@ -542,11 +520,11 @@ def generate_samples2(
         cn = len(params["cond_keys"])
         ncond = cn
         # mean and std for cond only
-        xmeanc = xmean[xn - cn: xn]
-        xstdc = xstd[xn - cn: xn]
+        xmeanc = xmean[xn - cn : xn]
+        xstdc = xstd[xn - cn : xn]
         # mean and std for non cond
-        xmeannc = xmean[0: xn - cn]
-        xstdnc = xstd[0: xn - cn]
+        xmeannc = xmean[0 : xn - cn]
+        xstdnc = xstd[0 : xn - cn]
         # normalize the condition
         cond = (cond - xmeanc) / xstdc
     else:
@@ -560,12 +538,12 @@ def generate_samples2(
     if "langevin_latent_sampling" in params:
         langevin_latent_sampling_flag = True
 
-    device = torch.device(params["current_gpu"])
-
     m = 0
     z_dim = params["z_dim"]
     x_dim = params["x_dim"]
     rfake = np.empty((0, x_dim - ncond))
+    device = params["current_gpu_device"]
+    current_gpu_mode = params["current_gpu_mode"]
     while m < n:
         if not silence:
             print(f"Batch {m}/{n}")
@@ -581,8 +559,14 @@ def generate_samples2(
 
         # condition ?
         if is_conditional:
+            if current_gpu_mode == "mps":
+                # print("With device mps (gpu), convert data to float32")
+                acond = cond[m : m + current_gpu_batch_size].astype(np.float32)
+            else:
+                acond = cond[m : m + current_gpu_batch_size]
             condx = (
-                Tensor(torch.from_numpy(cond[m: m + current_gpu_batch_size]))
+                # Tensor(torch.from_numpy(cond[m : m + current_gpu_batch_size]))
+                Tensor(torch.from_numpy(acond))
                 .to(device)
                 .view(current_gpu_batch_size, cn)
             )
@@ -628,11 +612,11 @@ def generate_samples3(params, G, n, cond):
     cn = len(params["cond_keys"])
     ncond = cn
     # mean and std for cond only
-    xmeanc = xmean[xn - cn: xn]
-    xstdc = xstd[xn - cn: xn]
+    xmeanc = xmean[xn - cn : xn]
+    xstdc = xstd[xn - cn : xn]
     # mean and std for non cond
-    xmeannc = xmean[0: xn - cn]
-    xstdnc = xstd[0: xn - cn]
+    xmeannc = xmean[0 : xn - cn]
+    xstdnc = xstd[0 : xn - cn]
     # normalize the condition
     cond = (cond - xmeanc) / xstdc
 
@@ -641,18 +625,13 @@ def generate_samples3(params, G, n, cond):
     x_dim = params["x_dim"]
     rfake = np.empty((0, x_dim - ncond))
 
-    device = torch.device(params["current_gpu"])
-
     # (checking Z allow to reuse z for some special test case)
     # if None == z:
+    device = params["current_gpu_device"]
     z = Tensor(torch.randn(n, z_dim)).to(device)
 
     # condition ?
-    condx = (
-        Tensor(torch.from_numpy(cond[m: m + n]))
-        .to(device)
-        .view(n, cn)
-    )
+    condx = Tensor(torch.from_numpy(cond[m : m + n])).to(device).view(n, cn)
     z = torch.cat((z.float(), condx.float()), dim=1)
 
     # Go !!!
@@ -699,7 +678,6 @@ def sliced_wasserstein(x, y, l, p=1):
     l_current = 0
     d = 0
     while l_current < l:
-
         # directions: matrix [ndim X l]
         directions = np.random.randn(ndim, l_batch_size)
         directions /= np.linalg.norm(directions, axis=0)
@@ -816,13 +794,13 @@ def project_on_plane(x, plane, image_plane_size_mm, debug=False):
     # shorter variable names
 
     # n is the normal plane, duplicated n times
-    n = plane["plane_normal"][0: len(x)]
+    n = plane["plane_normal"][0 : len(x)]
 
     # c0 is the center of the plane, duplicated n times
-    c0 = plane["plane_center"][0: len(x)]
+    c0 = plane["plane_center"][0 : len(x)]
 
     # r is the rotation matrix of the plane, according to the current rotation angle (around Y)
-    r = plane["rotation"][0: len(x)]
+    r = plane["rotation"][0 : len(x)]
 
     # p is the set of points position generated by the GAN
     p = x[:, 1:4]
@@ -840,7 +818,7 @@ def project_on_plane(x, plane, image_plane_size_mm, debug=False):
     # https://github.com/pytorch/pytorch/issues/18027
     ndotu = (n * u).sum(-1)  # dot product between normal plane (n) and direction (u)
     si = (
-            -(n * w).sum(-1) / ndotu
+        -(n * w).sum(-1) / ndotu
     )  # dot product between normal plane and vector from plane to point (w)
 
     # only positive (direction to the plane)
@@ -918,10 +896,10 @@ def project_on_plane2(x, plane, image_plane_size_mm):
     """
 
     # n is the normal plane, duplicated n times
-    n = plane["plane_normal"][0: len(x)]
+    n = plane["plane_normal"][0 : len(x)]
 
     # c0 is the center of the plane, duplicated n times
-    c0 = plane["plane_center"][0: len(x)]
+    c0 = plane["plane_center"][0 : len(x)]
 
     # r is the rotation matrix of the plane, according to the current rotation angle (around Y)
     r = plane["rotation"]  # [0: len(x)]
@@ -945,7 +923,7 @@ def project_on_plane2(x, plane, image_plane_size_mm):
     ndotu = (n * u).sum(-1)
 
     # dot product between normal plane and vector from plane to point (w)
-    si = (-(n * w).sum(-1) / ndotu)
+    si = -(n * w).sum(-1) / ndotu
 
     # only positive (direction to the plane)
     mask = si > 0
@@ -964,7 +942,7 @@ def project_on_plane2(x, plane, image_plane_size_mm):
     psi = mp + msi * mu
 
     # offset of the head
-    psi = psi + c0[:len(psi)]
+    psi = psi + c0[: len(psi)]
 
     # apply the inverse of the rotation
     psip = r.apply(psi)
@@ -1032,7 +1010,6 @@ def gaga_garf_generate_image(p):
     images = []
     sq_images = []
     while ev < n:
-
         # check generation of the exact nb of samples
         current_batch_size = batch_size
         if current_batch_size > n - ev:

@@ -4,9 +4,9 @@ from torch.autograd import grad as torch_grad
 from torch import Tensor
 import numpy as np
 
-'''
+"""
 Set of helpers functions for losses an penalties
-'''
+"""
 
 
 class WassersteinLoss(torch.nn.Module):
@@ -76,28 +76,31 @@ def get_interpolated_gradient(self, real_data, fake_data):
     """
     Common function to gradient penalty functions
     """
-    device = torch.device(self.device)
 
     alpha = torch.rand(self.batch_size, 1)  # , 1, 1)
     alpha = alpha.expand_as(real_data)
-    alpha = alpha.to(device)
+    alpha = alpha.to(self.current_gpu_device)
 
     # interpolated
     interpolated = alpha * real_data + (1 - alpha) * fake_data
-    interpolated = interpolated.clone().detach().requires_grad_(True).to(device)
+    interpolated = (
+        interpolated.clone().detach().requires_grad_(True).to(self.current_gpu_device)
+    )
 
     # Calculate probability of interpolated examples
     prob_interpolated = self.D(interpolated)
 
     # gradient
-    ones = torch.ones(prob_interpolated.size()).to(device)
+    ones = torch.ones(prob_interpolated.size()).to(self.current_gpu_device)
 
-    gradients = torch_grad(outputs=prob_interpolated,
-                           inputs=interpolated,
-                           grad_outputs=ones,
-                           create_graph=True,  # needed ?
-                           retain_graph=True,  # needed ?
-                           only_inputs=True)[0]
+    gradients = torch_grad(
+        outputs=prob_interpolated,
+        inputs=interpolated,
+        grad_outputs=ones,
+        create_graph=True,  # needed ?
+        retain_graph=True,  # needed ?
+        only_inputs=True,
+    )[0]
 
     # gradients.requires_grad_(False) # FIXME
     return gradients
@@ -158,7 +161,9 @@ def gradient_penalty_max(self, real_data, fake_data):
     gradients_norm = gradients.norm(2, dim=1)
 
     # max FIXME why  **2 ????
-    gradient_penalty = (torch.max(gradients_norm - 1, torch.zeros_like(gradients_norm)) ** 2).mean()
+    gradient_penalty = (
+        torch.max(gradients_norm - 1, torch.zeros_like(gradients_norm)) ** 2
+    ).mean()
     # ? gradient_penalty = torch.nn.ReLU()(gradients_norm - 1, torch.zeros_like(gradients_norm))**2).mean()
 
     return gradient_penalty
@@ -294,9 +299,9 @@ def GP_SquareHinge(self, real_data, fake_data):
 
 
 def langevin_latent_sampling(G, D, params, z):
-    print('generate with langevin')
+    print("generate with langevin")
     n = len(z)
-    print('size', n)
+    print("size", n)
 
     """
     line 85 run_synthetic.py
@@ -304,10 +309,10 @@ def langevin_latent_sampling(G, D, params, z):
     https://github.com/clear-nus/DGflow/blob/main/dgflow.py
     """
     # params
-    n_steps = params['lgs_nb_steps']
-    eta = params['lgs_lr']
-    gamma = params['lgs_gamma']
-    f = params['lgs_f']
+    n_steps = params["lgs_nb_steps"]
+    eta = params["lgs_lr"]
+    gamma = params["lgs_gamma"]
+    f = params["lgs_f"]
 
     # parameters (will be in params)
     # n_steps = 20  # 50000 in che2020 ? ; 25 in ansari2020
@@ -319,21 +324,21 @@ def langevin_latent_sampling(G, D, params, z):
     # gamma = 0.02  # diffusion term
 
     fn = None
-    if f == 'KL':
+    if f == "KL":
         fn = lambda d_score: torch.ones_like(d_score.detach())
-    if f == 'logD':
+    if f == "logD":
         fn = lambda d_score: 1 / (1 + d_score.detach().exp())
-    if f == 'JS':
+    if f == "JS":
         fn = lambda d_score: 1 / (1 + 1 / d_score.detach().exp())
     if not fn:
-        print('ERROR lgs_f must be KL, LogD or JS')
+        print("ERROR lgs_f must be KL, LogD or JS")
         return z
 
     noise_factor = np.sqrt(gamma)
-    print('langevin nb steps ', n_steps)
-    print('langevin lr       ', eta)
-    print('langevin gamma    ', gamma)
-    print('langevin f        ', f)
+    print("langevin nb steps ", n_steps)
+    print("langevin lr       ", eta)
+    print("langevin gamma    ", gamma)
+    print("langevin f        ", f)
 
     """
     KL-divergence by setting f = r log r 
