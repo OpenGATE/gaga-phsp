@@ -6,7 +6,7 @@ with open("readme.md", "r") as fh:
 
 setuptools.setup(
     name="gaga-phsp",
-    version="0.6.0",
+    version="0.7.0",
     author="David Sarrut",
     author_email="david.sarrut@creatis.insa-lyon.fr",
     description="Python tools for GATE GAN simulations",
@@ -24,10 +24,10 @@ setuptools.setup(
         "colorama",
         "click",
         "scipy",
-        "garf",
+        "garf>=2.4",
         "matplotlib",
         "gatetools",
-        # 'torch'   # better to install torch manually to match cuda version
+        # 'torch'   # the installation of torch is managed by garf
     ],
     scripts=[
         "bin/gaga_train",
