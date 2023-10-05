@@ -25,6 +25,8 @@ setuptools.setup(
         "click",
         "scipy",
         "garf",
+        "matplotlib",
+        "gatetools",
         # 'torch'   # better to install torch manually to match cuda version
     ],
     scripts=[

@@ -20,6 +20,9 @@ train:
     gaga_train npy/gauss_v1.npy json/g1.json -f pth/ -pi epoch 1000
     gaga_train npy/gauss_v2.npy json/g2.json -f pth/ -pi epoch 5000
 
+(linux is about 2 min for 1000)
+(WARNING bug with mps on osx, much too slow)
+
 result:
 
     gaga_gauss_plot npy/gauss_v1.npy pth/g1_GP_SquareHinge_1_1000.pth -n 1e4
@@ -53,6 +56,8 @@ train:
     
     gaga_train npy/xgauss_10_1e6.npy json/cg1.json -f pth -pi epoch 4000
 
+(OK with mps and with cuda)
+
 result:
     
     # warning x and y not independent here! 
@@ -63,8 +68,8 @@ result:
 
 Convert root dataset to parametrisation, replace P_exit by P_ideal = P_exit - c x t x Dir 
 
-    gaga_exit_pos_to_ideal_pos run.wjmkh2ve/training_dataset.root -n 1e4 -o a.npy
+    gaga_exit_pos_to_ideal_pos spect_training_dataset.root -n 1e4 -o a.npy
     gaga_ideal_pos_to_exit_pos a.npy -n 1e4 -o b.npy
-    gt_phsp_plot b.npy run.wjmkh2ve/training_dataset.root -n 1e4
+    gt_phsp_plot b.npy spect_training_dataset.root -n 1e4
 
 

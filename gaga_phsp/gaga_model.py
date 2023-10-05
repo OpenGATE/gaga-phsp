@@ -1,7 +1,7 @@
 import torch.nn as nn
 import torch
 import gaga_phsp as gaga
-from torch.autograd import Variable
+from torch import Tensor
 from types import MethodType
 
 
@@ -127,9 +127,9 @@ class Generator(nn.Module):
 
     def init_forward_with_denorm(self, gpu):
         # init the std/mean in torch variable
-        dtypef, device = gaga.init_pytorch_cuda(gpu, False)
-        self.x_mean = Variable(torch.from_numpy(self.params['x_mean']).type(dtypef))
-        self.x_std = Variable(torch.from_numpy(self.params['x_std']).type(dtypef))
+        device = gaga.init_pytorch_gpu(gpu, False)
+        self.x_mean = Tensor(torch.from_numpy(self.params['x_mean']).to(device))
+        self.x_std = Tensor(torch.from_numpy(self.params['x_std']).to(device))
         # by default, bypass the test in  denormalization
         # (if forward_with_post_processing is used, the test is kept)
         self.forward = self.forward_with_norm

@@ -1,6 +1,5 @@
 import numpy as np
 import torch
-from torch.autograd import Variable
 import gaga_phsp
 import datetime
 import time
@@ -10,7 +9,6 @@ from scipy.stats import kde
 from matplotlib import pyplot as plt
 from scipy.stats import entropy
 from scipy.spatial.transform import Rotation
-import SimpleITK as sitk
 import logging
 import sys
 
