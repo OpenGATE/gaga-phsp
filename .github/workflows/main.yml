@@ -19,11 +19,9 @@ jobs:
       fail-fast: false
     steps:
     - name: Checkout github repo
-      uses: actions/checkout@v2
-    - name: Checkout submodules
-      run: git submodule update --init --recursive
+      uses: actions/checkout@v4
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
       with:
         python-version: 3.9
         architecture: 'x64'
@@ -32,7 +30,7 @@ jobs:
           pip install wheel
           python setup.py sdist bdist_wheel
     - name: Upload wheels
-      uses: actions/upload-artifact@v1
+      uses: actions/upload-artifact@v3
       with:
         name: dist
         path: dist/
@@ -42,16 +40,16 @@ jobs:
     needs: [build_wheel]
     steps:
     - name: Checkout github repo
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
     - name: Checkout submodules
       run: git submodule update --init --recursive
-    - uses: actions/download-artifact@v1
+    - uses: actions/download-artifact@v3
       with:
         name: dist
         path: dist/
     - name: Publish to PyPI
       if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/')
-      uses: pypa/gh-action-pypi-publish@master
+      uses: pypa/gh-action-pypi-publish@v1
       with:
         user: __token__
         password: ${{ secrets.PYPI }}
