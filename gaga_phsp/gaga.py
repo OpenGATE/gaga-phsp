@@ -350,6 +350,8 @@ class Gan(object):
             self.x,
             batch_size=batch_size,
             num_workers=2,  # no gain if larger than 2 (?)
+            # https://discuss.pytorch.org/t/data-loader-multiprocessing-slow-on-macos/131204/3
+            persistent_workers=True,
             pin_memory=True,
             # https://discuss.pytorch.org/t/what-is-the-disadvantage-of-using-pin-memory/1702/4
             shuffle=self.params["shuffle"],
