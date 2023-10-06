@@ -990,7 +990,7 @@ def project_on_plane2(x, plane, image_plane_size_mm):
     return data
 
 
-def gaga_garf_generate_image(p):
+def gaga_garf_generate_image_old(p):
     # param
     gan_params = p["gan_params"]
     G = p["G"]
@@ -1026,6 +1026,103 @@ def gaga_garf_generate_image(p):
             gan_batch_size,
             normalize=False,
             to_numpy=True,
+        )
+        # print('batch / x', current_batch_size, len(x))
+        logger.info("Computation time: {0:.3f} sec".format(time.time() - t1))
+
+        # Step 2 : Projection
+        t1 = time.time()
+        px = gaga.project_on_plane(
+            x, plane, image_plane_size_mm=image_plane_size_mm, debug=debug
+        )
+        logger.info("Computation time: {0:.3f} sec".format(time.time() - t1))
+
+        # Step3 : GARF
+        # output image expressed in counts/samples (generated samples)
+        t1 = time.time()
+        logger.info(f"Building image with {len(px)}/{current_batch_size} particles")
+        garf_param["N_dataset"] = current_batch_size
+        img, sq_img = garf.build_arf_image_with_nn(
+            garf_nn, garf_model, px, garf_param, verbose=False, debug=debug
+        )
+        images.append(img)
+        sq_images.append(sq_img)
+        logger.info("Computation time: {0:.3f} sec".format(time.time() - t1))
+
+        ev += current_batch_size
+        pbar.update(current_batch_size)
+        ev = min(ev, n)
+        logger.info("")
+
+    # mean images
+    im_iter = iter(images)
+    im = next(im_iter)
+    data = itk.GetArrayFromImage(im)
+    for im in im_iter:
+        d = itk.GetArrayViewFromImage(im)
+        data += d
+    data = data / len(images)
+    img = itk.GetImageFromArray(data)
+    img.CopyInformation(images[0])
+
+    # mean images
+    im_iter = iter(sq_images)
+    im = next(im_iter)
+    data = itk.GetArrayFromImage(im)
+    for im in im_iter:
+        d = itk.GetArrayViewFromImage(im)
+        data += d
+    data = data / len(sq_images)
+    sq_img = itk.GetImageFromArray(data)
+    sq_img.CopyInformation(sq_images[0])
+
+    return img, sq_img
+
+def gaga_garf_generate_image(p, generate_condition = None):
+    # param
+    gan_params = p["gan_params"]
+    G = p["G"]
+    D = p["D"]
+    batch_size = p["batch_size"]
+    gan_batch_size = p["gan_batch_size"]
+    plane = p["plane"]
+    image_plane_size_mm = p["image_plane_size_mm"]
+    debug = p["debug"]
+    garf_nn = p["garf_nn"]
+    garf_model = p["garf_model"]
+    garf_param = p["garf_param"]
+    pbar = p["pbar"]
+    n = p["n"]
+
+    ev = 0
+    images = []
+    sq_images = []
+    while ev < n:
+        # check generation of the exact nb of samples
+        current_batch_size = batch_size
+        if current_batch_size > n - ev:
+            current_batch_size = n - ev
+
+        # Step0 condition
+        cond = None
+        if generate_condition:
+            t1 = time.time()
+            logger.info(f"Generating {current_batch_size} condition")
+            cond = generate_condition(current_batch_size)
+            logger.info("Computation time: {0:.3f} sec".format(time.time() - t1))
+
+        # Step 1 : GAN
+        t1 = time.time()
+        logger.info(f"Generating {current_batch_size} events")
+        x = gaga.generate_samples2(
+            gan_params,
+            G,
+            D,
+            current_batch_size,
+            gan_batch_size,
+            normalize=False,
+            to_numpy=True,
+            cond = cond
         )
         # print('batch / x', current_batch_size, len(x))
         logger.info("Computation time: {0:.3f} sec".format(time.time() - t1))

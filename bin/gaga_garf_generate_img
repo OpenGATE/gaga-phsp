@@ -26,15 +26,14 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 @click.option('--stop_angle', default=float(1), help='Stop angle (in deg)')
 @click.option('--step_angle', default=float(1), help='Step angle (in deg)')
 @click.option('--scale', '-s', default=float(1), help='Scale the final image by s. ')
-@click.option('--debug_projection', default=False, is_flag=True,
-              help='Debug: dump npy file with U,V,theta,phi,E on the plane')
 @click.option('--sigma', default=False, is_flag=True,
               help='Compute and dump sigma (uncertainty) image')
 @gt.add_options(gt.common_options)
-def gaga_garf_generate_img(gan_pth_filename, garf_pth_filename,
+def gaga_garf_generate_img(gan_pth_filename,
+                           garf_pth_filename,
                            radius, n, scale,
                            start_angle, stop_angle, step_angle,
-                           output, debug_projection, sigma,
+                           output, sigma,
                            **kwargs):
     """
     \b
@@ -55,23 +54,22 @@ def gaga_garf_generate_img(gan_pth_filename, garf_pth_filename,
 
     # load gan pth
     logger.info(f'Reading GAN-PHSP from {gan_pth_filename}')
-    gan_params, G, D, optim, dtypef = gaga.load(gan_pth_filename)
+    gan_params, G, D, optim = gaga.load(gan_pth_filename)
 
     # load garf pth
-    logger.info(f'Reading GARF from {gan_pth_filename}')
+    logger.info(f'Reading GARF from {garf_pth_filename}')
     garf_nn, garf_model = garf.load_nn(garf_pth_filename, verbose=False)
 
     # initialisation
     batch_size = 4e6
-    t0 = time.time()
 
     # initialisation plane
-    print('FIXME : image_plane_size_mm')
+    print('FIXME : image_plane_size_mm is fixed, should be a param')
     image_plane_size_mm = [576, 446]
 
     # initialisation garf
     garf_param = {}
-    garf_param['gpu_batch_size'] = int(4e5)  # float(gpu_batch_size))
+    garf_param['gpu_batch_size'] = int(4e5)
     garf_param['size'] = 128
     garf_param['spacing'] = 4.41806
     garf_param['length'] = 99
@@ -89,16 +87,31 @@ def gaga_garf_generate_img(gan_pth_filename, garf_pth_filename,
     a = 0
     p = {"gan_params": gan_params,
          "G": G,
+         "D": D,
          "batch_size": batch_size,
          "gan_batch_size": gan_batch_size,
-         # "plane": plane,
          "image_plane_size_mm": image_plane_size_mm,
-         "debug": False,  #### FIXME
+         "debug": False,
          "garf_nn": garf_nn,
          "garf_model": garf_model,
+         "garf_param": garf_param,
          "pbar": pbar,
-         "n": n,
-         "garf_param": garf_param}
+         "n": n
+         }
+
+    # print batch FIXME
+    '''
+    gan_batch_size is used to generate samples from gan
+    batch_size
+    garf_param['gpu_batch_size']   <--- never used ???
+    param["batch_size"]
+    
+    garf : input is N detected value, loop with batch size 
+    
+    '''
+    print(f'batch_size', batch_size) # init_plane, cond, gan sample
+    print(f'gan_batch_size', gan_batch_size)
+    print(f'gpu_batch_size (garf)', garf_param['gpu_batch_size'])
 
     while angle < stop_angle:
         tqdm.write(f'Angle {angle} deg')
