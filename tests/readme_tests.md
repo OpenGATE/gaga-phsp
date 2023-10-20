@@ -20,9 +20,6 @@ train:
     gaga_train npy/gauss_v1.npy json/g1.json -f pth/ -pi epoch 1000
     gaga_train npy/gauss_v2.npy json/g2.json -f pth/ -pi epoch 5000
 
-(linux is about 2 min for 1000)
-(WARNING bug with mps on osx, much too slow)
-
 result:
 
     gaga_gauss_plot npy/gauss_v1.npy pth/g1_GP_SquareHinge_1_1000.pth -n 1e4
@@ -55,8 +52,6 @@ generate:
 train:
     
     gaga_train npy/xgauss_10_1e6.npy json/cg1.json -f pth -pi epoch 4000
-
-(OK with mps and with cuda)
 
 result:
     

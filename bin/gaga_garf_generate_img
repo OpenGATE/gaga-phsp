@@ -21,6 +21,7 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 @click.argument('garf_pth_filename')
 @click.option('--n', '-n', default=1e5, help='Number of samples to generate')
 @click.option('--output', '-o', required=True, help='Output filename.mhd ')
+@click.option('--activity_source', default=None, help='Voxelized activity source filename')
 @click.option('--radius', '-r', default=float(180), help='Radius in mm')
 @click.option('--start_angle', default=float(0), help='Starting angle (in deg)')
 @click.option('--stop_angle', default=float(1), help='Stop angle (in deg)')
@@ -31,6 +32,7 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 @gt.add_options(gt.common_options)
 def gaga_garf_generate_img(gan_pth_filename,
                            garf_pth_filename,
+                           activity_source,
                            radius, n, scale,
                            start_angle, stop_angle, step_angle,
                            output, sigma,
@@ -99,15 +101,19 @@ def gaga_garf_generate_img(gan_pth_filename,
          "n": n
          }
 
+    # voxelized activity condition
+    if activity_source is None:
+        generate_condition = None
+    else:
+        generate_condition = gaga.voxelized_source_generator(activity_source)
+
     # print batch FIXME
     '''
     gan_batch_size is used to generate samples from gan
     batch_size
     garf_param['gpu_batch_size']   <--- never used ???
     param["batch_size"]
-    
-    garf : input is N detected value, loop with batch size 
-    
+    garf : input is N detected value, loop with batch size     
     '''
     print(f'batch_size', batch_size) # init_plane, cond, gan sample
     print(f'gan_batch_size', gan_batch_size)
@@ -119,7 +125,7 @@ def gaga_garf_generate_img(gan_pth_filename,
 
         plane = gaga.init_plane(batch_size, angle=angle, radius=radius)
         p["plane"] = plane
-        image, sq_image = gaga.gaga_garf_generate_image(p)
+        image, sq_image = gaga.gaga_garf_generate_image(p, generate_condition=generate_condition)
 
         # save image
         b, extension = os.path.splitext(output)

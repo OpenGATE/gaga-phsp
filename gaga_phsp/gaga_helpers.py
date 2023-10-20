@@ -14,6 +14,7 @@ import logging
 import sys
 import os
 from box import Box, BoxList
+from opengate.sources.gansources import VoxelizedSourceConditionGenerator
 
 logger = logging.getLogger(__name__)
 
@@ -1187,3 +1188,8 @@ def append_gaussian(data, mean, cov, n, vx=None, vy=None):
         return d
     data = np.vstack((data, d))
     return data
+
+def voxelized_source_generator():
+    gen = VoxelizedSourceConditionGenerator(source_filename)
+    return gen.generate_condition
+
