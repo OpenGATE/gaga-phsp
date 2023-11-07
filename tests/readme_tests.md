@@ -68,3 +68,4 @@ Convert root dataset to parametrisation, replace P_exit by P_ideal = P_exit - c 
     gt_phsp_plot b.npy spect_training_dataset.root -n 1e4
 
 
+# Test 6 : TODO gaga_garf_generate_img

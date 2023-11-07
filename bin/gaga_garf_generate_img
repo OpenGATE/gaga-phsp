@@ -13,30 +13,44 @@ import garf
 
 logger = logging.getLogger(__name__)
 
-CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
+CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
 
 @click.command(context_settings=CONTEXT_SETTINGS)
-@click.argument('gan_pth_filename')
-@click.argument('garf_pth_filename')
-@click.option('--n', '-n', default=1e5, help='Number of samples to generate')
-@click.option('--output', '-o', required=True, help='Output filename.mhd ')
-@click.option('--activity_source', default=None, help='Voxelized activity source filename')
-@click.option('--radius', '-r', default=float(180), help='Radius in mm')
-@click.option('--start_angle', default=float(0), help='Starting angle (in deg)')
-@click.option('--stop_angle', default=float(1), help='Stop angle (in deg)')
-@click.option('--step_angle', default=float(1), help='Step angle (in deg)')
-@click.option('--scale', '-s', default=float(1), help='Scale the final image by s. ')
-@click.option('--sigma', default=False, is_flag=True,
-              help='Compute and dump sigma (uncertainty) image')
+@click.argument("gan_pth_filename")
+@click.argument("garf_pth_filename")
+@click.option("--n", "-n", default=1e5, help="Number of samples to generate")
+@click.option("--output", "-o", required=True, help="Output filename.mhd ")
+@click.option(
+    "--activity_source", default=None, help="Voxelized activity source filename"
+)
+@click.option("--radius", "-r", default=float(180), help="Radius in mm")
+@click.option("--start_angle", default=float(0), help="Starting angle (in deg)")
+@click.option("--stop_angle", default=float(1), help="Stop angle (in deg)")
+@click.option("--step_angle", default=float(1), help="Step angle (in deg)")
+@click.option("--scale", "-s", default=float(1), help="Scale the final image by s. ")
+@click.option(
+    "--sigma",
+    default=False,
+    is_flag=True,
+    help="Compute and dump sigma (uncertainty) image",
+)
+# FIXME make squared img optional
 @gt.add_options(gt.common_options)
-def gaga_garf_generate_img(gan_pth_filename,
-                           garf_pth_filename,
-                           activity_source,
-                           radius, n, scale,
-                           start_angle, stop_angle, step_angle,
-                           output, sigma,
-                           **kwargs):
+def gaga_garf_generate_img(
+    gan_pth_filename,
+    garf_pth_filename,
+    activity_source,
+    radius,
+    n,
+    scale,
+    start_angle,
+    stop_angle,
+    step_angle,
+    output,
+    sigma,
+    **kwargs,
+):
     """
     \b
     Simulation of a SPECT image:
@@ -52,54 +66,61 @@ def gaga_garf_generate_img(gan_pth_filename,
     gt.logging_conf(**kwargs)
 
     # input number of events
-    n = int(n)
+    yield_factor = 0.172168  # FIXME
+    yield_factor = 1  # 0.172168 # FIXME
+    n = int(n * yield_factor)
 
     # load gan pth
-    logger.info(f'Reading GAN-PHSP from {gan_pth_filename}')
+    logger.info(f"Reading GAN-PHSP from {gan_pth_filename}")
     gan_params, G, D, optim = gaga.load(gan_pth_filename)
 
     # load garf pth
-    logger.info(f'Reading GARF from {garf_pth_filename}')
+    logger.info(f"Reading GARF from {garf_pth_filename}")
     garf_nn, garf_model = garf.load_nn(garf_pth_filename, verbose=False)
 
     # initialisation
-    batch_size = 4e6
+    # batch_size = 4e5
 
     # initialisation plane
-    print('FIXME : image_plane_size_mm is fixed, should be a param')
+    # FIXME
+    print("FIXME : image_plane_size_mm is fixed, should be a param")
     image_plane_size_mm = [576, 446]
 
     # initialisation garf
     garf_param = {}
-    garf_param['gpu_batch_size'] = int(4e5)
-    garf_param['size'] = 128
-    garf_param['spacing'] = 4.41806
-    garf_param['length'] = 99
-    garf_param['N_scale'] = scale
-    garf_param['N_dataset'] = n
-    size_mm = garf_param['size'] * garf_param['spacing'] / 2.0
+    garf_param["gpu_batch_size"] = int(4e5)
+    garf_param["size"] = 128 * 2
+    garf_param["spacing"] = 4.7951998710632 / 2
+    garf_param["length"] = 99
+    garf_param["length"] = 45.694801000000005  # FIXME
+    garf_param["N_scale"] = scale
+    garf_param["N_dataset"] = n
+    current_gpu_mode, _ = garf.get_gpu_device(gpu_mode="auto")
+    garf_nn["model_data"]["current_gpu_device"] = current_gpu_mode
+    size_mm = garf_param["size"] * garf_param["spacing"] / 2.0  # FIXME ??
 
     # initialisation
-    gan_batch_size = 2e5
+    gan_batch_size = 3e5
 
     # loop over angles
     angle = start_angle
     bar_n = (stop_angle - start_angle) / step_angle * n
     pbar = tqdm(total=bar_n)
     a = 0
-    p = {"gan_params": gan_params,
-         "G": G,
-         "D": D,
-         "batch_size": batch_size,
-         "gan_batch_size": gan_batch_size,
-         "image_plane_size_mm": image_plane_size_mm,
-         "debug": False,
-         "garf_nn": garf_nn,
-         "garf_model": garf_model,
-         "garf_param": garf_param,
-         "pbar": pbar,
-         "n": n
-         }
+    p = {
+        "gan_params": gan_params,
+        "G": G,
+        "D": D,
+        # "batch_size": batch_size,
+        "gan_batch_size": gan_batch_size,
+        "image_plane_size_mm": image_plane_size_mm,
+        "debug": False,
+        "garf_nn": garf_nn,
+        "garf_model": garf_model,
+        "garf_param": garf_param,
+        "pbar": pbar,
+        "n": n,
+    }
 
     # voxelized activity condition
     if activity_source is None:
@@ -108,32 +129,52 @@ def gaga_garf_generate_img(gan_pth_filename,
         generate_condition = gaga.voxelized_source_generator(activity_source)
 
     # print batch FIXME
-    '''
+    """
     gan_batch_size is used to generate samples from gan
     batch_size
     garf_param['gpu_batch_size']   <--- never used ???
     param["batch_size"]
     garf : input is N detected value, loop with batch size     
-    '''
-    print(f'batch_size', batch_size) # init_plane, cond, gan sample
-    print(f'gan_batch_size', gan_batch_size)
-    print(f'gpu_batch_size (garf)', garf_param['gpu_batch_size'])
+    """
+    # print(f"batch_size", batch_size)  # init_plane, cond, gan sample
+    print(f"gan_batch_size", gan_batch_size)
+    print(f"gpu_batch_size (garf)", garf_param["gpu_batch_size"])
 
     while angle < stop_angle:
-        tqdm.write(f'Angle {angle} deg')
+        tqdm.write(f"Angle {angle} deg")
         ev = 0
 
-        plane = gaga.init_plane(batch_size, angle=angle, radius=radius)
+        plane = gaga.init_plane3(
+            gan_batch_size, angle=angle, radius=radius, spect_table_shift_mm=0
+        )
         p["plane"] = plane
-        image, sq_image = gaga.gaga_garf_generate_image(p, generate_condition=generate_condition)
+        image, sq_image = gaga.gaga_garf_generate_image(
+            p, generate_condition=generate_condition
+        )
+
+        # remove first slice # FIXME make optional
+        arr = itk.array_from_image(image)
+        print(f"arr", arr.shape)
+        arr = arr[1:, :, :]
+        print(f"arr", arr.shape)
+        img = itk.image_from_array(arr)
+        img.CopyInformation(image)
+        image = img
+
+        # image origin # FIXME make optional (?)
+        size = garf_param["size"]
+        spacing = garf_param["spacing"]
+        s = size * spacing / 2.0 - spacing / 2.0
+        origin = [-s, -s, 0]
+        image.SetOrigin(origin)
 
         # save image
         b, extension = os.path.splitext(output)
-        out = f'{b}_{str(angle).zfill(5)}{extension}'
+        out = f"{b}_{str(angle).zfill(5)}{extension}"
         itk.imwrite(image, out)
 
         # save image
-        sout = f'{b}_{str(angle).zfill(5)}-Squared{extension}'
+        sout = f"{b}_{str(angle).zfill(5)}-Squared{extension}"
         itk.imwrite(sq_image, sout)
 
         # compute sigma if needed
@@ -142,15 +183,17 @@ def gaga_garf_generate_img(gan_pth_filename,
             sfilenames = []
             filenames.append(out)
             sfilenames.append(sout)
-            sigout = f'{b}_{str(angle).zfill(5)}_sigma{extension}'
+            sigout = f"{b}_{str(angle).zfill(5)}_sigma{extension}"
             nevents = n
             sigma_flag = True
             threshold = 0
             print(filenames, sfilenames, nevents)
-            uncertainty, m, nb = gt.image_uncertainty_by_slice(filenames, sfilenames, nevents, sigma_flag, threshold)
+            uncertainty, m, nb = gt.image_uncertainty_by_slice(
+                filenames, sfilenames, nevents, sigma_flag, threshold
+            )
             itk.imwrite(uncertainty, sigout)
 
-        ev += batch_size
+        ev += gan_batch_size
         # pbar.update(batch_size)
         angle += step_angle
         a = a + 1
@@ -159,5 +202,5 @@ def gaga_garf_generate_img(gan_pth_filename,
 
 
 # --------------------------------------------------------------------------
-if __name__ == '__main__':
+if __name__ == "__main__":
     gaga_garf_generate_img()
