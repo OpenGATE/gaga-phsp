@@ -7,16 +7,23 @@ import torch
 from matplotlib import pyplot as plt
 import gaga_phsp as gaga
 
-CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
+CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
 
 @click.command(context_settings=CONTEXT_SETTINGS)
-@click.argument('pth_filename', nargs=-1)
-@click.option('--plot/--no-plot', default=False)
-@click.option('--add_energy', default=float(-1),
-              help='Add the key Ekine with the given value in the parameters of the pth file')
-@click.option('--sfig/--no-sfig', is_flag=True, default=False, help='special plot for figure')
-@click.option('--short', is_flag=True, default=False, help='one line summary of main parameters')
+@click.argument("pth_filename", nargs=-1)
+@click.option("--plot/--no-plot", default=False)
+@click.option(
+    "--add_energy",
+    default=float(-1),
+    help="Add the key Ekine with the given value in the parameters of the pth file",
+)
+@click.option(
+    "--sfig/--no-sfig", is_flag=True, default=False, help="special plot for figure"
+)
+@click.option(
+    "--short", is_flag=True, default=False, help="one line summary of main parameters"
+)
 def gaga_info(pth_filename, plot, add_energy, sfig, short):
     """
     \b
@@ -31,7 +38,7 @@ def gaga_info(pth_filename, plot, add_energy, sfig, short):
         fig, ax = plt.subplots(1, 1, figsize=(16, 5))  # or 1,3
 
     for f in pth_filename:
-        params, G, D, optim, dtypef = gaga.load(f, fatal_on_unknown_keys=False)
+        params, G, D, optim = gaga.load(f, fatal_on_unknown_keys=False)
 
         if short:
             gaga.print_info_short(params, optim)
@@ -50,24 +57,24 @@ def gaga_info(pth_filename, plot, add_energy, sfig, short):
 
     if plot:
         plt.tight_layout()
-        plt.savefig('a.pdf', dpi=fig.dpi)
+        plt.savefig("a.pdf", dpi=fig.dpi)
         plt.show()
 
     if add_energy != -1:
         if len(pth_filename) != 1:
-            print('Cannot add_energy to several pth_filename')
+            print("Cannot add_energy to several pth_filename")
             exit(0)
         f = pth_filename[0]
-        params['Ekine'] = add_energy
-        if params['current_gpu']:
+        params["Ekine"] = add_energy
+        if params["current_gpu"]:
             nn = torch.load(f)
         else:
             nn = torch.load(f, map_location=lambda storage, loc: storage)
-        nn['params'] = params
-        copyfile(f, f + '.save')
+        nn["params"] = params
+        copyfile(f, f + ".save")
         torch.save(nn, f)
 
 
 # --------------------------------------------------------------------------
-if __name__ == '__main__':
+if __name__ == "__main__":
     gaga_info()
