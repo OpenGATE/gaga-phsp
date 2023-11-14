@@ -7,27 +7,55 @@ import numpy as np
 from matplotlib import pyplot as plt
 import gaga_phsp as gaga
 
-CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
+CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
 
 @click.command(context_settings=CONTEXT_SETTINGS)
-@click.argument('phsp_filename')
-@click.argument('pth_filename')
-@click.option('--n', '-n', default=1e4, help='Number of samples to generate')
-@click.option('--nb_bins', '-b', default=int(200), help='Number of bins')
-@click.option('--toggle/--no-toggle', default=False, help='convert angle to XY (DEBUG)')
-@click.option('--quantile', '-q', default=float(0), help='Restrict histogram to quantile')
-@click.option('--radius', default=350, help='When convert angle, need the radius (in mm)')
-@click.option('--plot2d',
-              type=(str, str),
-              help='Add 2D plots (key1,key2), such as --plot2d X Ekine --plot2d X Y ', multiple=True)
-@click.option('--epoch', '-e', default=-1, help='Load the G net at the given epoch (-1 for last stored epoch)')
-@click.option('--no-title', is_flag=True, default=False)
-@click.option('--output', '-o', type=str, help='Do not plot, only output a pdf with the given name')
-@click.option('--cond_phsp', '-c', default=None, help='Conditional phsp')
-def gaga_plot(phsp_filename, pth_filename, n, nb_bins,
-              toggle, radius, quantile, plot2d, epoch,
-              output, no_title, cond_phsp):
+@click.argument("phsp_filename")
+@click.argument("pth_filename")
+@click.option("--n", "-n", default=1e4, help="Number of samples to generate")
+@click.option("--nb_bins", "-b", default=int(200), help="Number of bins")
+@click.option("--toggle/--no-toggle", default=False, help="convert angle to XY (DEBUG)")
+@click.option(
+    "--quantile", "-q", default=float(0), help="Restrict histogram to quantile"
+)
+@click.option(
+    "--radius", default=350, help="When convert angle, need the radius (in mm)"
+)
+@click.option(
+    "--plot2d",
+    type=(str, str),
+    help="Add 2D plots (key1,key2), such as --plot2d X Ekine --plot2d X Y ",
+    multiple=True,
+)
+@click.option(
+    "--epoch",
+    "-e",
+    default=-1,
+    help="Load the G net at the given epoch (-1 for last stored epoch)",
+)
+@click.option("--no-title", is_flag=True, default=False)
+@click.option(
+    "--output",
+    "-o",
+    type=str,
+    help="Do not plot, only output a pdf with the given name",
+)
+@click.option("--cond_phsp", "-c", default=None, help="Conditional phsp")
+def gaga_plot(
+    phsp_filename,
+    pth_filename,
+    n,
+    nb_bins,
+    toggle,
+    radius,
+    quantile,
+    plot2d,
+    epoch,
+    output,
+    no_title,
+    cond_phsp,
+):
     """
     \b
     Plot marginal distributions from a GAN-PHSP
@@ -49,22 +77,24 @@ def gaga_plot(phsp_filename, pth_filename, n, nb_bins,
 
     # load pth
     params, G, D, optim = gaga.load(pth_filename, epoch=epoch)
-    f_keys = params['keys']
+    f_keys = params["keys"]
     if isinstance(f_keys, str):
-        f_keys = params['keys_list']
+        f_keys = params["keys_list"]
     keys = f_keys.copy()
 
     # cond ?
     cond_data = None
     if not cond_phsp is None:
-        cond_keys = params['cond_keys']
+        cond_keys = params["cond_keys"]
         cond_data, cond_read_keys, m = phsp.load(cond_phsp, nmax=n)
         cond_keys = phsp.str_keys_to_array_keys(cond_keys)
         cond_data = phsp.select_keys(cond_data, cond_read_keys, cond_keys)
-        print(f'Conditional keys {cond_keys} {cond_data.shape}')
-
-    # generate samples
-    fake = gaga.generate_samples2(params, G, D, n, int(1e5), normalize=False, to_numpy=True, cond=cond_data)
+        print(f"Conditional keys {cond_keys} {cond_data.shape}")
+        fake = gaga.generate_samples3(params, G, n, cond=cond_data)
+    else:
+        fake = gaga.generate_samples_no_cond(
+            params, G, n, int(1e5), normalize=False, to_numpy=True
+        )
 
     # add cond dimensions
     if not cond_phsp is None:
@@ -102,31 +132,31 @@ def gaga_plot(phsp_filename, pth_filename, n, nb_bins,
         q1 = quantile
         q2 = 1.0 - quantile
         q[k] = (np.quantile(d, q1), np.quantile(d, q2))
-        lab = ''
+        lab = ""
         if no_title:
-            lab = 'PHSP '
-        gaga.fig_plot_marginal(real, k, keys, ax, i, nb_bins, 'g', q[k], lab)
+            lab = "PHSP "
+        gaga.fig_plot_marginal(real, k, keys, ax, i, nb_bins, "g", q[k], lab)
         i = i + 1
 
     # plot all keys for fake data (same range)
     i = 0
     for k in keys:
         if no_title:
-            lab = 'GAN '
-        gaga.fig_plot_marginal(fake, k, keys, ax, i, nb_bins, 'r', q[k], lab)
+            lab = "GAN "
+        gaga.fig_plot_marginal(fake, k, keys, ax, i, nb_bins, "r", q[k], lab)
         i = i + 1
 
     # plot 2D distribution
     if len(keys) > 1:
         starti = i
         for kk in keys_2d:
-            gaga.fig_plot_marginal_2d(real, kk[0], kk[1], keys, ax, i, nb_bins, 'g')
+            gaga.fig_plot_marginal_2d(real, kk[0], kk[1], keys, ax, i, nb_bins, "g")
             i = i + 1
 
         # plot 2D distribution
         i = starti
         for kk in keys_2d:
-            gaga.fig_plot_marginal_2d(fake, kk[0], kk[1], keys, ax, i, nb_bins, 'r')
+            gaga.fig_plot_marginal_2d(fake, kk[0], kk[1], keys, ax, i, nb_bins, "r")
             i = i + 1
 
         if False:
@@ -151,5 +181,5 @@ def gaga_plot(phsp_filename, pth_filename, n, nb_bins,
 
 
 # --------------------------------------------------------------------------
-if __name__ == '__main__':
+if __name__ == "__main__":
     gaga_plot()

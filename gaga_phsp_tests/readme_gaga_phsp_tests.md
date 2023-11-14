@@ -1,4 +1,4 @@
-# Test 1 : Linac phsp
+# (Test 1 : Linac phsp)
 
 ==> See GateBenchmark/t9_gaga_phsp
 

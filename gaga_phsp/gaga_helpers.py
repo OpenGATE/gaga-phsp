@@ -483,16 +483,14 @@ def get_z_rand(params):
     return torch.randn
 
 
-def generate_samples2(
+def generate_samples_no_cond(
     params,
     G,
-    D,
     n,
     batch_size=-1,
     normalize=False,
     to_numpy=False,
     z=None,
-    cond=None,
     silence=False,
 ):
     # batch size -> if n is lower, batch size is n
@@ -510,39 +508,13 @@ def generate_samples2(
     else:
         z_rand = z
 
-    # is this a conditional GAN ?
-    is_conditional = not cond is None
-
     # normalize the input condition
     ncond = 0
-    cn = 0
-    xmeannc = None
-    xstdnc = None
-    if is_conditional:
-        # normalize the conditional vector
-        xmean = params["x_mean"][0]
-        xstd = params["x_std"][0]
-        xn = params["x_dim"]
-        cn = len(params["cond_keys"])
-        ncond = cn
-        # mean and std for cond only
-        xmeanc = xmean[xn - cn : xn]
-        xstdc = xstd[xn - cn : xn]
-        # mean and std for non cond
-        xmeannc = xmean[0 : xn - cn]
-        xstdnc = xstd[0 : xn - cn]
-        # normalize the condition
-        cond = (cond - xmeanc) / xstdc
-    else:
-        if len(params["cond_keys"]) > 0:
-            print(
-                f'Error : GAN is conditional, you should provide the condition: {params["cond_keys"]}'
-            )
-            exit(0)
-
-    langevin_latent_sampling_flag = False
-    if "langevin_latent_sampling" in params:
-        langevin_latent_sampling_flag = True
+    if len(params["cond_keys"]) > 0:
+        print(
+            f'Error : GAN is conditional, you should provide the condition: {params["cond_keys"]}'
+        )
+        exit(0)
 
     m = 0
     z_dim = params["z_dim"]
@@ -552,7 +524,6 @@ def generate_samples2(
     rfake_dtype = np.float64
     if current_gpu_mode == "mps":
         rfake_dtype = np.float32
-    # print(f"GAN {current_gpu_mode}")  # FIXME
     rfake = np.empty((0, x_dim - ncond), dtype=rfake_dtype)
     while m < n:
         if not silence:
@@ -567,25 +538,6 @@ def generate_samples2(
         # if None == z:
         z = Tensor(z_rand(current_gpu_batch_size, z_dim)).to(device)
 
-        # condition ?
-        if is_conditional:
-            if current_gpu_mode == "mps":
-                # print("With device mps (gpu), convert data to float32")
-                acond = cond[m : m + current_gpu_batch_size].astype(np.float32)
-            else:
-                acond = cond[m : m + current_gpu_batch_size]
-            condx = (
-                # Tensor(torch.from_numpy(cond[m : m + current_gpu_batch_size]))
-                Tensor(torch.from_numpy(acond))
-                .to(device)
-                .view(current_gpu_batch_size, cn)
-            )
-            z = torch.cat((z.float(), condx.float()), dim=1)
-
-        # FIXME test langevin
-        if langevin_latent_sampling_flag:
-            z = gaga.langevin_latent_sampling(G, D, params, z)
-
         fake = G(z)
         # put back to cpu to allow concatenation
         fake = fake.cpu().data.numpy()
@@ -596,10 +548,6 @@ def generate_samples2(
     if not normalize:
         x_mean = params["x_mean"]
         x_std = params["x_std"]
-        if is_conditional:
-            # do not consider the mean/std of the condition part
-            x_mean = xmeannc
-            x_std = xstdnc
         rfake = (rfake * x_std) + x_mean
 
     if to_numpy:
@@ -608,7 +556,7 @@ def generate_samples2(
     return Tensor(torch.from_numpy(rfake)).to(device)
 
 
-def generate_samples3(params, G, n, cond):
+def generate_samples3(params, G, n, cond, to_numpy=True):
     """
     Like generate_samples2 but with fewer options
 
@@ -654,7 +602,10 @@ def generate_samples3(params, G, n, cond):
     # do not consider the mean/std of the condition part
     fake = (fake * xstdnc) + xmeannc
 
-    return fake
+    if to_numpy:
+        return fake
+
+    return Tensor(torch.from_numpy(fake)).to(device)
 
 
 def Jensen_Shannon_divergence(x, y, bins, margin=0):
@@ -717,71 +668,6 @@ def wasserstein1D(x, y, p=1):
     sy, indices = torch.sort(y)
     z = sx - sy
     return torch.sum(torch.pow(torch.abs(z), p)) / len(z)
-
-
-def init_plane(n, angle, radius):
-    """
-    plane_U, plane_V, plane_point, plane_normal
-    """
-
-    n = int(n)
-    logger.info(f"Initialisation of plane with radius {radius} ")
-    plane_U = np.array([1, 0, 0])
-    plane_V = np.array([0, 1, 0])
-    r = Rotation.from_euler("y", angle, degrees=True)
-    plane_U = r.apply(plane_U)
-    plane_V = r.apply(plane_V)
-
-    # normal vector is the cross product of two direction vectors on the plane
-    plane_normal = np.cross(plane_U, plane_V)
-    plane_normal = np.array([plane_normal] * n)
-
-    # center = np.array([0, 0, -radius])
-    center = np.array([0, 0, -radius])
-    center = r.apply(center)
-    plane_center = np.array([center] * n)
-
-    plane = {
-        "plane_U": plane_U,
-        "plane_V": plane_V,
-        "rotation": r,
-        "plane_normal": plane_normal,
-        "plane_center": plane_center,
-    }
-    # logger.info(f'Initialisation of plane {plane} ')
-    return plane
-
-
-def init_plane2(n, angle, radius, spect_table_shift_mm):
-    """
-    plane_U, plane_V, plane_point, plane_normal
-    """
-
-    plane_U = np.array([1, 0, 0])
-    plane_V = np.array([0, 1, 0])
-    r1 = Rotation.from_euler("x", 90, degrees=True)
-    r2 = Rotation.from_euler("z", angle, degrees=True)
-    r = r2 * r1
-    plane_U = r.apply(plane_U)
-    plane_V = r.apply(plane_V)
-
-    # normal vector is the cross product of two direction vectors on the plane
-    plane_normal = np.cross(plane_U, plane_V)
-    plane_normal = np.array([plane_normal] * int(n))
-
-    center = np.array([0, -spect_table_shift_mm, -radius])
-    center = r.apply(center)
-    plane_center = np.array([center] * int(n))
-
-    plane = {
-        "plane_U": plane_U,
-        "plane_V": plane_V,
-        "rotation": r.inv(),  # [r] * n,
-        "plane_normal": plane_normal,
-        "plane_center": plane_center,
-    }
-
-    return plane
 
 
 def init_plane3(n, angle, radius, spect_table_shift_mm):
@@ -923,107 +809,6 @@ def project_on_plane(x, plane, image_plane_size_mm):
     data = np.concatenate((y, E), axis=1)
 
     return data
-
-
-def gaga_garf_generate_image(p, generate_condition=None):
-    # param
-    gan_params = p["gan_params"]
-    G = p["G"]
-    D = p["D"]
-    # batch_size = int(p["batch_size"])
-    gan_batch_size = int(p["gan_batch_size"])
-    plane = p["plane"]
-    image_plane_size_mm = p["image_plane_size_mm"]
-    debug = p["debug"]
-    garf_nn = p["garf_nn"]
-    garf_model = p["garf_model"]
-    garf_param = p["garf_param"]
-    garf_param["batch_size"] = garf_param["gpu_batch_size"]
-    pbar = p["pbar"]
-    n = p["n"]
-
-    ev = 0
-    images = []
-    sq_images = []
-    print(f"Total number of samples : {n}")
-    # FIXME compute approximated nb of loop n/batch
-    while ev < n:
-        # check generation of the exact nb of samples
-        current_batch_size = gan_batch_size
-        if current_batch_size > n - ev:
-            current_batch_size = n - ev
-
-        # Step0 condition
-        cond = None
-        if generate_condition:
-            t1 = time.time()
-            logger.info(f"Generating {current_batch_size} condition")
-            cond = generate_condition(current_batch_size)
-            logger.info("Computation time: {0:.3f} sec".format(time.time() - t1))
-
-        # Step 1 : GAN
-        t1 = time.time()
-        logger.info(f"Generating {current_batch_size} events")
-        x = gaga.generate_samples2(
-            gan_params,
-            G,
-            D,
-            current_batch_size,
-            gan_batch_size,
-            normalize=False,
-            to_numpy=True,
-            cond=cond,
-        )
-        # print('batch / x', current_batch_size, len(x))
-        logger.info("Computation time: {0:.3f} sec".format(time.time() - t1))
-
-        # Step 2 : Projection
-        t1 = time.time()
-        px = gaga.project_on_plane(
-            x, plane, image_plane_size_mm=image_plane_size_mm  # , debug=debug
-        )
-        logger.info("Computation time: {0:.3f} sec".format(time.time() - t1))
-
-        # Step3 : GARF
-        # output image expressed in counts/samples (generated samples)
-        t1 = time.time()
-        logger.info(f"Building image with {len(px)}/{current_batch_size} particles")
-        garf_param["N_dataset"] = current_batch_size
-        img, sq_img = garf.build_arf_image_with_nn(
-            garf_nn, garf_model, px, garf_param, verbose=True, debug=debug
-        )
-        images.append(img)
-        sq_images.append(sq_img)
-        logger.info("Computation time: {0:.3f} sec".format(time.time() - t1))
-
-        ev += current_batch_size
-        pbar.update(current_batch_size)
-        ev = min(ev, n)
-        logger.info("")
-
-    # mean images from all batches # FIXME check the size of each batch is the same !!
-    im_iter = iter(images)
-    im = next(im_iter)
-    data = itk.GetArrayFromImage(im)
-    for im in im_iter:
-        d = itk.GetArrayViewFromImage(im)
-        data += d
-    data = data / len(images)
-    img = itk.GetImageFromArray(data)
-    img.CopyInformation(images[0])
-
-    # mean images
-    im_iter = iter(sq_images)
-    im = next(im_iter)
-    data = itk.GetArrayFromImage(im)
-    for im in im_iter:
-        d = itk.GetArrayViewFromImage(im)
-        data += d
-    data = data / len(sq_images)
-    sq_img = itk.GetImageFromArray(data)
-    sq_img.CopyInformation(sq_images[0])
-
-    return img, sq_img
 
 
 def append_gaussian(data, mean, cov, n, vx=None, vy=None):
