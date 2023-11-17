@@ -279,14 +279,14 @@ class Gan(object):
         return optim
 
     def set_net_to_device(self, device):
-        print("Set model to ", device)
+        print("Set model to", device)
         self.G.to(device)
         self.D.to(device)
 
         # print('Set data to GPU')
         # real_labels and fake_labels are set to cuda before
 
-        print("Set optim to ", device)
+        print("Set optim to", device)
         self.criterion_dr.to(device)
         self.criterion_df.to(device)
         self.criterion_g.to(device)
@@ -349,7 +349,8 @@ class Gan(object):
         loader = DataLoader(
             self.x,
             batch_size=batch_size,
-            num_workers=2,  # no gain if larger than 2 (?)
+            # num_workers=2,  # no gain if larger than 2 (?)
+            num_workers=0,  # no gain if larger than 2 (?)
             # https://discuss.pytorch.org/t/data-loader-multiprocessing-slow-on-macos/131204/3
             persistent_workers=True,
             pin_memory=True,
