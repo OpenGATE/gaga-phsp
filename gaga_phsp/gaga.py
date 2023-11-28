@@ -329,6 +329,12 @@ class Gan(object):
         self.x = x
         self.batch_size = self.params.batch_size
 
+        # why ? FIXME
+        # special case for mps, 32 only not 64
+        if self.current_gpu_mode == "mps":
+            print("MPS detected : convert data to float32")
+            self.x = x.astype(np.float32)
+
         # init cuda/mps
         self.set_net_to_device(self.current_gpu_device)
 
@@ -350,7 +356,7 @@ class Gan(object):
             self.x,
             batch_size=batch_size,
             # num_workers=2,  # no gain if larger than 2 (?)
-            num_workers=0,  # no gain if larger than 2 (?)
+            num_workers=1,  # no gain if larger than 2 (?)
             # https://discuss.pytorch.org/t/data-loader-multiprocessing-slow-on-macos/131204/3
             persistent_workers=True,
             pin_memory=True,

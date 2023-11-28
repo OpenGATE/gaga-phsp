@@ -920,9 +920,10 @@ def gaga_garf_generate_spect(
     # initialize the condition generator
     f = gaga_user_info.activity_source
     cond_generator = gansources.VoxelizedSourceConditionGenerator(
-        f, use_activity_origin=True
+        f, use_activity_origin=False # FIXME true or false ?
     )
     cond_generator.compute_directions = True
+    cond_generator.translation = gaga_user_info.cond_translation
 
     # prepare verbose
     verb_gaga_1 = do_nothing
@@ -961,6 +962,8 @@ def gaga_garf_generate_spect(
             px = garf.arf_plane_project(x, plane, garf_user_info.image_plane_size_mm)
             verb_gaga_2(f"\tAngle {i}, number of gamma reaching the plane = {len(px)}")
             nb_hits_on_plane[i] += len(px)
+            if len(px) == 0:
+                continue
 
             # Store projected points until garf_batch_size is full before build image
             cpx = projected_points[i]
@@ -995,6 +998,8 @@ def gaga_garf_generate_spect(
     # remaining projected points
     for i in range(len(angle_rotations)):
         cpx = projected_points[i]
+        if cpx is None or len(cpx) == 0:
+            continue
         if garf_user_info.verbose > 0:
             print(f"GARF rotation {i}: update image with {len(cpx)} hits (final)")
         image = data_img[i]
