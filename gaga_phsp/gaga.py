@@ -330,10 +330,7 @@ class Gan(object):
         self.batch_size = self.params.batch_size
 
         # why ? FIXME
-        # special case for mps, 32 only not 64
-        if self.current_gpu_mode == "mps":
-            print("MPS detected : convert data to float32")
-            self.x = x.astype(np.float32)
+        self.x = x.astype(np.float32)
 
         # init cuda/mps
         self.set_net_to_device(self.current_gpu_device)
