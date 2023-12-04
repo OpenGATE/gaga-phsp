@@ -11,27 +11,57 @@ import gaga_phsp as gaga
 from box import Box
 import socket
 
-CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
+CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
 
 @click.command(context_settings=CONTEXT_SETTINGS)
-@click.argument('phsp_filename', type=click.Path(exists=True, file_okay=True, dir_okay=False))
-@click.argument('json_filename', type=click.Path(exists=True, file_okay=True, dir_okay=False))
-@click.option('--output', '-o', help='Output filename, default = automatic name', default='auto')
-@click.option('--output_folder', '-f', help='Output folder (ignored if output is not "auto")', default='.')
-@click.option('--progress-bar/--no-progress-bar', default=True)
-@click.option('--user_param_str', '-ps',
-              help='overwrite str parameter of the json file',
-              multiple=True, type=(str, str))
-@click.option('--user_param', '-p',
-              help='overwrite numeric parameter of the json file',
-              multiple=True, type=(str, float))
-@click.option('--user_param_int', '-pi',
-              help='overwrite numeric int parameter of the json file',
-              multiple=True, type=(str, int))
-def gaga_train(phsp_filename, json_filename,
-               output, output_folder,
-               progress_bar, user_param_str, user_param, user_param_int):
+@click.argument(
+    "phsp_filename", type=click.Path(exists=True, file_okay=True, dir_okay=False)
+)
+@click.argument(
+    "json_filename", type=click.Path(exists=True, file_okay=True, dir_okay=False)
+)
+@click.option(
+    "--output", "-o", help="Output filename, default = automatic name", default="auto"
+)
+@click.option(
+    "--output_folder",
+    "-f",
+    help='Output folder (ignored if output is not "auto")',
+    default=".",
+)
+@click.option("--progress-bar/--no-progress-bar", default=True)
+@click.option(
+    "--user_param_str",
+    "-ps",
+    help="overwrite str parameter of the json file",
+    multiple=True,
+    type=(str, str),
+)
+@click.option(
+    "--user_param",
+    "-p",
+    help="overwrite numeric parameter of the json file",
+    multiple=True,
+    type=(str, float),
+)
+@click.option(
+    "--user_param_int",
+    "-pi",
+    help="overwrite numeric int parameter of the json file",
+    multiple=True,
+    type=(str, int),
+)
+def gaga_train(
+    phsp_filename,
+    json_filename,
+    output,
+    output_folder,
+    progress_bar,
+    user_param_str,
+    user_param,
+    user_param_int,
+):
     """
     \b
     Train GAN to learn a PHSP (Phase Space File)
@@ -78,16 +108,17 @@ def gaga_train(phsp_filename, json_filename,
 
     # print parameters
     for e in params:
-        if (e[0] != '#'):
-            print(f'   {e:32s} {params[e]}')
+        if e[0] != "#":
+            print(f"   {e:32s} {params[e]}")
 
     # build the model
-    print(Fore.CYAN + 'Building the GAN model ...' + Style.RESET_ALL)
+    print(Fore.CYAN + "Building the GAN model ..." + Style.RESET_ALL)
     gan = gaga.Gan(params)
 
     # train
-    print(Fore.CYAN + 'Start training ...' + Style.RESET_ALL)
-    model = gan.train(x)
+    print(Fore.CYAN + "Start training ..." + Style.RESET_ALL)
+    # model = gan.train(x)
+    model = gan.train2(x)
 
     # stop timer
     stop = datetime.datetime.now()
@@ -99,9 +130,9 @@ def gaga_train(phsp_filename, json_filename,
     # save output (params is in the model)
     gan.save(model, params.output_filename)
 
-    print(Fore.CYAN + f'Training done: {params.output_filename}')
+    print(Fore.CYAN + f"Training done: {params.output_filename}")
 
 
 # --------------------------------------------------------------------------
-if __name__ == '__main__':
+if __name__ == "__main__":
     gaga_train()

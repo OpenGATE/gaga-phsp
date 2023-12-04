@@ -871,6 +871,7 @@ def gaga_garf_generate_spect_initialize(gaga_user_info, garf_user_info):
     garf_user_info.image_plane_hsize_mm = garf_user_info.image_plane_size_mm / 2
 
 
+
 def do_nothing(a):
     pass
 
@@ -920,7 +921,7 @@ def gaga_garf_generate_spect(
     # initialize the condition generator
     f = gaga_user_info.activity_source
     cond_generator = gansources.VoxelizedSourceConditionGenerator(
-        f, use_activity_origin=False # FIXME true or false ?
+        f, use_activity_origin=False  # FIXME true or false ?
     )
     cond_generator.compute_directions = True
     cond_generator.translation = gaga_user_info.cond_translation
