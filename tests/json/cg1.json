@@ -73,7 +73,7 @@
 
     "#": "optimiser: decrease learning rate. 1000-0.2 means, that every 1000 step the lr is x 0.2",
     "#": "comment the following line to disable scheduler",
-    "schedule_learning_rate_step": 500,
+    "schedule_learning_rate_step": 10,
     "schedule_learning_rate_gamma": 0.9,
 
     "#": "optimiser: number of D and G update by epoch",
@@ -81,7 +81,7 @@
     "g_nb_update": 1,
 
     "#": "optimiser: max nb of epoch (iteration)",
-    "epoch": 10000,
+    "epoch": 100,
 
     "#": "optimiser: nb of samples by batch",
     "batch_size": 10000,

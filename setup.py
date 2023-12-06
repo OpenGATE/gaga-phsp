@@ -35,6 +35,7 @@ setuptools.setup(
         "bin/gaga_plot",
         "bin/gaga_generate",
         "bin/gaga_gauss_test",
+        "bin/gaga_gauss_cond_test",
         "bin/gaga_gauss_plot",
         "bin/gaga_convert_pth_to_pt",
         "bin/gaga_pairs_to_tlor",

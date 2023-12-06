@@ -1,5 +1,5 @@
 import copy
-from torch.utils.data import DataLoader
+from torch.utils.data import TensorDataset, DataLoader
 import torch
 from torch import Tensor
 from tqdm import tqdm
@@ -554,6 +554,10 @@ class Gan(object):
         """
         Train the GAN
         """
+        if "dataloader_num_workers" not in self.params:
+            self.params["dataloader_num_workers"] = 4
+            if self.current_gpu_mode == "mps":
+                self.params["dataloader_num_workers"] = 1
 
         # normalisation
         print("Normalization")
@@ -579,19 +583,17 @@ class Gan(object):
 
         # init conditional
         self.condn = len(self.params["cond_keys"])
-        # nx = self.params["x_dim"]
         self.conditional = self.condn > 0
         if self.conditional:
             print(f'Conditional : {self.params["cond_keys"]} ' + str(self.condn))
 
         # Sampler
-        print("Dataloader")
+        print(f"Dataloader num_workers={self.params['dataloader_num_workers']}")
         batch_size = self.params["batch_size"]
         loader = DataLoader(
             self.x,
             batch_size=batch_size,
-            # num_workers=2,  # no gain if larger than 2 (?)
-            num_workers=1,  # no gain if larger than 2 (?)
+            num_workers=self.params["dataloader_num_workers"],
             # https://discuss.pytorch.org/t/data-loader-multiprocessing-slow-on-macos/131204/3
             persistent_workers=True,
             pin_memory=True,
@@ -615,6 +617,7 @@ class Gan(object):
 
         epoch = self.params["start_epoch"]
         # for epoch in range(self.params["start_epoch"], self.params["end_epoch"]):
+        condx = None
         while epoch < self.params["end_epoch"]:
             # D
             for p in self.D.parameters():
@@ -622,7 +625,11 @@ class Gan(object):
             cont_epoch, condx = self.update_D(data_iter, loader)
             if not cont_epoch:
                 epoch += 1
-                tqdm.write(f"Epoch {epoch} / {self.params['epoch']}")
+                pbar.set_postfix(
+                    epoch=epoch,
+                    d_loss=self.d_loss.data.item(),
+                    g_loss=self.g_loss.data.item(),
+                )
                 # sometimes: print and store the full model
                 self.epoch_dump(epoch)
                 self.epoch_store(epoch)
@@ -718,6 +725,7 @@ class Gan(object):
         batch_size = self.params.batch_size
         z_dim = self.params["z_dim"]
         nx = self.params["x_dim"]
+        condx = None
 
         for i in range(self.params["d_nb_update"]):
             # grad
@@ -736,7 +744,8 @@ class Gan(object):
             # concat conditional vector (if any)
             if self.conditional:
                 condx = x[:, nx - self.condn : nx]
-                z = torch.cat((z.float(), condx.float()), dim=1)
+                # z = torch.cat((z.float(), condx.float()), dim=1)
+                z = torch.cat((z, condx), dim=1)
 
             # generate fake data
             # (detach to avoid training G on these labels)
@@ -744,7 +753,8 @@ class Gan(object):
 
             # concat conditional vector (if any)
             if self.conditional:
-                d_fake_data = torch.cat((d_fake_data.float(), condx.float()), dim=1)
+                # d_fake_data = torch.cat((d_fake_data.float(), condx.float()), dim=1)
+                d_fake_data = torch.cat((d_fake_data, condx), dim=1)
 
             # get the fake decision on the fake data
             d_fake_decision = self.D(d_fake_data)
@@ -785,14 +795,16 @@ class Gan(object):
 
             # conditional
             if self.conditional:
-                z = torch.cat((z.float(), condx.float()), dim=1)
+                # z = torch.cat((z.float(), condx.float()), dim=1)
+                z = torch.cat((z, condx), dim=1)
 
             # generate the fake data
             g_fake_data = self.G(z)
 
             # concat conditional vector (if any)
             if self.conditional:
-                g_fake_data = torch.cat((g_fake_data.float(), condx.float()), dim=1)
+                # g_fake_data = torch.cat((g_fake_data.float(), condx.float()), dim=1)
+                g_fake_data = torch.cat((g_fake_data, condx), dim=1)
 
             # get the fake decision
             g_fake_decision = self.D(g_fake_data)

@@ -25,6 +25,9 @@ aa.png
 /tests/npy/*.npy
 /tests/*pth
 /tests/*pt
+/tests/*png
+/tests/*old*
+
 
 /save/
 

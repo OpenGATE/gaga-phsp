@@ -92,7 +92,7 @@ def gaga_plot(
         print(f"Conditional keys {cond_keys} {cond_data.shape}")
         fake = gaga.generate_samples3(params, G, n, cond=cond_data)
     else:
-        fake = gaga.generate_samples_no_cond(
+        fake = gaga.generate_samples_non_cond(
             params, G, n, int(1e5), normalize=False, to_numpy=True
         )
 
