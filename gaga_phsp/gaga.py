@@ -1,9 +1,6 @@
 import copy
-from torch.utils.data import TensorDataset, DataLoader
-import torch
-from torch import Tensor
+from torch.utils.data import DataLoader
 from tqdm import tqdm
-from .gaga_functions import *
 from .gaga_helpers import *
 import gaga_phsp
 from garf.helpers import get_gpu_device

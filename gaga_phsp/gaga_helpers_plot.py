@@ -1,16 +1,7 @@
 import numpy as np
-import torch
-import gaga_phsp
-import datetime
-import time
-import garf
 import gatetools.phsp as phsp
 from scipy.stats import kde
 from matplotlib import pyplot as plt
-from scipy.stats import entropy
-from scipy.spatial.transform import Rotation
-import logging
-import sys
 
 
 def plot_epoch(ax, params, optim, filename):
