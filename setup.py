@@ -24,7 +24,7 @@ setuptools.setup(
         "colorama",
         "click",
         "scipy",
-        "garf>=2.4",
+        "garf>=2.5",
         "matplotlib",
         "gatetools",
         # 'torch'   # the installation of torch is managed by garf

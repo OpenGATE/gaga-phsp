@@ -35,9 +35,35 @@ jobs:
         name: dist
         path: dist/
 
-  publish_wheel:
+  test_wheel:
     runs-on: ubuntu-latest
     needs: [build_wheel]
+    steps:
+    - name: Checkout github repo
+      uses: actions/checkout@v4
+    - name: Checkout submodules
+      run: git submodule update --init --recursive
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v4
+      with:
+        python-version: 3.11
+        architecture: 'x64'
+    - uses: actions/download-artifact@v3
+      with:
+        name: dist
+        path: dist/
+    - name: Test the wheel
+      shell: bash {0}
+      run: |
+          pip install dist/gaga_phsp-*-py3-none-any.whl
+          cd tests
+          mkdir pth
+          python test001_non_cond.py
+          python test002_cond.py
+
+  publish_wheel:
+    runs-on: ubuntu-latest
+    needs: [test_wheel]
     steps:
     - name: Checkout github repo
       uses: actions/checkout@v4
@@ -49,7 +75,7 @@ jobs:
         path: dist/
     - name: Publish to PyPI
       if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/')
-      uses: pypa/gh-action-pypi-publish@release/v1
+      uses: pypa/gh-action-pypi-publish@master
       with:
         user: __token__
         password: ${{ secrets.PYPI }}

@@ -14,7 +14,7 @@ if __name__ == "__main__":
     pth_filename = f"pth/test001_non_cond.pth"
 
     # step 1
-    cmd = f"gaga_gauss_test {phsp_filename} -n 4e5 -t v1"
+    cmd = f"gaga_gauss_test {phsp_filename} -n 8e5 -t v1"
     gaga.run_and_check(cmd)
 
     # step 2
