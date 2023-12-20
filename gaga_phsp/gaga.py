@@ -1,9 +1,6 @@
 import copy
 from torch.utils.data import DataLoader
-import torch
-from torch import Tensor
 from tqdm import tqdm
-from .gaga_functions import *
 from .gaga_helpers import *
 import gaga_phsp
 from garf.helpers import get_gpu_device
@@ -71,6 +68,7 @@ class Gan(object):
             self.D = start_D
             self.G = start_G
             try:
+                print(f'Loading last epoch: {start_optim["last_epoch"]}')
                 self.params["start_epoch"] = start_optim["last_epoch"]
             except:
                 self.params["start_epoch"] = start_optim["current_epoch"][-1]
@@ -279,14 +277,14 @@ class Gan(object):
         return optim
 
     def set_net_to_device(self, device):
-        print("Set model to ", device)
+        print("Set model to", device)
         self.G.to(device)
         self.D.to(device)
 
         # print('Set data to GPU')
         # real_labels and fake_labels are set to cuda before
 
-        print("Set optim to ", device)
+        print("Set optim to", device)
         self.criterion_dr.to(device)
         self.criterion_df.to(device)
         self.criterion_g.to(device)
@@ -329,6 +327,9 @@ class Gan(object):
         self.x = x
         self.batch_size = self.params.batch_size
 
+        # why ? FIXME
+        self.x = x.astype(np.float32)
+
         # init cuda/mps
         self.set_net_to_device(self.current_gpu_device)
 
@@ -349,7 +350,8 @@ class Gan(object):
         loader = DataLoader(
             self.x,
             batch_size=batch_size,
-            num_workers=2,  # no gain if larger than 2 (?)
+            # num_workers=2,  # no gain if larger than 2 (?)
+            num_workers=1,  # no gain if larger than 2 (?)
             # https://discuss.pytorch.org/t/data-loader-multiprocessing-slow-on-macos/131204/3
             persistent_workers=True,
             pin_memory=True,
@@ -545,6 +547,126 @@ class Gan(object):
         self.params.duration = str(stop - start)
         return optim
 
+    def train2(self, x):
+        """
+        Train the GAN
+        """
+        if "dataloader_num_workers" not in self.params:
+            self.params["dataloader_num_workers"] = 4
+            if self.current_gpu_mode == "mps":
+                self.params["dataloader_num_workers"] = 1
+
+        # normalisation
+        print("Normalization")
+        x, x_mean, x_std = gaga_phsp.normalize_data(x)
+        self.params["x_mean"] = x_mean
+        self.params["x_std"] = x_std
+
+        # main dataset
+        self.x = x
+        self.batch_size = self.params.batch_size
+
+        # why ? FIXME
+        self.x = x.astype(np.float32)
+        self.total_n = len(self.x)
+        print(f"Total training dataset size = {self.total_n}")
+
+        # init cuda/mps
+        self.set_net_to_device(self.current_gpu_device)
+
+        # initialise the data structure that will store info during training
+        optim = self.init_optim_data()
+        self.optim = optim
+
+        # init conditional
+        self.condn = len(self.params["cond_keys"])
+        self.conditional = self.condn > 0
+        if self.conditional:
+            print(f'Conditional : {self.params["cond_keys"]} ' + str(self.condn))
+
+        # Sampler
+        print(f"Dataloader num_workers={self.params['dataloader_num_workers']}")
+        batch_size = self.params["batch_size"]
+        loader = DataLoader(
+            self.x,
+            batch_size=batch_size,
+            num_workers=self.params["dataloader_num_workers"],
+            # https://discuss.pytorch.org/t/data-loader-multiprocessing-slow-on-macos/131204/3
+            persistent_workers=True,
+            pin_memory=True,
+            # https://discuss.pytorch.org/t/what-is-the-disadvantage-of-using-pin-memory/1702/4
+            shuffle=self.params["shuffle"],
+            # shuffle=False, # if false ~20% faster, seems identical
+            drop_last=True,  # always keep batch_size elements
+        )
+        data_iter = iter(loader)
+
+        # Start training
+        self.params["end_epoch"] = self.params["start_epoch"] + self.params["epoch"]
+        print(
+            f"Epoch from {self.params['start_epoch']} to {self.params['end_epoch']} (total = {self.params['epoch']})"
+        )
+        start = datetime.datetime.now()
+        pbar = tqdm(
+            total=self.params["epoch"] * self.total_n,
+            disable=not self.params["progress_bar"],
+        )
+
+        epoch = self.params["start_epoch"]
+        # for epoch in range(self.params["start_epoch"], self.params["end_epoch"]):
+        condx = None
+        while epoch < self.params["end_epoch"]:
+            # D
+            for p in self.D.parameters():
+                p.requires_grad = True
+            cont_epoch, condx = self.update_D(data_iter, loader)
+            if not cont_epoch:
+                epoch += 1
+                pbar.set_postfix(
+                    epoch=epoch,
+                    d_loss=self.d_loss.data.item(),
+                    g_loss=self.g_loss.data.item(),
+                )
+                # sometimes: print and store the full model
+                self.epoch_dump(epoch)
+                self.epoch_store(epoch)
+                # store loss every epoch
+                self.optim["d_loss_real"].append(self.d_real_loss.data.item())
+                self.optim["d_loss_fake"].append(self.d_fake_loss.data.item())
+                self.optim["d_loss"].append(self.d_loss.data.item())
+                self.optim["g_loss"].append(self.g_loss.data.item())
+                # scheduler
+                if self.is_scheduler_enabled:
+                    self.d_scheduler.step()
+                    self.g_scheduler.step()
+
+            # G
+            for p in self.D.parameters():
+                p.requires_grad = False
+            self.update_G(condx)
+
+            # housekeeping (to not accumulate gradient)
+            # zero_grad clears old gradients from the last step
+            # (otherwise you’d just accumulate the gradients from all loss.backward() calls).
+            # https://stackoverflow.com/questions/48001598/why-do-we-need-to-call-zero-grad-in-pytorch
+            self.D.zero_grad()
+            self.G.zero_grad()
+
+            # update loop
+            n = self.batch_size * self.params["d_nb_update"]
+            pbar.update(n)
+
+        # end of training
+        pbar.close()
+        stop = datetime.datetime.now()
+        optim["last_epoch"] = self.params["end_epoch"]
+        print("Start time    = ", start.strftime(gaga_phsp.date_format))
+        print("End time      = ", stop.strftime(gaga_phsp.date_format))
+        print("Duration time = ", (stop - start))
+        self.params.Duration = str(stop - start)
+        self.params.duration = str(stop - start)
+        return optim
+
     def save(self, optim, filename):
         """
         Save the model
@@ -565,14 +687,13 @@ class Gan(object):
         try:
             n = self.params["epoch_dump"]
         except:
-            n = 500
+            n = 100
 
         if epoch % n != 0:
             return
         tqdm.write(
-            "Epoch %d d_loss: %.5f   g_loss: %.5f     d_real_loss: %.5f  d_fake_loss: %.5f"
+            f"Epoch {epoch} d_loss: %.5f   g_loss: %.5f     d_real_loss: %.5f  d_fake_loss: %.5f"
             % (
-                epoch,
                 self.d_loss.data.item(),
                 self.g_loss.data.item(),
                 self.d_real_loss.data.item(),
@@ -592,7 +713,114 @@ class Gan(object):
 
         if epoch % n != 0:
             return
-
         state = copy.deepcopy(self.G.state_dict())
         self.optim["g_model_state"].append(state)
         self.optim["current_epoch"].append(epoch)
+
+    def update_D(self, data_iter, loader):
+        cont_epoch = True
+        batch_size = self.params.batch_size
+        z_dim = self.params["z_dim"]
+        nx = self.params["x_dim"]
+        condx = None
+
+        for i in range(self.params["d_nb_update"]):
+            # grad
+            self.D.zero_grad()
+
+            # load input data (and determine if the data pool is empty)
+            x, ce = self.get_next_input_data(data_iter, loader)
+            cont_epoch = cont_epoch and ce
+
+            # get decision from the discriminator
+            d_real_decision = self.D(x)
+
+            # generate z noise (latent)
+            z = Tensor(self.z_rand(batch_size, z_dim)).to(self.current_gpu_device)
+
+            # concat conditional vector (if any)
+            if self.conditional:
+                condx = x[:, nx - self.condn : nx]
+                # z = torch.cat((z.float(), condx.float()), dim=1)
+                z = torch.cat((z, condx), dim=1)
+
+            # generate fake data
+            # (detach to avoid training G on these labels)
+            d_fake_data = self.G(z).detach()  # FIXME detach ?
+
+            # concat conditional vector (if any)
+            if self.conditional:
+                # d_fake_data = torch.cat((d_fake_data.float(), condx.float()), dim=1)
+                d_fake_data = torch.cat((d_fake_data, condx), dim=1)
+
+            # get the fake decision on the fake data
+            d_fake_decision = self.D(d_fake_data)
+
+            # set penalty
+            penalty = self.penalty_weight * self.penalty_fct(self, x, d_fake_data)
+
+            # compute loss between decision on real and vector of ones (real_labels)
+            self.d_real_loss = self.criterion_dr(d_real_decision, self.real_labels)
+
+            # compute loss between decision on fake and vector of zeros (fake_labels)
+            self.d_fake_loss = self.criterion_df(d_fake_decision, self.fake_labels)
+
+            # backward
+            self.d_real_loss.backward()
+            self.d_fake_loss.backward()
+            if self.penalty_fct != gaga_phsp.zero_penalty:
+                penalty.backward()
+
+            # sum of loss
+            self.d_loss = self.d_real_loss + self.d_fake_loss + penalty
+
+            # optimizer
+            self.d_optimizer.step()
+
+        return cont_epoch, condx
+
+    def update_G(self, condx):
+        batch_size = self.params.batch_size
+        z_dim = self.params["z_dim"]
+
+        for i in range(self.params["g_nb_update"]):
+            # required
+            self.G.zero_grad()
+
+            # generate z noise (latent)
+            z = Tensor(self.z_rand(batch_size, z_dim)).to(self.current_gpu_device)
+
+            # conditional
+            if self.conditional:
+                # z = torch.cat((z.float(), condx.float()), dim=1)
+                z = torch.cat((z, condx), dim=1)
+
+            # generate the fake data
+            g_fake_data = self.G(z)
+
+            # concat conditional vector (if any)
+            if self.conditional:
+                # g_fake_data = torch.cat((g_fake_data.float(), condx.float()), dim=1)
+                g_fake_data = torch.cat((g_fake_data, condx), dim=1)
+
+            # get the fake decision
+            g_fake_decision = self.D(g_fake_data)
+
+            self.g_loss = self.criterion_g(g_fake_decision, self.real_labels)
+
+            # Backprop + Optimize
+            self.g_loss.backward(retain_graph=True)
+            self.g_optimizer.step()
+
+    def get_next_input_data(self, data_iter, loader):
+        cont_epoch = True
+        # the input data
+        # https://github.com/pytorch/pytorch/issues/1917
+        try:
+            data = next(data_iter)
+        except StopIteration:
+            data_iter = iter(loader)
+            data = next(data_iter)
+            cont_epoch = False
+        x = Tensor(data).to(self.current_gpu_device)
+        return x, cont_epoch

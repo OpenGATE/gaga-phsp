@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 
 import scipy
-import torch
 import numpy as np
 import gaga_phsp as gaga
 

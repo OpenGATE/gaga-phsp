@@ -2,7 +2,6 @@ import torch.nn as nn
 import torch
 import gaga_phsp as gaga
 from torch import Tensor
-from types import MethodType
 
 
 class MyLeakyReLU(nn.Module):

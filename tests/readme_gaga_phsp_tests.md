@@ -1,4 +1,4 @@
-# Test 1 : Linac phsp
+# (Test 1 : Linac phsp)
 
 ==> See GateBenchmark/t9_gaga_phsp
 
@@ -19,9 +19,6 @@ train:
 
     gaga_train npy/gauss_v1.npy json/g1.json -f pth/ -pi epoch 1000
     gaga_train npy/gauss_v2.npy json/g2.json -f pth/ -pi epoch 5000
-
-(linux is about 2 min for 1000)
-(WARNING bug with mps on osx, much too slow)
 
 result:
 
@@ -56,8 +53,6 @@ train:
     
     gaga_train npy/xgauss_10_1e6.npy json/cg1.json -f pth -pi epoch 4000
 
-(OK with mps and with cuda)
-
 result:
     
     # warning x and y not independent here! 
@@ -73,3 +68,4 @@ Convert root dataset to parametrisation, replace P_exit by P_ideal = P_exit - c 
     gt_phsp_plot b.npy spect_training_dataset.root -n 1e4
 
 
+# Test 6 : TODO gaga_garf_generate_img
