@@ -76,7 +76,7 @@ class Gan(object):
             self.G, self.D = create_G_and_D_model(p)
             self.params["start_epoch"] = 0
 
-        self.z_rand = get_z_rand(self.params)
+        self.z_rand = init_z_rand(self.params)
 
     def init_optimiser(self):
         """
