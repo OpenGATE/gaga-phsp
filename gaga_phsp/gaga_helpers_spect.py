@@ -862,6 +862,8 @@ class GagaSource:
     def generate_projections_torch(self, garf_detector, n):
         if self.is_initialized is False:
             raise Exception(f'GagaSource must be initialized')
+        # specific initialisation for torch
+        garf_detector.initialize_torch()
         # start progress bar
         pbar = tqdm(total=n)
         # main loop
