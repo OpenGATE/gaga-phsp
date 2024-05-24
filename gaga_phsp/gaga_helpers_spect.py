@@ -111,6 +111,7 @@ def gaga_garf_generate_spect(
     for rot in gantry_rotations:
         plane = garf.arf_plane_init(garf_user_info, rot, gaga_user_info.batch_size)
         planes.append(plane)
+        print('plane', plane)
 
     # initialize the condition generator
     f = gaga_user_info.activity_source
@@ -119,6 +120,7 @@ def gaga_garf_generate_spect(
     )
     cond_generator.compute_directions = True
     cond_generator.translation = gaga_user_info.cond_translation
+    print(f'{cond_generator.translation=}')
 
     # prepare verbose
     verb_gaga_1 = do_nothing
@@ -253,7 +255,7 @@ def generate_samples_with_vox_condition(gaga_user_info, cond_generator, n):
     return x
 
 
-def gaga_garf_generate_spect_torch(
+def gaga_garf_generate_spect_torch_OLD_TO_REMOVE(
         gaga_user_info, garf_user_info, n, gantry_rotations, verbose=True
 ):
     # n must be int
@@ -467,7 +469,7 @@ class VoxelizerSourcePDFSamplerTorch_v2:
         return i, j, k
 
 
-class GagaSource:
+class GagaSource_OLDTOREMOVE:
     """
     FIXME : to replace generate_samples3
     """
@@ -480,6 +482,9 @@ class GagaSource:
         self.activity_filename = None
         self.batch_size = 1e5
         self.backward_distance = 400 * mm
+
+        self.cond_translation = None  # FIXME FIXME FIXME
+        self.is_initialized = False
 
         # other members
         self.current_gpu_mode = None
@@ -508,10 +513,7 @@ class GagaSource:
         # load the GAN Generator
         self.gaga_params, self.G, _, __ = gaga.load(self.pth_filename, self.gpu_mode)
         self.G = self.G.to(self.current_gpu_device)
-        # FIXME why ?
-        print('before G.eval')
         self.G.eval()
-        print('after G.eval')
 
         # initialize the z rand
         self.z_rand = gaga.init_z_rand(self.gaga_params)
@@ -562,7 +564,10 @@ class GagaSource:
         s += f"gaga x dim: {self.x_dim}\n"
         return s
 
-    def generate_spect_images(self, garf_detector, n):
+    def generate_projections_numpy(self, garf_detector, n):
+        print()
+
+    def generate_projections_torch(self, garf_detector, n):
         pbar = tqdm(total=n)
         current_n = 0
         with torch.no_grad():
@@ -574,7 +579,8 @@ class GagaSource:
                 current_n += current_batch_size
 
                 # FIXME: what is it ??? E threshold ?
-                fake = fake[fake[:, 0] > 0.100]
+                # fake = fake[fake[:, 0] > 0.100]
+                fake = fake[fake[:, 0] > 0.01]
 
                 # FIXME normalize direction ?
                 dirn = torch.sqrt(fake[:, 4] ** 2 + fake[:, 5] ** 2 + fake[:, 6] ** 2)
@@ -590,7 +596,48 @@ class GagaSource:
                 # FIXME 600 is backward
                 fake[:, 1:4] = fake[:, 1:4] - 600 * fake[:, 4:7]  # backward
 
-                garf_detector.project_to_planes(fake)
+                garf_detector.project_to_planes_torch(fake)
+                """l_nc = []
+                for proj_i, plane_i in enumerate(l_detectorsPlanes):
+                    batch_arf_i = plane_i.get_intersection(batch=fake)
+                    garf_detector.apply(batch_arf_i, proj_i)"""
+
+                pbar.update(current_batch_size)
+
+        images = garf_detector.save_projections()  # FIXME <---- build images, from gpu to cpu + offset
+        print(images)
+        return images
+
+    def generate_projections_OLDTOREMOVE(self, garf_detector, n):
+        pbar = tqdm(total=n)
+        current_n = 0
+        with torch.no_grad():
+            while current_n < n:
+                current_batch_size = min(self.batch_size, n - current_n)
+                print(f"current n: {current_n}/{n}\n")
+                print(f"current batch size: {current_batch_size}\n")
+                fake = self.generate_particles(current_batch_size)
+                current_n += current_batch_size
+
+                # FIXME: what is it ??? E threshold ?
+                # fake = fake[fake[:, 0] > 0.100]
+                fake = fake[fake[:, 0] > 0.01]
+
+                # FIXME normalize direction ?
+                dirn = torch.sqrt(fake[:, 4] ** 2 + fake[:, 5] ** 2 + fake[:, 6] ** 2)
+                fake[:, 4:7] = fake[:, 4:7] / dirn[:, None]
+
+                # FIXME ????
+                # backproject a little bit: p2= p1 - alpha * d1
+                # solved (avec inconnu=alpha) using ||p2||² = R2² puis equation degré 2 en alpha
+                # beta=(fake[:,1:4] * fake[:,4:7]).sum(dim=1)
+                # R1,R2 = 610,args.sid - 150
+                # alpha= beta - torch.sqrt(beta**2 + R2**2-R1**2)
+                # fake[:,1:4] = fake[:,1:4] - alpha[:,None]*fake[:,4:7]
+                # FIXME 600 is backward
+                fake[:, 1:4] = fake[:, 1:4] - 600 * fake[:, 4:7]  # backward
+
+                garf_detector.project_to_planes_torch(fake)
                 """l_nc = []
                 for proj_i, plane_i in enumerate(l_detectorsPlanes):
                     batch_arf_i = plane_i.get_intersection(batch=fake)
@@ -616,6 +663,314 @@ class GagaSource:
         return fake.float()
 
 
+class GagaSource:
+    """
+    FIXME : to replace generate_samples3
+    """
+
+    def __init__(self):
+        mm = gate.g4_units.mm
+        # user input
+        self.gpu_mode = "auto"
+        self.pth_filename = None
+        self.activity_filename = None
+        self.batch_size = 1e5
+        self.backward_distance = 400 * mm
+
+        self.cond_translation = None  # FIXME FIXME FIXME
+
+        # other members
+        self.is_initialized = False
+        self.current_gpu_mode = None
+        self.current_gpu_device = None
+        self.gaga_params = None
+        self.G = None
+        self.z_rand = None
+        self.x_mean = None
+        self.x_std = None
+        self.x_mean_cond = None
+        self.x_std_cond = None
+        self.x_mean_non_cond = None
+        self.x_std_non_cond = None
+        self.x_dim = None
+        self.z_dim = None
+        self.nb_cond_keys = None
+        self.cond_activity = None
+
+    def __str__(self):
+        mm = gate.g4_units.mm
+        s = f"gaga user gpu mode: {self.gpu_mode}\n"
+        s += f"gaga current gpu mode: {self.current_gpu_mode}\n"
+        s += f"gaga pth_filename: {self.pth_filename}\n"
+        s += f"gaga batch size: {self.batch_size}\n"
+        s += f"gaga backward_distance: {self.backward_distance / mm} mm\n"
+        s += f"gaga nb conditions: {self.nb_cond_keys}\n"
+        s += f"gaga x dim: {self.x_dim}\n"
+        return s
+
+    def initialize(self):
+        print(f'GagaSource initialize')
+        if self.is_initialized:
+            raise Exception(f'GagaSource is already initialized')
+
+        # gpu mode
+        self.current_gpu_mode, self.current_gpu_device = get_gpu_device(self.gpu_mode)
+
+        # int
+        self.batch_size = int(self.batch_size)
+
+        # load the GAN Generator
+        self.gaga_params, self.G, _, __ = gaga.load(self.pth_filename, self.gpu_mode)
+        self.G = self.G.to(self.current_gpu_device)
+        self.G.eval()
+
+        # initialize the z rand
+        self.z_rand = gaga.init_z_rand(self.gaga_params)
+
+        # initialize the mean/std
+        self.initialize_normalization()
+
+        # initialize the conditional voxelized source
+        self.cond_activity = GagaConditionalVoxelizedActivity(self)
+        print(f'{self.cond_activity=}')
+
+        self.is_initialized = True
+
+    def initialize_normalization(self):
+        params = self.gaga_params
+        # normalize the conditional vector
+        self.x_mean = params["x_mean"][0]
+        self.x_std = params["x_std"][0]
+        xn = params["x_dim"]
+        cn = len(params["cond_keys"])
+
+        # needed ?
+        self.nb_cond_keys = cn
+        self.x_dim = xn
+        self.z_dim = params["z_dim"]
+
+        # which device ?
+        dev = self.current_gpu_device
+        if self.current_gpu_mode == "mps":
+            self.x_mean = torch.tensor(self.x_mean.astype(np.float32), device=dev)
+            self.x_std = torch.tensor(self.x_std.astype(np.float32), device=dev)
+        else:
+            self.x_mean = torch.tensor(self.x_mean, device=dev)
+            self.x_std = torch.tensor(self.x_std, device=dev)
+
+        # mean and std for cond only
+        self.x_mean_cond = self.x_mean[xn - cn: xn]
+        self.x_std_cond = self.x_std[xn - cn: xn]
+
+        # mean and std for non cond
+        self.x_mean_non_cond = self.x_mean[0: xn - cn]
+        self.x_std_non_cond = self.x_std[0: xn - cn]
+
+    def generate_projections_numpy(self, garf_detector, n):
+        print(f'generate_projections_numpy')
+        if self.is_initialized is False:
+            raise Exception(f'GarDetector must be initialized')
+
+        # FIXME plane rotation vs gantryrotation
+        # step1 : initialize_gantry_rotations (in SpectIntevo ?)
+        # step2 : initial_plane_rotation
+        # step3 : garf_detector.plane_rotations.append(rot) == initialize_planes
+        # garf_detector.initialize_planes(center, rotation_matrices) # <-- already done
+
+        '''deg = gate.g4_units.deg
+        self.gantry_rotations = []
+        for angle in self.gantry_angles:
+            r = Rotation.from_euler("z", angle / deg, degrees=True)
+            self.gantry_rotations.append(r)
+        '''
+
+        nb_angles = len(garf_detector.plane_rotations)
+        print(f'nb_angles: {nb_angles}')
+
+        # STEP1
+        # create the planes for each angle
+        planes = garf_detector.initialize_planes_numpy(self.batch_size)
+        projected_points = [None] * nb_angles
+
+        # STEP2
+        cond_generator = gansources.VoxelizedSourceConditionGenerator(
+            self.activity_filename,
+            use_activity_origin=False  # FIXME true or false ?
+        )
+        cond_generator.compute_directions = True
+        cond_generator.translation = self.cond_translation
+        print(f'{self.cond_translation=}')
+
+        # STEP2.5 alloc
+        nbe = garf_detector.nb_ene
+        size = garf_detector.image_size
+        spacing = garf_detector.image_spacing
+        data_size = [nb_angles, nbe, int(size[0]), int(size[1])]
+        print(data_size)
+        data_img = np.zeros(data_size, dtype=np.float64)
+
+        # loop on GAGA batches
+        current_n = 0
+        pbar = tqdm(total=n)
+        while current_n < n:
+            current_batch_size = self.batch_size
+            if current_batch_size > n - current_n:
+                current_batch_size = n - current_n
+
+            # generate samples
+            fake = self.generate_particles_numpy(cond_generator, current_batch_size)
+
+            # generate projections
+            for i in range(nb_angles):
+                garf_detector.project_to_planes_numpy(fake, i, planes, projected_points, data_img)
+                i += 1
+            # iterate
+            current_n += current_batch_size
+            pbar.update(current_batch_size)
+
+        # STEP4
+        # remaining projected points
+        for i in range(nb_angles):
+            cpx = projected_points[i]
+            if cpx is None or len(cpx) == 0:
+                continue
+            image = data_img[i]
+            garf_detector.arf_build_image_from_projected_points_numpy(cpx, image)
+
+        # Remove first slice (nb of hits) # FIXME use a flag
+        data_img = data_img[:, 1:, :]
+
+        # Final list of images
+        images = []
+        for i in range(nb_angles):
+            img = itk.image_from_array(data_img[i])
+            spacing = np.array([spacing[0], spacing[1], 1.0])
+            origin = [
+                -size[0] * spacing[0] / 2 + spacing[0] / 2,
+                -size[1] * spacing[1] / 2 + spacing[1] / 2,
+                0,
+            ]
+            print(spacing)
+            print(origin)
+            img.SetOrigin(origin)
+            img.SetSpacing(spacing)
+            images.append(img)
+            i += 1
+
+        return images
+
+    def generate_projections_torch(self, garf_detector, n):
+        if self.is_initialized is False:
+            raise Exception(f'GagaSource must be initialized')
+        # start progress bar
+        pbar = tqdm(total=n)
+        # main loop
+        current_n = 0
+        with torch.no_grad():
+            while current_n < n:
+                current_batch_size = min(self.batch_size, n - current_n)
+                print(f"current n: {current_n}/{n} (batch = {current_batch_size}")
+                fake = self.generate_particles_torch(current_batch_size)
+                current_n += current_batch_size
+
+                # project on detector plane
+                garf_detector.project_to_planes_torch(fake)
+
+                # progress bar
+                pbar.update(current_batch_size)
+
+        images = garf_detector.save_projections()
+        return images
+
+    def generate_projections_OLDTOREMOVE(self, garf_detector, n):
+        pbar = tqdm(total=n)
+        current_n = 0
+        with torch.no_grad():
+            while current_n < n:
+                current_batch_size = min(self.batch_size, n - current_n)
+                print(f"current n: {current_n}/{n}\n")
+                print(f"current batch size: {current_batch_size}\n")
+                fake = self.generate_particles_torch(current_batch_size)
+                current_n += current_batch_size
+
+                # FIXME: what is it ??? E threshold ?
+                # fake = fake[fake[:, 0] > 0.100]
+                fake = fake[fake[:, 0] > 0.01]
+
+                # FIXME normalize direction ?
+                dirn = torch.sqrt(fake[:, 4] ** 2 + fake[:, 5] ** 2 + fake[:, 6] ** 2)
+                fake[:, 4:7] = fake[:, 4:7] / dirn[:, None]
+
+                # FIXME ????
+                # backproject a little bit: p2= p1 - alpha * d1
+                # solved (avec inconnu=alpha) using ||p2||² = R2² puis equation degré 2 en alpha
+                # beta=(fake[:,1:4] * fake[:,4:7]).sum(dim=1)
+                # R1,R2 = 610,args.sid - 150
+                # alpha= beta - torch.sqrt(beta**2 + R2**2-R1**2)
+                # fake[:,1:4] = fake[:,1:4] - alpha[:,None]*fake[:,4:7]
+                # FIXME 600 is backward
+                fake[:, 1:4] = fake[:, 1:4] - 600 * fake[:, 4:7]  # backward
+
+                garf_detector.project_to_planes_torch(fake)
+                """l_nc = []
+                for proj_i, plane_i in enumerate(l_detectorsPlanes):
+                    batch_arf_i = plane_i.get_intersection(batch=fake)
+                    garf_detector.apply(batch_arf_i, proj_i)"""
+
+                pbar.update(current_batch_size)
+
+        images = garf_detector.save_projections()  # FIXME <---- build images, from gpu to cpu + offset
+        print(images)
+        return images
+
+    def generate_particles_torch(self, n):
+        # get the conditions
+        vox_cond = self.cond_activity.generate_conditions(n)
+        vox_cond = vox_cond.to(self.current_gpu_device)
+        # go !
+        fake = self.G(vox_cond)
+        # un-normalize
+        fake = (fake * self.x_std_non_cond) + self.x_mean_non_cond
+
+        # FIXME: what is it ??? E threshold ?
+        # fake = fake[fake[:, 0] > 0.100]
+        fake = fake[fake[:, 0] > 0.01]
+
+        # FIXME normalize direction ?
+        dirn = torch.sqrt(fake[:, 4] ** 2 + fake[:, 5] ** 2 + fake[:, 6] ** 2)
+        fake[:, 4:7] = fake[:, 4:7] / dirn[:, None]
+
+        # move backward
+        fake[:, 1:4] = fake[:, 1:4] - self.backward_distance * fake[:, 4:7]
+
+        return fake.float()
+
+    def generate_particles_numpy(self, cond_generator, n):
+        # generate conditions
+        cond = cond_generator.generate_condition(n)
+
+        # generate samples
+        x = gaga.generate_samples3(
+            self.gaga_params,
+            self.G,
+            n=n,
+            cond=cond,
+        )
+
+        # move backward
+        pos_index = 1  # FIXME
+        dir_index = 4
+        position = x[:, pos_index: pos_index + 3]
+        direction = x[:, dir_index: dir_index + 3]
+        x[:, pos_index: pos_index + 3] = (
+                position - self.backward_distance * direction
+        )
+
+        # FIXME filter Energy too low (?)
+
+        return x
+
+
 class GagaConditionalVoxelizedActivity:
 
     def __init__(self, gaga_source):
@@ -630,6 +985,7 @@ class GagaConditionalVoxelizedActivity:
         self.initialize()
 
     def initialize(self):
+        print(f'GagaConditionalVoxelizedActivity.initialize()')
         # read activity image
         source = itk.imread(self.gaga_source.activity_filename)
         source_array = itk.array_from_image(source)
@@ -737,7 +1093,7 @@ def generate_spect_images_np(gaga_source, garf_detector):
     #           apply garf
 
 
-def generate_spect_images_torch(gaga_source, garf_detector, center, rotation_matrices, n):
+def generate_spect_images_torch_OLDTOREMOVE(gaga_source, garf_detector, center, rotation_matrices, n):
     # FIXME in gaga_source object ?
     print()
     # init
@@ -747,7 +1103,7 @@ def generate_spect_images_torch(gaga_source, garf_detector, center, rotation_mat
 
     # FIXME plane must be init before
     garf_detector.initialize1()  ## FIXME can be in generate_spect_images
-    garf_detector.initialize_planes(center, rotation_matrices)  ## FIXME can be in generate_spect_images
+    garf_detector.initialize_detector_planes(center, rotation_matrices)  ## FIXME can be in generate_spect_images
     garf_detector.initialize2()  ## FIXME can be in generate_spect_images
 
     # verbose
@@ -755,7 +1111,7 @@ def generate_spect_images_torch(gaga_source, garf_detector, center, rotation_mat
     print(garf_detector)
 
     # create gaga sources
-    images = gaga_source.generate_spect_images(garf_detector, n)
+    images = gaga_source.generate_projections_OLDTOREMOVE(garf_detector, n)
     # loop on batches
     #      generate conditions
     #      generate photon sources
