@@ -86,7 +86,7 @@ def gaga_garf_verbose_user_info(gaga_user_info, garf_user_info, gantry_rotations
     )
 
 
-def gaga_garf_generate_spect(
+def gaga_garf_generate_spect_OLD(
         gaga_user_info, garf_user_info, n, gantry_rotations, verbose=True
 ):
     # n must be int
@@ -767,46 +767,28 @@ class GagaSource:
         self.x_std_non_cond = self.x_std[0: xn - cn]
 
     def generate_projections_numpy(self, garf_detector, n):
-        print(f'generate_projections_numpy')
         if self.is_initialized is False:
             raise Exception(f'GarDetector must be initialized')
-
-        # FIXME plane rotation vs gantryrotation
-        # step1 : initialize_gantry_rotations (in SpectIntevo ?)
-        # step2 : initial_plane_rotation
-        # step3 : garf_detector.plane_rotations.append(rot) == initialize_planes
-        # garf_detector.initialize_planes(center, rotation_matrices) # <-- already done
-
-        '''deg = gate.g4_units.deg
-        self.gantry_rotations = []
-        for angle in self.gantry_angles:
-            r = Rotation.from_euler("z", angle / deg, degrees=True)
-            self.gantry_rotations.append(r)
-        '''
-
+        n = int(n)
         nb_angles = len(garf_detector.plane_rotations)
-        print(f'nb_angles: {nb_angles}')
 
-        # STEP1
         # create the planes for each angle
         planes = garf_detector.initialize_planes_numpy(self.batch_size)
         projected_points = [None] * nb_angles
 
-        # STEP2
+        # cond GAN generator
         cond_generator = gansources.VoxelizedSourceConditionGenerator(
             self.activity_filename,
             use_activity_origin=False  # FIXME true or false ?
         )
         cond_generator.compute_directions = True
         cond_generator.translation = self.cond_translation
-        print(f'{self.cond_translation=}')
 
         # STEP2.5 alloc
         nbe = garf_detector.nb_ene
         size = garf_detector.image_size
         spacing = garf_detector.image_spacing
         data_size = [nb_angles, nbe, int(size[0]), int(size[1])]
-        print(data_size)
         data_img = np.zeros(data_size, dtype=np.float64)
 
         # loop on GAGA batches
@@ -835,7 +817,7 @@ class GagaSource:
             if cpx is None or len(cpx) == 0:
                 continue
             image = data_img[i]
-            garf_detector.arf_build_image_from_projected_points_numpy(cpx, image)
+            garf_detector.build_image_from_projected_points_numpy(cpx, image)
 
         # Remove first slice (nb of hits) # FIXME use a flag
         data_img = data_img[:, 1:, :]
@@ -850,8 +832,6 @@ class GagaSource:
                 -size[1] * spacing[1] / 2 + spacing[1] / 2,
                 0,
             ]
-            print(spacing)
-            print(origin)
             img.SetOrigin(origin)
             img.SetSpacing(spacing)
             images.append(img)
@@ -1105,7 +1085,7 @@ def generate_spect_images_torch_OLDTOREMOVE(gaga_source, garf_detector, center, 
 
     # FIXME plane must be init before
     garf_detector.initialize1()  ## FIXME can be in generate_spect_images
-    garf_detector.initialize_detector_planes(center, rotation_matrices)  ## FIXME can be in generate_spect_images
+    garf_detector.initialize_detector_plane_rotations(center, rotation_matrices)  ## FIXME can be in generate_spect_images
     garf_detector.initialize2()  ## FIXME can be in generate_spect_images
 
     # verbose
