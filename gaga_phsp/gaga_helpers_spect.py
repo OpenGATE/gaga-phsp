@@ -17,8 +17,6 @@ class VoxelizedSourcePDFSamplerTorch:
     """
     This is an alternative to GateSPSVoxelsPosDistribution (c++)
     It is needed because the cond voxel source is used on python side.
-
-    There are two versions, version 2 is much slower (do not use)
     """
 
     def __init__(self, itk_image, device, version=1):
@@ -64,7 +62,7 @@ class VoxelizedSourcePDFSamplerTorch:
 
 class GagaSource:
     """
-    FIXME : to replace generate_samples3
+    Used to generate SPECT images out of gate (standalone)
     """
 
     def __init__(self):
@@ -75,8 +73,11 @@ class GagaSource:
         self.activity_filename = None
         self.batch_size = 1e5
         self.backward_distance = 400 * mm
+        self.energy_threshold_MeV = 0
+        self.hit_slice_flag = False
 
-        self.cond_translation = None  # FIXME FIXME FIXME
+        # translation used for condition sampling (vox source)
+        self.cond_translation = None
 
         # other members
         self.is_initialized = False
@@ -103,12 +104,12 @@ class GagaSource:
         s += f"gaga pth_filename: {self.pth_filename}\n"
         s += f"gaga batch size: {self.batch_size}\n"
         s += f"gaga backward_distance: {self.backward_distance / mm} mm\n"
+        s += f"gaga translation conditional: {self.cond_translation}\n"
         s += f"gaga nb conditions: {self.nb_cond_keys}\n"
         s += f"gaga x dim: {self.x_dim}\n"
         return s
 
     def initialize(self):
-        print(f'GagaSource initialize')
         if self.is_initialized:
             raise Exception(f'GagaSource is already initialized')
 
@@ -131,7 +132,6 @@ class GagaSource:
 
         # initialize the conditional voxelized source
         self.cond_activity = GagaConditionalVoxelizedActivity(self)
-        print(f'{self.cond_activity=}')
 
         self.is_initialized = True
 
@@ -186,7 +186,7 @@ class GagaSource:
         # STEP2.5 alloc
         nbe = garf_detector.nb_ene
         size = garf_detector.image_size
-        spacing = garf_detector.image_spacing
+        sp = garf_detector.image_spacing
         data_size = [nb_angles, nbe, int(size[0]), int(size[1])]
         data_img = np.zeros(data_size, dtype=np.float64)
 
@@ -225,14 +225,14 @@ class GagaSource:
         images = []
         for i in range(nb_angles):
             img = itk.image_from_array(data_img[i])
-            spacing = np.array([spacing[0], spacing[1], 1.0])
+            sp = np.array([sp[0], sp[1], 1.0])
             origin = [
-                -size[0] * spacing[0] / 2 + spacing[0] / 2,
-                -size[1] * spacing[1] / 2 + spacing[1] / 2,
+                -size[0] * sp[0] / 2 + sp[0] / 2,
+                -size[1] * sp[1] / 2 + sp[1] / 2,
                 0,
             ]
             img.SetOrigin(origin)
-            img.SetSpacing(spacing)
+            img.SetSpacing(sp)
             images.append(img)
             i += 1
 
@@ -250,7 +250,6 @@ class GagaSource:
         with torch.no_grad():
             while current_n < n:
                 current_batch_size = min(self.batch_size, n - current_n)
-                print(f"current n: {current_n}/{n} (batch = {current_batch_size}")
                 fake = self.generate_particles_torch(current_batch_size)
                 current_n += current_batch_size
 
@@ -265,16 +264,17 @@ class GagaSource:
 
     def generate_particles_torch(self, n):
         # get the conditions
-        vox_cond = self.cond_activity.generate_conditions(n)
+        vox_cond = self.cond_activity.generate_conditions_torch(n)
         vox_cond = vox_cond.to(self.current_gpu_device)
         # go !
         fake = self.G(vox_cond)
         # un-normalize
         fake = (fake * self.x_std_non_cond) + self.x_mean_non_cond
 
-        # FIXME: what is it ??? E threshold ?
-        # fake = fake[fake[:, 0] > 0.100]
-        fake = fake[fake[:, 0] > 0.01]
+        # Remove particle with too low energy
+        # n = len(fake)
+        fake = fake[fake[:, 0] > self.energy_threshold_MeV]
+        # print(f'Remove E<{self.energy_threshold_MeV} MeV : {len(fake)}/{n}')
 
         # FIXME normalize direction ?
         dirn = torch.sqrt(fake[:, 4] ** 2 + fake[:, 5] ** 2 + fake[:, 6] ** 2)
@@ -290,42 +290,39 @@ class GagaSource:
         cond = cond_generator.generate_condition(n)
 
         # generate samples
-        x = gaga.generate_samples3(
+        fake = gaga.generate_samples3(
             self.gaga_params,
             self.G,
             n=n,
             cond=cond,
         )
 
+        # Remove particle with too low energy
+        # n = len(fake)
+        fake = fake[fake[:, 0] > self.energy_threshold_MeV]
+        # print(f'Remove E<{self.energy_threshold_MeV} MeV : {len(fake)}/{n}')
+
         # move backward
-        pos_index = 1  # FIXME
-        dir_index = 4
-        position = x[:, pos_index: pos_index + 3]
-        direction = x[:, dir_index: dir_index + 3]
-        x[:, pos_index: pos_index + 3] = (
-                position - self.backward_distance * direction
-        )
+        fake[:, 1:4] = fake[:, 1:4] - self.backward_distance * fake[:, 4:7]
 
-        # FIXME filter Energy too low (?)
-
-        return x
+        return fake
 
 
 class GagaConditionalVoxelizedActivity:
 
     def __init__(self, gaga_source):
-        print()
         self.gaga_source = gaga_source
 
         # members
         self.sampler = None
         self.translation = None
+        self.source_size = None
+        self.source_spacing = None
 
         # init
         self.initialize()
 
     def initialize(self):
-        print(f'GagaConditionalVoxelizedActivity.initialize()')
         # read activity image
         source = itk.imread(self.gaga_source.activity_filename)
         source_array = itk.array_from_image(source)
@@ -336,24 +333,15 @@ class GagaConditionalVoxelizedActivity:
         # compute the offset
         self.source_size = np.array(source_array.shape)
         self.source_spacing = np.array(source.GetSpacing())
-        # self.source_origin = np.array(source.GetOrigin())
         self.translation = (self.source_size - 1) * self.source_spacing / 2
         if self.gaga_source.current_gpu_mode == 'mps':
             self.translation = self.translation.astype(np.float32)
         self.translation = torch.from_numpy(self.translation).to(dev).flip(0)
-        print(f'translation = {self.translation}')
 
-        # shorter name for current gpu device
-        # self.device = self.gaga_source.current_gpu_device
-
+        # voxelized source sampling
         self.sampler = VoxelizedSourcePDFSamplerTorch(source, dev)
-        # self.xmeanc = cgan_src.x_mean_cond.to(self.device)
-        # self.xstdc = cgan_src.x_std_cond.to(self.device)
-        # self.z_dim = cgan_src.z_dim
-        # self.z_rand = cgan_src.z_rand
 
-    def generate_conditions(self, n):
-        print(f'Generating conditions {n}')
+    def generate_conditions_torch(self, n):
         # sample the voxels
         i, j, k = self.sampler.sample_indices(n=n)
 
@@ -372,10 +360,11 @@ class GagaConditionalVoxelizedActivity:
         x = self.source_spacing[0] * i + rz
         y = self.source_spacing[1] * j + ry
         z = self.source_spacing[2] * k + rx
-        # FIXME t ???
+
+        # FIXME t ??? # FIXME # FIXME  # FIXME  # FIXME  # FIXME  # FIXME  # FIXME  # FIXME
         t = torch.tensor([5.99999588, -28.00000624, -402.0000022], device=dev)
         p = torch.column_stack((z, y, x)) - self.translation + t
-        print(f"{self.translation=}")
+        print(f"DEBUG HERE {self.translation=}")
 
         # sample direction
         directions = self.generate_isotropic_directions_torch(n)
