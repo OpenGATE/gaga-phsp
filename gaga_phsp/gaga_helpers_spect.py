@@ -266,8 +266,10 @@ class GagaSource:
         # get the conditions
         vox_cond = self.cond_activity.generate_conditions_torch(n)
         vox_cond = vox_cond.to(self.current_gpu_device)
+
         # go !
         fake = self.G(vox_cond)
+
         # un-normalize
         fake = (fake * self.x_std_non_cond) + self.x_mean_non_cond
 
