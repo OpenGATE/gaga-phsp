@@ -53,7 +53,7 @@ class VoxelizedSourcePDFSamplerTorch:
         )
 
     def sample_indices(self, n):
-        indices = torch.multinomial(self.pdf, num_samples=n, replacement=True)
+        indices = torch.multinomial(self.pdf, num_samples=int(n), replacement=True)
         i = self.xi[indices]
         j = self.yi[indices]
         k = self.zi[indices]
@@ -106,7 +106,7 @@ class GagaSource:
         s += f"gaga backward_distance: {self.backward_distance / mm} mm\n"
         s += f"gaga translation conditional: {self.cond_translation}\n"
         s += f"gaga nb conditions: {self.nb_cond_keys}\n"
-        s += f"gaga x dim: {self.x_dim}\n"
+        s += f"gaga x dim: {self.x_dim}"
         return s
 
     def initialize(self):
@@ -241,10 +241,15 @@ class GagaSource:
     def generate_projections_torch(self, garf_detector, n):
         if self.is_initialized is False:
             raise Exception(f'GagaSource must be initialized')
+
         # specific initialisation for torch
         garf_detector.initialize_torch()
+        nb_angles = len(garf_detector.plane_rotations)
+        projected_points = [None] * nb_angles
+
         # start progress bar
         pbar = tqdm(total=n)
+
         # main loop
         current_n = 0
         with torch.no_grad():
@@ -254,7 +259,7 @@ class GagaSource:
                 current_n += current_batch_size
 
                 # project on detector plane
-                garf_detector.project_to_planes_torch(batch)
+                garf_detector.project_to_planes_torch(batch, projected_points)
 
                 # progress bar
                 pbar.update(current_batch_size)
@@ -276,14 +281,11 @@ class GagaSource:
         # Remove particle with too low energy
         batch = batch[batch[:, 0] > self.energy_threshold_MeV]
 
-        # FIXME normalize direction ?
-        # dirn = torch.sqrt(fake[:, 4] ** 2 + fake[:, 5] ** 2 + fake[:, 6] ** 2)
-        # fake[:, 4:7] = fake[:, 4:7] / dirn[:, None]
-
         # move backward
         batch[:, 1:4] = batch[:, 1:4] - self.backward_distance * batch[:, 4:7]
 
-        return batch.float()  # FIXME why float ?
+        # FIXME why float ? seems double later
+        return batch.float()
 
     def generate_particles_numpy(self, cond_generator, n):
         # generate conditions
@@ -320,6 +322,12 @@ class GagaVoxelizedSourceConditionGenerator:
         self.source_spacing = None
         self.points_offset = None
 
+        # for computation
+        self.min_theta = None
+        self.max_theta = None
+        self.min_phi = None
+        self.max_phi = None
+
         # init
         self.initialize()
 
@@ -334,11 +342,7 @@ class GagaVoxelizedSourceConditionGenerator:
         # compute the offset
         self.source_size = np.array(source_array.shape)
         self.source_spacing = np.array(source.GetSpacing())
-
-        """self.translation = (self.source_size - 1) * self.source_spacing / 2
-        if self.gaga_source.current_gpu_mode == 'mps':
-            self.translation = self.translation.astype(np.float32)
-        self.translation = torch.from_numpy(self.translation).to(dev).flip(0)"""
+        self.translation = np.array(self.translation)
 
         # point offset like in gansources.py
         # warning we need to swap X and Z, because itk / numpy
@@ -355,7 +359,14 @@ class GagaVoxelizedSourceConditionGenerator:
         # voxelized source sampling
         self.sampler = VoxelizedSourcePDFSamplerTorch(source, dev)
 
+        # angles
+        self.min_theta = torch.tensor([0], device=dev)
+        self.max_theta = torch.tensor([torch.pi], device=dev)
+        self.min_phi = torch.tensor([0], device=dev)
+        self.max_phi = 2 * torch.tensor([torch.pi], device=dev)
+
     def generate_conditions_torch(self, n):
+        n = int(n)
         # sample the voxels
         i, j, k = self.sampler.sample_indices(n=n)
 
@@ -401,18 +412,12 @@ class GagaVoxelizedSourceConditionGenerator:
         # device
         dev = self.gaga_source.current_gpu_device
 
-        # angles # FIXME set at initialisation
-        min_theta = torch.tensor([0], device=dev)
-        max_theta = torch.tensor([torch.pi], device=dev)
-        min_phi = torch.tensor([0], device=dev)
-        max_phi = 2 * torch.tensor([torch.pi], device=dev)
-
         u = torch.rand(n, device=dev)
-        cos_theta = torch.cos(min_theta) - u * (torch.cos(min_theta) - torch.cos(max_theta))
+        cos_theta = torch.cos(self.min_theta) - u * (torch.cos(self.min_theta) - torch.cos(self.max_theta))
         sin_theta = torch.sqrt(1 - cos_theta ** 2)
 
         v = torch.rand(n, device=dev)
-        phi = min_phi + (max_phi - min_phi) * v
+        phi = self.min_phi + (self.max_phi - self.min_phi) * v
         sin_phi = torch.sin(phi)
         cos_phi = torch.cos(phi)
 
