@@ -3,9 +3,7 @@
 
 import numpy as np
 import gaga_phsp as gaga
-import garf
 from garf.helpers import get_gpu_device
-from scipy.spatial.transform import Rotation
 import itk
 import opengate.sources.gansources as gansources
 from tqdm import tqdm
@@ -41,7 +39,9 @@ class VoxelizedSourcePDFSamplerTorch:
 
         # create grid of indices
         [x_grid, y_grid, z_grid] = torch.meshgrid(
-            torch.arange(lx).to(self.device), torch.arange(ly).to(self.device), torch.arange(lz).to(self.device),
+            torch.arange(lx).to(self.device),
+            torch.arange(ly).to(self.device),
+            torch.arange(lz).to(self.device),
             indexing="ij"
         )
 
@@ -95,7 +95,7 @@ class GagaSource:
         self.x_dim = None
         self.z_dim = None
         self.nb_cond_keys = None
-        self.cond_activity = None
+        self.cond_generator = None
 
     def __str__(self):
         mm = gate.g4_units.mm
@@ -131,7 +131,7 @@ class GagaSource:
         self.initialize_normalization()
 
         # initialize the conditional voxelized source
-        self.cond_activity = GagaConditionalVoxelizedActivity(self)
+        self.cond_generator = GagaVoxelizedSourceConditionGenerator(self)
 
         self.is_initialized = True
 
@@ -176,18 +176,18 @@ class GagaSource:
         projected_points = [None] * nb_angles
 
         # cond GAN generator
+        # use_activity_origin is False: the center of the image is 0,0
         cond_generator = gansources.VoxelizedSourceConditionGenerator(
             self.activity_filename,
-            use_activity_origin=False  # FIXME true or false ?
+            use_activity_origin=False
         )
         cond_generator.compute_directions = True
         cond_generator.translation = self.cond_translation
 
-        # STEP2.5 alloc
-        nbe = garf_detector.nb_ene
+        # allocate output image (the nb of channels is the nb of ene, including the hit_slice)
         size = garf_detector.image_size
         sp = garf_detector.image_spacing
-        data_size = [nb_angles, nbe, int(size[0]), int(size[1])]
+        data_size = [nb_angles, garf_detector.nb_ene, int(size[0]), int(size[1])]
         data_img = np.zeros(data_size, dtype=np.float64)
 
         # loop on GAGA batches
@@ -199,17 +199,16 @@ class GagaSource:
                 current_batch_size = n - current_n
 
             # generate samples
-            fake = self.generate_particles_numpy(cond_generator, current_batch_size)
+            batch = self.generate_particles_numpy(cond_generator, current_batch_size)
 
             # generate projections
             for i in range(nb_angles):
-                garf_detector.project_to_planes_numpy(fake, i, planes, projected_points, data_img)
+                garf_detector.project_to_planes_numpy(batch, i, planes, projected_points, data_img)
                 i += 1
             # iterate
             current_n += current_batch_size
             pbar.update(current_batch_size)
 
-        # STEP4
         # remaining projected points
         for i in range(nb_angles):
             cpx = projected_points[i]
@@ -218,8 +217,9 @@ class GagaSource:
             image = data_img[i]
             garf_detector.build_image_from_projected_points_numpy(cpx, image)
 
-        # Remove first slice (nb of hits) # FIXME use a flag
-        data_img = data_img[:, 1:, :]
+        # Remove first slice (nb of hits)
+        if not garf_detector.hit_slice_flag:
+            data_img = data_img[:, 1:, :]
 
         # Final list of images
         images = []
@@ -250,11 +250,11 @@ class GagaSource:
         with torch.no_grad():
             while current_n < n:
                 current_batch_size = min(self.batch_size, n - current_n)
-                fake = self.generate_particles_torch(current_batch_size)
+                batch = self.generate_particles_torch(current_batch_size)
                 current_n += current_batch_size
 
                 # project on detector plane
-                garf_detector.project_to_planes_torch(fake)
+                garf_detector.project_to_planes_torch(batch)
 
                 # progress bar
                 pbar.update(current_batch_size)
@@ -264,35 +264,33 @@ class GagaSource:
 
     def generate_particles_torch(self, n):
         # get the conditions
-        vox_cond = self.cond_activity.generate_conditions_torch(n)
+        vox_cond = self.cond_generator.generate_conditions_torch(n)
         vox_cond = vox_cond.to(self.current_gpu_device)
 
         # go !
-        fake = self.G(vox_cond)
+        batch = self.G(vox_cond)
 
         # un-normalize
-        fake = (fake * self.x_std_non_cond) + self.x_mean_non_cond
+        batch = (batch * self.x_std_non_cond) + self.x_mean_non_cond
 
         # Remove particle with too low energy
-        # n = len(fake)
-        fake = fake[fake[:, 0] > self.energy_threshold_MeV]
-        # print(f'Remove E<{self.energy_threshold_MeV} MeV : {len(fake)}/{n}')
+        batch = batch[batch[:, 0] > self.energy_threshold_MeV]
 
         # FIXME normalize direction ?
-        dirn = torch.sqrt(fake[:, 4] ** 2 + fake[:, 5] ** 2 + fake[:, 6] ** 2)
-        fake[:, 4:7] = fake[:, 4:7] / dirn[:, None]
+        # dirn = torch.sqrt(fake[:, 4] ** 2 + fake[:, 5] ** 2 + fake[:, 6] ** 2)
+        # fake[:, 4:7] = fake[:, 4:7] / dirn[:, None]
 
         # move backward
-        fake[:, 1:4] = fake[:, 1:4] - self.backward_distance * fake[:, 4:7]
+        batch[:, 1:4] = batch[:, 1:4] - self.backward_distance * batch[:, 4:7]
 
-        return fake.float()
+        return batch.float()  # FIXME why float ?
 
     def generate_particles_numpy(self, cond_generator, n):
         # generate conditions
         cond = cond_generator.generate_condition(n)
 
         # generate samples
-        fake = gaga.generate_samples3(
+        batch = gaga.generate_samples3(
             self.gaga_params,
             self.G,
             n=n,
@@ -300,26 +298,27 @@ class GagaSource:
         )
 
         # Remove particle with too low energy
-        # n = len(fake)
-        fake = fake[fake[:, 0] > self.energy_threshold_MeV]
-        # print(f'Remove E<{self.energy_threshold_MeV} MeV : {len(fake)}/{n}')
+        batch = batch[batch[:, 0] > self.energy_threshold_MeV]
+
+        # FIXME normalize direction ?
 
         # move backward
-        fake[:, 1:4] = fake[:, 1:4] - self.backward_distance * fake[:, 4:7]
+        batch[:, 1:4] = batch[:, 1:4] - self.backward_distance * batch[:, 4:7]
 
-        return fake
+        return batch
 
 
-class GagaConditionalVoxelizedActivity:
+class GagaVoxelizedSourceConditionGenerator:
 
     def __init__(self, gaga_source):
         self.gaga_source = gaga_source
 
         # members
         self.sampler = None
-        self.translation = None
+        self.translation = gaga_source.cond_translation
         self.source_size = None
         self.source_spacing = None
+        self.points_offset = None
 
         # init
         self.initialize()
@@ -335,10 +334,23 @@ class GagaConditionalVoxelizedActivity:
         # compute the offset
         self.source_size = np.array(source_array.shape)
         self.source_spacing = np.array(source.GetSpacing())
-        self.translation = (self.source_size - 1) * self.source_spacing / 2
+
+        """self.translation = (self.source_size - 1) * self.source_spacing / 2
         if self.gaga_source.current_gpu_mode == 'mps':
             self.translation = self.translation.astype(np.float32)
-        self.translation = torch.from_numpy(self.translation).to(dev).flip(0)
+        self.translation = torch.from_numpy(self.translation).to(dev).flip(0)"""
+
+        # point offset like in gansources.py
+        # warning we need to swap X and Z, because itk / numpy
+        hs = self.source_spacing / 2.0
+        self.points_offset = -hs * self.source_size[::-1] + hs
+
+        # set to torch and device
+        if self.gaga_source.current_gpu_mode == 'mps':
+            self.points_offset = self.points_offset.astype(np.float32)
+            self.translation = self.translation.astype(np.float32)
+        self.points_offset = torch.from_numpy(self.points_offset).to(dev)
+        self.translation = torch.from_numpy(self.translation).to(dev)
 
         # voxelized source sampling
         self.sampler = VoxelizedSourcePDFSamplerTorch(source, dev)
@@ -359,20 +371,21 @@ class GagaConditionalVoxelizedActivity:
         rz = torch.rand(n, device=dev) * 2 * hs[2] - hs[2]
 
         # warning order np is z,y,x while itk is x,y,z
-        x = self.source_spacing[0] * i + rz
+        x = self.source_spacing[2] * k + rz
         y = self.source_spacing[1] * j + ry
-        z = self.source_spacing[2] * k + rx
+        z = self.source_spacing[0] * i + rx
 
-        # FIXME t ??? # FIXME # FIXME  # FIXME  # FIXME  # FIXME  # FIXME  # FIXME  # FIXME
-        t = torch.tensor([5.99999588, -28.00000624, -402.0000022], device=dev)
-        p = torch.column_stack((z, y, x)) - self.translation + t
-        print(f"DEBUG HERE {self.translation=}")
+        # x,y,z are in the image coord system
+        # they are offset according to the coord system (image center or image offset)
+        p = torch.column_stack((x, y, z)) + self.points_offset + self.translation
 
         # sample direction
         directions = self.generate_isotropic_directions_torch(n)
         cond_x = torch.column_stack((p, directions))
 
-        # apply un-normalization (needed)
+        # FIXME add source rotation here (not implemented for the moment)
+
+        # apply un-normalization (needed) done in generate_sample3
         xm = self.gaga_source.x_mean_cond
         xs = self.gaga_source.x_std_cond
         cond_x = (cond_x - xm) / xs
@@ -388,7 +401,7 @@ class GagaConditionalVoxelizedActivity:
         # device
         dev = self.gaga_source.current_gpu_device
 
-        # angles
+        # angles # FIXME set at initialisation
         min_theta = torch.tensor([0], device=dev)
         max_theta = torch.tensor([torch.pi], device=dev)
         min_phi = torch.tensor([0], device=dev)
@@ -403,6 +416,7 @@ class GagaConditionalVoxelizedActivity:
         sin_phi = torch.sin(phi)
         cos_phi = torch.cos(phi)
 
+        # "direct cosine" method, like in Geant4 (already normalized)
         px = -sin_theta * cos_phi
         py = -sin_theta * sin_phi
         pz = -cos_theta
