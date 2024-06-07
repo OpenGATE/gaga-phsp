@@ -247,6 +247,16 @@ class GagaSource:
         nb_angles = len(garf_detector.plane_rotations)
         projected_points = [None] * nb_angles
 
+        # warning still not ok on MPS (June 2024)
+        if self.current_gpu_mode == "mps":
+            print()
+            print(f'WARNING WARNING WARNING')
+            print(f'Computing with MPS GPU leads to WRONG results.')
+            print(f'And computation time increase with iterations.')
+            print(f'(I dont know why)')
+            print(f'You can use mode "numpy" instead of "torch"')
+            print()
+
         # start progress bar
         pbar = tqdm(total=n)
 
