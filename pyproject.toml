@@ -1,6 +1,57 @@
 [build-system]
 requires = [
-    "setuptools>=42",
+    "setuptools>=67",
     "wheel",
 ]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+include-package-data = true
+zip-safe = false
+
+[tool.setuptools.dynamic]
+readme = { file = "readme.md", content-type = "text/markdown"}
+
+[tool.setuptools.packages]
+find = {}  # Scanning implicit namespaces is active by default
+
+[project]
+name = "gaga-phsp"
+version = "0.7.1"
+dynamic = ["readme"]
+authors = [{ name = "David Sarrut", email = "david.sarrut@creatis.insa-lyon.fr" }]
+description = "Python tools for GATE GAN simulations"
+license = {file = "LICENSE"}
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+]
+requires-python = ">=3.8"
+dependencies = [
+        "tqdm",
+        "colorama",
+        "click",
+        "scipy",
+        "garf>=2.7",
+        "matplotlib",
+        "gatetools",
+]
+
+[project.scripts]
+gaga_train = "gaga_phsp.bin.gaga_train:gaga_train"
+gaga_info = "gaga_phsp.bin.gaga_info:gaga_info"
+gaga_plot = "gaga_phsp.bin.gaga_plot:gaga_plot"
+gaga_generate = "gaga_phsp.bin.gaga_generate:gaga_generate"
+gaga_gauss_test = "gaga_phsp.bin.gaga_gauss_test:gaga_test_gauss"
+gaga_gauss_cond_test = "gaga_phsp.bin.gaga_gauss_cond_test:gaga_test_gauss"
+gaga_gauss_plot = "gaga_phsp.bin.gaga_gauss_plot:gaga_gauss_plot"
+gaga_convert_pth_to_pt = "gaga_phsp.bin.gaga_convert_pth_to_pt:gaga_convert_pth_to_pt"
+gaga_pairs_to_tlor = "gaga_phsp.bin.gaga_pairs_to_tlor:go"
+gaga_tlor_to_pairs = "gaga_phsp.bin.gaga_tlor_to_pairs:go"
+gaga_pet_to_pairs_old = "gaga_phsp.bin.gaga_pet_to_pairs_old:go"
+gaga_pet_to_pairs = "gaga_phsp.bin.gaga_pet_to_pairs:go"
+gaga_pet_merge_pairs = "gaga_phsp.bin.gaga_pet_merge_pairs:go"
+gaga_exit_pos_to_ideal_pos = "gaga_phsp.bin.gaga_exit_pos_to_ideal_pos:go"
+gaga_ideal_pos_to_exit_pos = "gaga_phsp.bin.gaga_ideal_pos_to_exit_pos:go"
+
