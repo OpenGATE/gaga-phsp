@@ -11,6 +11,7 @@ import sys
 import os
 from box import Box, BoxList
 import datetime
+import scipy
 
 logger = logging.getLogger(__name__)
 
@@ -468,7 +469,7 @@ def get_RMSProp_optimisers(self, p):
     return d_optimizer, g_optimizer
 
 
-def get_z_rand(params):
+def init_z_rand(params):
     if "z_rand_type" in params:
         if params["z_rand_type"] == "rand":
             return torch.rand
@@ -484,14 +485,14 @@ def get_z_rand(params):
 
 
 def generate_samples_non_cond(
-    params,
-    G,
-    n,
-    batch_size=-1,
-    normalize=False,
-    to_numpy=False,
-    z=None,
-    silence=False,
+        params,
+        G,
+        n,
+        batch_size=-1,
+        normalize=False,
+        to_numpy=False,
+        z=None,
+        silence=False,
 ):
     # batch size -> if n is lower, batch size is n
     batch_size = int(batch_size)
@@ -504,7 +505,7 @@ def generate_samples_non_cond(
 
     # get z random (gauss or uniform)
     if z is None:
-        z_rand = get_z_rand(params)
+        z_rand = init_z_rand(params)
     else:
         z_rand = z
 
@@ -572,12 +573,12 @@ def generate_samples3(params, G, n, cond, to_numpy=True):
     cn = len(params["cond_keys"])
 
     # mean and std for cond only
-    xmeanc = xmean[xn - cn : xn]
-    xstdc = xstd[xn - cn : xn]
+    xmeanc = xmean[xn - cn: xn]
+    xstdc = xstd[xn - cn: xn]
 
     # mean and std for non cond
-    xmeannc = xmean[0 : xn - cn]
-    xstdnc = xstd[0 : xn - cn]
+    xmeannc = xmean[0: xn - cn]
+    xstdnc = xstd[0: xn - cn]
 
     # normalize the condition
     cond = (cond - xmeanc) / xstdc
@@ -721,10 +722,10 @@ def project_on_plane(x, plane, image_plane_size_mm):
     """
 
     # n is the normal plane, duplicated n times
-    n = plane["plane_normal"][0 : len(x)]
+    n = plane["plane_normal"][0: len(x)]
 
     # c0 is the center of the plane, duplicated n times
-    c0 = plane["plane_center"][0 : len(x)]
+    c0 = plane["plane_center"][0: len(x)]
 
     # r is the rotation matrix of the plane, according to the current rotation angle (around Y)
     r = plane["rotation"]  # [0: len(x)]
@@ -826,3 +827,94 @@ def append_gaussian(data, mean, cov, n, vx=None, vy=None):
         return d
     data = np.vstack((data, d))
     return data
+
+
+speed_of_light = scipy.constants.speed_of_light * 1000 / 1e9
+
+
+def from_exit_pos_to_ideal_pos(x, params):
+    """
+    input : consider input key exit position X,Y,Z
+    output: parametrize with ideal position = p - c x t x dir
+
+    Input: PrePosition_X PreDirection_X TimeFromBeginOfEvent
+    Output: IdealPosition_X (+idem)
+    """
+
+    # input and output keys
+    keys = params["keys_list"]
+    keys_out = [
+        "KineticEnergy",
+        "IdealPosition_X",
+        "IdealPosition_Y",
+        "IdealPosition_Z",
+        "PreDirection_X",
+        "PreDirection_Y",
+        "PreDirection_Z",
+        "TimeFromBeginOfEvent",
+        "EventPosition_X",
+        "EventPosition_Y",
+        "EventPosition_Z",
+        "EventDirection_X",
+        "EventDirection_Y",
+        "EventDirection_Z",
+    ]
+
+    # Step1: name the columns according to key
+    p_ideal, d_exit, e_pos, e_dir = gaga.get_key_3d(
+        x,
+        keys,
+        ["PrePosition_X", "PreDirection_X", "EventPosition_X", "EventDirection_X"],
+    )
+    t_exit = gaga.get_key(x, keys, ["TimeFromBeginOfEvent"])[0]
+    ene = gaga.get_key(x, keys, ["KineticEnergy"])[0]
+
+    # Step2: compute P_ideal
+    P_ideal = p_ideal - speed_of_light * t_exit * d_exit
+
+    # Step3: stack
+    # x = torch.stack((ene, P_ideal, d_exit, t_exit, e_pos), dim=0).T # FIXME torch or numpy ?
+    x = np.concatenate((ene, P_ideal, d_exit, t_exit, e_pos, e_dir), axis=1)
+
+    # end
+    return x, keys_out
+
+
+def from_ideal_pos_to_exit_pos(x, params):
+    # input and output keys
+    keys = params["keys_list"]
+    keys_out = [
+        "KineticEnergy",
+        "PrePosition_X",
+        "PrePosition_Y",
+        "PrePosition_Z",
+        "PreDirection_X",
+        "PreDirection_Y",
+        "PreDirection_Z",
+        "TimeFromBeginOfEvent",
+        "EventPosition_X",
+        "EventPosition_Y",
+        "EventPosition_Z",
+        "EventDirection_X",
+        "EventDirection_Y",
+        "EventDirection_Z",
+    ]
+
+    # Step1: name the columns according to key
+    p_ideal, d_exit, e_pos, e_dir = gaga.get_key_3d(
+        x,
+        keys,
+        ["IdealPosition_X", "PreDirection_X", "EventPosition_X", "EventDirection_X"],
+    )
+    t_exit = gaga.get_key(x, keys, ["TimeFromBeginOfEvent"])[0]
+    ene = gaga.get_key(x, keys, ["KineticEnergy"])[0]
+
+    # Step2: compute P_ideal
+    P_exit = p_ideal + speed_of_light * t_exit * d_exit
+
+    # Step3: stack
+    # x = torch.stack((ene, P_ideal, d_exit, t_exit, e_pos), dim=0).T # FIXME torch or numpy ?
+    x = np.concatenate((ene, P_exit, d_exit, t_exit, e_pos, e_dir), axis=1)
+
+    # end
+    return x, keys_out

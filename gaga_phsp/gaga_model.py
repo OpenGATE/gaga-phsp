@@ -97,7 +97,7 @@ class Generator(nn.Module):
             self.net.add_module(f'activation_{i}', activation)
             self.net.add_module(f'layer_{i}', nn.Linear(g_dim, g_dim))
         # last layer
-        self.net.add_module(f'last_activation_{i}', activation)
+        self.net.add_module(f'last_activation_{g_l}', activation)
         self.net.add_module(f'last_layer', nn.Linear(g_dim, x_dim))
 
         # initialisation (not sure better than default init). Keep default.
