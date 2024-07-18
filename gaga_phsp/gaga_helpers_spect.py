@@ -5,11 +5,8 @@ import numpy as np
 import gaga_phsp as gaga
 from garf.helpers import get_gpu_device
 import itk
-import opengate.sources.gansources as gansources
 from tqdm import tqdm
 import torch
-import opengate as gate
-
 
 class VoxelizedSourcePDFSamplerTorch:
     """
@@ -66,6 +63,7 @@ class GagaSource:
     """
 
     def __init__(self):
+        import opengate as gate
         mm = gate.g4_units.mm
         # user input
         self.gpu_mode = "auto"
@@ -98,6 +96,7 @@ class GagaSource:
         self.cond_generator = None
 
     def __str__(self):
+        import opengate as gate
         mm = gate.g4_units.mm
         s = f"gaga user gpu mode: {self.gpu_mode}\n"
         s += f"gaga current gpu mode: {self.current_gpu_mode}\n"
@@ -166,6 +165,8 @@ class GagaSource:
         self.x_std_non_cond = self.x_std[0: xn - cn]
 
     def generate_projections_numpy(self, garf_detector, n):
+        import opengate.sources.gansources as gansources
+
         if self.is_initialized is False:
             raise Exception(f'GarDetector must be initialized')
         n = int(n)
