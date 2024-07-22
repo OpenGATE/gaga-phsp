@@ -3,7 +3,7 @@
 
 import gaga_phsp as gaga
 import gatetools.phsp as phsp
-from pathlib import Path
+from gaga_phsp.gaga_helpers_tests import get_tests_folder
 
 if __name__ == "__main__":
     """
@@ -11,16 +11,18 @@ if __name__ == "__main__":
     """
 
     # input
-    phsp_filename = Path("output") / "test001.npy"
-    pth_filename = Path("output") / "test001_non_cond.pth"
-    png = Path("output") / "test001_non_cond.png"
+    output_folder = get_tests_folder() / "output"
+    phsp_filename = output_folder / "test001.npy"
+    pth_filename = output_folder / "test001_non_cond.pth"
+    png = output_folder / "test001_non_cond.png"
+    json_file = get_tests_folder() / 'json' / 'g1.json'
 
     # step 1
     cmd = f"gaga_gauss_test {phsp_filename} -n 8e5 -t v1"
     gaga.run_and_check(cmd)
 
     # step 2
-    cmd = f"gaga_train {phsp_filename} json/g1.json -o {pth_filename} -pi epoch 20"
+    cmd = f"gaga_train {phsp_filename} {json_file} -o {pth_filename} -pi epoch 20"
     gaga.run_and_check(cmd)
 
     # step 3

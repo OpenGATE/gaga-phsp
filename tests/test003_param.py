@@ -4,7 +4,7 @@
 import gaga_phsp as gaga
 from gatetools.phsp import load
 import numpy as np
-from pathlib import Path
+from gaga_phsp.gaga_helpers_tests import get_tests_folder
 
 if __name__ == "__main__":
     """
@@ -12,10 +12,11 @@ if __name__ == "__main__":
     """
 
     # input
-    dataset_filename = Path("data") / "test003" / "spect_training_dataset.root"
-    npy1_filename = Path("output") / "test003_exit_pos.npy"
-    npy2_filename = Path("output") / "test003_ideal_pos.npy"
-    plot_filename = Path("output") / "test003.png"
+    output_folder = get_tests_folder() / "output"
+    dataset_filename = get_tests_folder() / "data" / "test003" / "spect_training_dataset.root"
+    npy1_filename = output_folder / "test003_exit_pos.npy"
+    npy2_filename = output_folder / "test003_ideal_pos.npy"
+    plot_filename = output_folder / "test003.png"
 
     # step 1
     cmd = f"gaga_exit_pos_to_ideal_pos {dataset_filename} -n 1e4 -o {npy1_filename}"
