@@ -20,13 +20,14 @@ CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 )
 @click.option("-x", default=float(1), help="Condition x")
 @click.option("-y", default=float(1), help="Condition y")
+@click.option("--output", "-o", default="cond.png", help="Output image")
 @click.option(
     "--epoch",
     "-e",
     default=-1,
     help="Load the G net at the given epoch (-1 for last stored epoch)",
 )
-def gaga_gauss_plot(phsp_filename, pth_filename, n, m, epoch, x, y):
+def gaga_gauss_plot(phsp_filename, pth_filename, n, m, epoch, x, y, output):
     """
     \b
     Plot 2D mixture of Gaussian ref in phsp, gan in pth
@@ -81,9 +82,8 @@ def gaga_gauss_plot(phsp_filename, pth_filename, n, m, epoch, x, y):
     a.axis("equal")
 
     plt.title(pth_filename)
-    f = f"cond.png"
-    print(f)
-    plt.savefig(f)
+    print(output)
+    plt.savefig(output)
 
 
 # --------------------------------------------------------------------------

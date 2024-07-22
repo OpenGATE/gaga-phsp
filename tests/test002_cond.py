@@ -3,7 +3,7 @@
 
 import gaga_phsp as gaga
 import gatetools.phsp as phsp
-
+from pathlib import Path
 
 if __name__ == "__main__":
     """
@@ -11,8 +11,9 @@ if __name__ == "__main__":
     """
 
     # input
-    phsp_filename = f"npy/test002_cond.npy"
-    pth_filename = f"pth/test002_cond.pth"
+    phsp_filename = Path("output") / "test002_cond.npy"
+    pth_filename = Path("output") / "test002_cond.pth"
+    png = Path("output") / "test002_cond.png"
 
     # step 1
     cmd = f"gaga_gauss_cond_test {phsp_filename} -n 4e4 -m 10"
@@ -23,11 +24,11 @@ if __name__ == "__main__":
     gaga.run_and_check(cmd)
 
     # step 3
-    cmd = f"gaga_gauss_plot {phsp_filename} {pth_filename} -n 1e4"
+    cmd = f"gaga_gauss_plot {phsp_filename} {pth_filename} -n 1e4 -o {png}"
     gaga.run_and_check(cmd)
-    print("Results in cond.png")
+    print(f"Results in {png}")
 
-    plt = pth_filename.replace(".pth", ".png")
+    plt = str(pth_filename).replace(".pth", ".png")
     cmd = f"gaga_plot  {phsp_filename} {pth_filename} --cond_phsp {phsp_filename} -o {plt}"
     gaga.run_and_check(cmd)
     print(f"Results in {plt}")

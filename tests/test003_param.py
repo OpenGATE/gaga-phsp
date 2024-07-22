@@ -4,6 +4,7 @@
 import gaga_phsp as gaga
 from gatetools.phsp import load
 import numpy as np
+from pathlib import Path
 
 if __name__ == "__main__":
     """
@@ -11,10 +12,10 @@ if __name__ == "__main__":
     """
 
     # input
-    dataset_filename = f"data/test003/spect_training_dataset.root"
-    npy1_filename = f"output/test003_exit_pos.npy"
-    npy2_filename = f"output/test003_ideal_pos.npy"
-    plot_filename = f"output/test003.png"
+    dataset_filename = Path("data") / "test003" / "spect_training_dataset.root"
+    npy1_filename = Path("output") / "test003_exit_pos.npy"
+    npy2_filename = Path("output") / "test003_ideal_pos.npy"
+    plot_filename = Path("output") / "test003.png"
 
     # step 1
     cmd = f"gaga_exit_pos_to_ideal_pos {dataset_filename} -n 1e4 -o {npy1_filename}"
