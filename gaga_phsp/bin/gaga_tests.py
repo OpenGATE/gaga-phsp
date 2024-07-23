@@ -27,7 +27,7 @@ def go(test_id, random_tests):
     print(f"Looking for tests in: {mypath}")
 
     ignored_tests = [
-        "test045_speedup",  # this is a binary (still work in progress)
+        "test004_main1_ref",
     ]
 
     onlyfiles = [
@@ -80,7 +80,7 @@ def go(test_id, random_tests):
         files = files_new + random.sample(files[:-10], int(prob * (len(files) - 10)))
         files = sorted(files)
 
-    print(f"Running {len(files)} tests (warning ~1min tests)")
+    print(f"Running {len(files)} tests (warning ~1min+ per tests)")
     print(f"-" * 70)
 
     failure = False
@@ -90,7 +90,6 @@ def go(test_id, random_tests):
         print(f"Running: {f:<46}  ", end="")
         cmd = "python " + os.path.join(mypath, f"{f}")
         log = Path(os.path.dirname(mypath)) / "tests" / "log" / f"{f}.log"
-        print(log)
         r = os.system(f"{cmd} > {log} 2>&1")
         # subprocess.run(cmd, stdout=f, shell=True, check=True)
         if r == 0:
