@@ -3,7 +3,6 @@
 
 import os
 import time
-import pathlib
 from pathlib import Path
 import click
 import random
@@ -25,6 +24,8 @@ CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 def go(test_id, random_tests):
     mypath = get_tests_folder()
     print(f"Looking for tests in: {mypath}")
+    os.system("pwd")
+    os.system("ls")
 
     ignored_tests = [
         "test004_main1_ref",
@@ -85,6 +86,7 @@ def go(test_id, random_tests):
 
     failure = False
 
+    os.makedirs(Path(os.path.dirname(mypath)) / "tests" / "log", exist_ok=True)
     for f in files:
         start = time.time()
         print(f"Running: {f:<46}  ", end="")
