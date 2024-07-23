@@ -58,7 +58,7 @@ jobs:
       run: |
           pip install dist/gaga_phsp-*-py3-none-any.whl
           cd tests
-          python gaga_tests || exit -1
+          python ../gaga_phsp/bin/gaga_tests.py || exit -1
 
   publish_wheel:
     runs-on: ubuntu-latest
