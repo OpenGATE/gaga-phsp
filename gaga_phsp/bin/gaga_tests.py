@@ -28,7 +28,7 @@ def go(test_id, random_tests):
     os.system("ls")
 
     ignored_tests = [
-        "test004_main1_refi.py",
+        "test004_main1_ref.py",
         "test004_main2_garf.py",
         "test004_main3_gaga.py",
         "test004_main4_standalone_numpy.py",
