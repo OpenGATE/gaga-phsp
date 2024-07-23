@@ -89,7 +89,8 @@ def go(test_id, random_tests):
         start = time.time()
         print(f"Running: {f:<46}  ", end="")
         cmd = "python " + os.path.join(mypath, f"{f}")
-        log = os.path.join(os.path.dirname(mypath), Path(mypath) / "log" / f"{f}.log")
+        log = Path(os.path.dirname(mypath)) / "tests" / "log" / f"{f}.log"
+        print(log)
         r = os.system(f"{cmd} > {log} 2>&1")
         # subprocess.run(cmd, stdout=f, shell=True, check=True)
         if r == 0:
@@ -107,6 +108,8 @@ def go(test_id, random_tests):
         print(f"   {end - start:5.1f} s     {log:<65}")
 
     print(not failure)
+    if failure:
+        exit(-1)
 
 
 # --------------------------------------------------------------------------
