@@ -105,7 +105,7 @@ def go(test_id, random_tests):
                 failure = True
                 os.system("cat " + str(log))
         end = time.time()
-        print(f"   {end - start:5.1f} s     {log:<65}")
+        print(f"   {end - start:5.1f} s     {str(log):<65}")
 
     print(not failure)
     if failure:
