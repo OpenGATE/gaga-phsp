@@ -55,7 +55,7 @@ if __name__ == "__main__":
 
     # compare fake and real
     print()
-    gaga.compare_sampled_points(r_keys, real, fake, wtol=0.3, tol=0.08)
+    is_ok = gaga.compare_sampled_points(r_keys, real, fake, wtol=0.3, tol=0.08)
 
     # end
-    gaga.test_ok(True)
+    gaga.test_ok(is_ok)

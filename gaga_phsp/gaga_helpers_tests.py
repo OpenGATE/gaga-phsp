@@ -64,6 +64,8 @@ def compare_sampled_points(keys, real, fake, wtol=0.1, tol=0.08):
         print(f"({i}) Std real vs fake : {real_std:.2f} {fake_std:.2f} {d_std * 100:.2f}%")
         if d_mean > tol or d_std > tol:
             fatal(f"Difference between real and fake too large {d_mean} {d_std} vs {tol}")
+            return False
+        return True
 
 
 def get_tests_folder():

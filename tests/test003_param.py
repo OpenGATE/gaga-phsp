@@ -56,4 +56,4 @@ if __name__ == "__main__":
         is_ok = is_ok and b
 
     # end
-    gaga.test_ok(True)
+    gaga.test_ok(is_ok)

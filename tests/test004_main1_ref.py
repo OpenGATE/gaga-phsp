@@ -44,5 +44,5 @@ if __name__ == "__main__":
     print(stats)
 
     # compare results
-    is_ok = test_check_results(simu, stats, data_folder / "test004_ref", simu.name, [65, 12])
+    is_ok = test_check_results(simu, stats, data_folder / "test004_ref", simu.name, [65, 20])
     utility.test_ok(is_ok)

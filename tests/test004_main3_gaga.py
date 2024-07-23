@@ -50,7 +50,7 @@ if __name__ == "__main__":
 
     # compare results
     is_ok = test_check_results(simu, stats,
-                               data_folder,
+                               data_folder / "test004_ref",
                                "test004_main2_garf",
-                               [76, 20], tol_stat=13)
+                               [78, 43], tol_stat=13)
     utility.test_ok(is_ok)

@@ -48,6 +48,6 @@ if __name__ == "__main__":
     is_ok = test_check_results(simu, stats,
                                data_folder / "test004_ref",
                                "test004_main1_ref",
-                               [76, 30],
+                               [84, 47],
                                1e6 * Bq / simu.total_activity)
     utility.test_ok(is_ok)

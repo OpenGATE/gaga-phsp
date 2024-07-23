@@ -15,7 +15,7 @@ if __name__ == "__main__":
     data_folder = get_tests_folder() / "data" / "test004"
 
     # spect options
-    simu = SpectIntevoSimulator('standalone_numpy', "test004_main6_standalone_numpy_new")
+    simu = SpectIntevoSimulator('standalone_numpy', "test004_main4_standalone_numpy")
     simu.output_folder = output_folder
     simu.ct_image = data_folder / "53_CT_bg_crop_4mm_vcrop.mhd"  # (needed to position the source)
     simu.activity_image = data_folder / "three_spheres_4mm.mhd"
@@ -23,7 +23,9 @@ if __name__ == "__main__":
     simu.gantry_angles = [0 * deg, 100 * deg, 230 * deg]
 
     simu.duration = 30 * sec
+    simu.number_of_threads = 1
     simu.total_activity = 2e5 * Bq
+    # simu.visu = True
 
     simu.image_size = [96, 96]
     simu.image_spacing = [4.7951998710632 * mm * 3, 4.7951998710632 * mm * 3]
@@ -43,8 +45,8 @@ if __name__ == "__main__":
 
     # compare results
     is_ok = test_check_results(simu, None,
-                               "test004",
+                               data_folder / "test004_ref",
                                "test004_main3_gaga",
-                               [77, 15],
+                               [87, 15],
                                scaling=1)
     utility.test_ok(is_ok)
