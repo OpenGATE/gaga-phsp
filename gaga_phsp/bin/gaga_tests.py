@@ -103,7 +103,7 @@ def go(test_id, random_tests):
             else:
                 print(colored.stylize(" FAILED !", color_error), end="")
                 failure = True
-                os.system("cat " + log)
+                os.system("cat " + str(log))
         end = time.time()
         print(f"   {end - start:5.1f} s     {log:<65}")
 
