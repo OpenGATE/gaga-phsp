@@ -3,7 +3,7 @@
 
 import gaga_phsp as gaga
 import gatetools.phsp as phsp
-
+from gaga_phsp.gaga_helpers_tests import get_tests_folder
 
 if __name__ == "__main__":
     """
@@ -11,23 +11,26 @@ if __name__ == "__main__":
     """
 
     # input
-    phsp_filename = f"npy/test002_cond.npy"
-    pth_filename = f"pth/test002_cond.pth"
+    output_folder = get_tests_folder() / "output"
+    phsp_filename = output_folder / "test002_cond.npy"
+    pth_filename = output_folder / "test002_cond.pth"
+    png = output_folder / "test002_cond.png"
+    json_file = get_tests_folder() / 'json' / 'cg1.json'
 
     # step 1
     cmd = f"gaga_gauss_cond_test {phsp_filename} -n 4e4 -m 10"
     gaga.run_and_check(cmd)
 
     # step 2
-    cmd = f"gaga_train {phsp_filename} json/cg1.json -o {pth_filename} -pi epoch 30"
+    cmd = f"gaga_train {phsp_filename} {json_file} -o {pth_filename} -pi epoch 30"
     gaga.run_and_check(cmd)
 
     # step 3
-    cmd = f"gaga_gauss_plot {phsp_filename} {pth_filename} -n 1e4"
+    cmd = f"gaga_gauss_plot {phsp_filename} {pth_filename} -n 1e4 -o {png}"
     gaga.run_and_check(cmd)
-    print("Results in cond.png")
+    print(f"Results in {png}")
 
-    plt = pth_filename.replace(".pth", ".png")
+    plt = str(pth_filename).replace(".pth", ".png")
     cmd = f"gaga_plot  {phsp_filename} {pth_filename} --cond_phsp {phsp_filename} -o {plt}"
     gaga.run_and_check(cmd)
     print(f"Results in {plt}")
@@ -51,7 +54,7 @@ if __name__ == "__main__":
 
     # compare fake and real
     print()
-    gaga.compare_sampled_points(r_keys[0:2], real, fake, wtol=0.21, tol=0.03)
+    is_ok = gaga.compare_sampled_points(r_keys[0:2], real, fake, wtol=0.21, tol=0.03)
 
     # end
-    gaga.test_ok(True)
+    gaga.test_ok(is_ok)

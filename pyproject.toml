@@ -36,6 +36,7 @@ dependencies = [
         "garf>=2.7",
         "matplotlib",
         "gatetools",
+        "pathlib"
 ]
 
 [project.scripts]
@@ -54,4 +55,5 @@ gaga_pet_to_pairs = "gaga_phsp.bin.gaga_pet_to_pairs:go"
 gaga_pet_merge_pairs = "gaga_phsp.bin.gaga_pet_merge_pairs:go"
 gaga_exit_pos_to_ideal_pos = "gaga_phsp.bin.gaga_exit_pos_to_ideal_pos:go"
 gaga_ideal_pos_to_exit_pos = "gaga_phsp.bin.gaga_ideal_pos_to_exit_pos:go"
+gaga_tests = "gaga_phsp.bin.gaga_tests:go"
 

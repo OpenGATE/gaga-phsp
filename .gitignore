@@ -27,7 +27,7 @@ aa.png
 /tests/*pt
 /tests/*png
 /tests/*old*
-
+/tests_save
 
 /save/
 
@@ -40,8 +40,9 @@ aa.png
 /tests_old
 /tests/a.pdf
 /tests/jz/
-/tests/output/
 /tests/pth_oct_2022
+/tests/output/test*
+tests/log/*log
 
 *OLD*
 /gaga/gaga_helpers_pet_before_dw_change.py
