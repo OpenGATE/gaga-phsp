@@ -12,7 +12,6 @@ import numpy as np
 import os
 import time
 import itk
-import matplotlib.pyplot as plt
 from scipy.ndimage import map_coordinates
 
 
@@ -38,16 +37,20 @@ class SpectIntevoSimulator:
         Bq = gate.g4_units.Bq
         sec = gate.g4_units.second
         mm = gate.g4_units.mm
+        mm = gate.g4_units.mm
 
         self.mode = mode
-        available_modes = ['training_gaga',  # only ct, no spect head nor garf
-                           'training_garf',  # only garf
-                           'monte_carlo',  # with gate, can be with or without gaga or garf
-                           'standalone_numpy',  # out of gate, use numpy (for mac with mps GPU)
-                           'standalone_torch']  # out of gate, use torch (fastest, need cuda GPU)
+        available_modes = [
+            "training_gaga",  # only ct, no spect head nor garf
+            "training_garf",  # only garf
+            "monte_carlo",  # with gate, can be with or without gaga or garf
+            "standalone_numpy",  # out of gate, use numpy (for mac with mps GPU)
+            "standalone_torch",
+        ]  # out of gate, use torch (fastest, need cuda GPU)
         if mode not in available_modes:
-            gate.exception.fatal(f'Error, mode {mode} not available. '
-                                 f'Known modes: {available_modes}')
+            gate.exception.fatal(
+                f"Error, mode {mode} not available. " f"Known modes: {available_modes}"
+            )
 
         self.output_folder = Path("output")
         self.name = name
@@ -128,7 +131,9 @@ class SpectIntevoSimulator:
         sec = gate.g4_units.second
         w, e = gate.sources.generic.get_rad_gamma_energy_spectrum(self.radionuclide)
         self.branching_ratio = np.sum(w)
-        ne = int((self.total_activity / Bq) * self.branching_ratio * self.duration / sec)
+        ne = int(
+            (self.total_activity / Bq) * self.branching_ratio * self.duration / sec
+        )
         self.number_of_events = ne
 
     def initialize_gantry_rotations(self):
@@ -200,8 +205,10 @@ class SpectIntevoSimulator:
         # check mode
         m = ["training_gaga", "training_garf", "monte_carlo"]
         if self.mode not in m:
-            gate.exception.fatal(f'Cannot create a gate simulation with this mode '
-                                 f'{self.mode}, use one of {m}')
+            gate.exception.fatal(
+                f"Cannot create a gate simulation with this mode "
+                f"{self.mode}, use one of {m}"
+            )
 
         # mode training gaga : no spect head, only CT and spherical phsp
         if self.mode == "training_gaga":
@@ -209,15 +216,17 @@ class SpectIntevoSimulator:
             self.gaga_source.pth_filename = None
             self.head_angles = []
             self.phsp = add_gaga_sphere_phsp(sim, self.sphere_phsp_radius)
-            self.phsp.output = f"{self.output_folder}/{self.name}.root"
+            self.phsp.output_filename = f"{self.name}.root"
 
         # init and check param
         self.initialize()
 
         # default options
-        sim.check_overlap = True
-        sim.visu_type = "vrml"
+        sim.check_volumes_overlap = True
+        sim.visu_type = "qt"
         sim.number_of_threads = self.number_of_threads
+        sim.output_dir = self.output_folder
+        sim.progress_bar = True
 
         # visu ?
         if self.visu:
@@ -238,14 +247,26 @@ class SpectIntevoSimulator:
         deg = gate.g4_units.deg
         heads = []
         for head_angle in self.head_angles:
-            print(f'Add a SPECT head with angle {head_angle / deg:.0f} deg')
+            print(f"Add a SPECT head with angle {head_angle / deg:.0f} deg")
             if self.garf_detector.pth_filename is None:
-                h = add_intevo_head(sim, self.collimator_type, self.radius,
-                                    self.detector_offset, angle=head_angle, cut=self.cut_in_head)
+                h = add_intevo_head(
+                    sim,
+                    self.collimator_type,
+                    self.radius,
+                    self.detector_offset,
+                    angle=head_angle,
+                    cut=self.cut_in_head,
+                )
             else:
-                h = add_intevo_arf_plane(sim, self.collimator_type, self.radius,
-                                         self.detector_offset, head_angle,
-                                         self.image_size, self.image_spacing)
+                h = add_intevo_arf_plane(
+                    sim,
+                    self.collimator_type,
+                    self.radius,
+                    self.detector_offset,
+                    head_angle,
+                    self.image_size,
+                    self.image_spacing,
+                )
 
             heads.append(h)
 
@@ -256,21 +277,25 @@ class SpectIntevoSimulator:
 
         # source
         if self.gaga_source.pth_filename is None:
-            source = add_vox_gamma_source(sim,
-                                          self.activity_image,
-                                          self.radionuclide,
-                                          self.total_activity,
-                                          self.duration,
-                                          ct,
-                                          self.ct_image)
+            source = add_vox_gamma_source(
+                sim,
+                self.activity_image,
+                self.radionuclide,
+                self.total_activity,
+                self.duration,
+                ct,
+                self.ct_image,
+            )
         else:
-            source = add_gaga_source(sim,
-                                     self.ct_image,
-                                     self.activity_image,
-                                     self.total_activity,
-                                     self.gaga_source.pth_filename,
-                                     self.gaga_source.backward_distance,
-                                     self.gaga_source.batch_size)
+            source = add_gaga_source(
+                sim,
+                self.ct_image,
+                self.activity_image,
+                self.total_activity,
+                self.gaga_source.pth_filename,
+                self.gaga_source.backward_distance,
+                self.gaga_source.batch_size,
+            )
 
         # stat actors
         stats = sim.add_actor("SimulationStatisticsActor", "stats")
@@ -279,21 +304,30 @@ class SpectIntevoSimulator:
         projections = []
         for head in heads:
             if self.garf_detector.pth_filename is None:
-                p = add_intevo_digitizer(sim, head, self.radionuclide, self.image_size, self.image_spacing)
+                p = add_intevo_digitizer(
+                    sim, head, self.radionuclide, self.image_size, self.image_spacing
+                )
             else:
-                p = add_intevo_arf_actor(sim, self.collimator_type, head, self.garf_detector.pth_filename,
-                                         self.image_size, self.image_spacing, self.garf_detector.gpu_mode,
-                                         self.garf_detector.batch_size)
+                p = add_intevo_arf_actor(
+                    sim,
+                    self.collimator_type,
+                    head,
+                    self.garf_detector.pth_filename,
+                    self.image_size,
+                    self.image_spacing,
+                    self.garf_detector.gpu_mode,
+                    self.garf_detector.batch_size,
+                )
             projections.append(p)
 
         # output
-        stats.output = self.output_folder / f"{self.name}_stats.txt"
+        stats.output_filename = f"{self.name}_stats.txt"
         if len(heads) == 1:
-            projections[0].output = self.output_folder / f"{self.name}_proj.mhd"
+            projections[0].output_filename = f"{self.name}_proj.mhd"
         else:
             i = 0
             for proj in projections:
-                proj.output = self.output_folder / f"{self.name}_proj_{i}.mhd"
+                proj.output_filename = f"{self.name}_proj_{i}.mhd"
                 i += 1
 
         # timing
@@ -303,7 +337,9 @@ class SpectIntevoSimulator:
     def generate_projections(self):
         # special case with standalone : no head_angle, use gantry_angles
         if len(self.head_angles) != 1:
-            gate.exception.fatal(f'Cannot use several head angles in standalone. Use gantry_angles')
+            gate.exception.fatal(
+                f"Cannot use several head angles in standalone. Use gantry_angles"
+            )
 
         # mode ?
         # initialize : set all parameters to garf and gaga
@@ -321,10 +357,14 @@ class SpectIntevoSimulator:
         # go
         images = []
         self.start_time = time.time()
-        if self.mode == 'standalone_numpy':
-            images = self.gaga_source.generate_projections_numpy(self.garf_detector, self.number_of_events)
-        if self.mode == 'standalone_torch':
-            images = self.gaga_source.generate_projections_torch(self.garf_detector, self.number_of_events)
+        if self.mode == "standalone_numpy":
+            images = self.gaga_source.generate_projections_numpy(
+                self.garf_detector, self.number_of_events
+            )
+        if self.mode == "standalone_torch":
+            images = self.gaga_source.generate_projections_torch(
+                self.garf_detector, self.number_of_events
+            )
 
         # timing
         self.stop_time = time.time()
@@ -341,11 +381,13 @@ class SpectIntevoSimulator:
 
 
 def get_collimator_from_radionuclide(radionuclide):
-    rad_to_colli = {"tc99m": "lehr", 'lu177': "melp"}
+    rad_to_colli = {"tc99m": "lehr", "lu177": "melp"}
     radionuclide = radionuclide.lower()
     if radionuclide not in rad_to_colli:
-        gate.exception.fatal(f'Unknown radionuclide {radionuclide}. '
-                             f'Valid radionuclides are = {rad_to_colli}')
+        gate.exception.fatal(
+            f"Unknown radionuclide {radionuclide}. "
+            f"Valid radionuclides are = {rad_to_colli}"
+        )
     return rad_to_colli[radionuclide]
 
 
@@ -360,7 +402,9 @@ def add_ct_image(sim, ct_image, tol=None, voxels_materials=None, cut=None):
         f2 = gate.utility.get_data_folder() / "Schneider2000DensitiesTable.txt"
         if tol is None:
             tol = 0.05 * gcm3
-        vm, materials = gate.geometry.materials.HounsfieldUnit_to_material(sim, tol, f1, f2)
+        vm, materials = gate.geometry.materials.HounsfieldUnit_to_material(
+            sim, tol, f1, f2
+        )
         ct.voxel_materials = vm
     else:
         ct.voxel_materials = voxels_materials
@@ -418,7 +462,7 @@ def add_gaga_sphere_phsp(sim, radius):
 
     # phsp
     phsp = sim.add_actor("PhaseSpaceActor", "phase_space")
-    phsp.mother = "phase_space_sphere"
+    phsp.attached_to = "phase_space_sphere"
     phsp.attributes = [
         "KineticEnergy",
         "PrePosition",
@@ -429,14 +473,11 @@ def add_gaga_sphere_phsp(sim, radius):
         "EventPosition",
         "EventDirection",
     ]
-    # phsp.output = f"{output_folder}/{simu_name}.root"
     # this option allow to store all events even if absorbed
     phsp.store_absorbed_event = True
     f = sim.add_filter("ParticleFilter", "f")
     f.particle = "gamma"
     phsp.filters.append(f)
-    print(phsp)
-    print(phsp.output)
     return phsp
 
 
@@ -462,7 +503,9 @@ def add_intevo_head(sim, colli_type, radius, detector_offset, angle=0, cut=None)
     return head
 
 
-def add_intevo_arf_plane(sim, colli_type, radius, detector_offset, angle, image_size, image_spacing):
+def add_intevo_arf_plane(
+    sim, colli_type, radius, detector_offset, angle, image_size, image_spacing
+):
     # garf plane
     deg = gate.g4_units.deg
     name = f"arf_plane_{angle / deg:.0f}"
@@ -475,20 +518,27 @@ def add_intevo_arf_plane(sim, colli_type, radius, detector_offset, angle, image_
     return arf_plane
 
 
-def add_intevo_arf_actor(sim, colli_type, detector_plane, pth_filename,
-                         image_size, image_spacing,
-                         gpu_mode='auto', batch_size=1e5):
+def add_intevo_arf_actor(
+    sim,
+    colli_type,
+    detector_plane,
+    pth_filename,
+    image_size,
+    image_spacing,
+    gpu_mode="auto",
+    batch_size=1e5,
+):
     # get crystal dist
     pos, crystal_dist, psd = gate_intevo.compute_plane_position_and_distance_to_crystal(
         colli_type
     )
     # arf actor
     arf = sim.add_actor("ARFActor", f"arf_{detector_plane.name}")
-    arf.mother = detector_plane.name
+    arf.attached_to = detector_plane.name
     arf.batch_size = batch_size
     arf.image_size = image_size
     arf.image_spacing = image_spacing
-    arf.verbose_batch = True  # FIXME
+    arf.verbose_batch = False  # FIXME
     arf.distance_to_crystal = crystal_dist
     arf.gpu_mode = gpu_mode
     arf.enable_hit_slice = False
@@ -499,7 +549,9 @@ def add_intevo_arf_actor(sim, colli_type, detector_plane, pth_filename,
     return arf
 
 
-def add_vox_gamma_source(sim, activity_image, radionuclide, total_activity, duration, ct, ct_image):
+def add_vox_gamma_source(
+    sim, activity_image, radionuclide, total_activity, duration, ct, ct_image
+):
     source = sim.add_source("VoxelsSource", "vox_source")
     w, e = gate.sources.generic.get_rad_gamma_energy_spectrum(radionuclide)
     if ct is not None:
@@ -523,14 +575,16 @@ def add_vox_gamma_source(sim, activity_image, radionuclide, total_activity, dura
 def add_intevo_digitizer(sim, head, radionuclide, image_size, image_spacing):
     digit_name = f"{head.name}_digit"
     digit = None
-    crystal = sim.volume_manager.get_volume(f'{head.name}_crystal')
+    crystal = sim.volume_manager.get_volume(f"{head.name}_crystal")
     radionuclide = radionuclide.lower()
     if radionuclide == "lu177":
         digit = gate_intevo.add_digitizer_lu177(sim, crystal.name, digit_name)
     if radionuclide == "tc99m":
         digit = gate_intevo.add_digitizer_tc99m(sim, crystal.name, digit_name)
     if digit is None:
-        gate.exception.fatal(f"Digitizer for radionuclide {radionuclide} is not known (lu177 tc99m)")
+        gate.exception.fatal(
+            f"Digitizer for radionuclide {radionuclide} is not known (lu177 tc99m)"
+        )
     # projection output
     proj = digit.get_last_module()
     proj.size = image_size
@@ -538,13 +592,15 @@ def add_intevo_digitizer(sim, head, radionuclide, image_size, image_spacing):
     return proj
 
 
-def add_gaga_source(sim,
-                    ct_image,
-                    activity_image,
-                    total_activity,
-                    gaga_pth_filename,
-                    gaga_backward_distance,
-                    gaga_batch_size):
+def add_gaga_source(
+    sim,
+    ct_image,
+    activity_image,
+    total_activity,
+    gaga_pth_filename,
+    gaga_backward_distance,
+    gaga_batch_size,
+):
     # source
     keV = gate.g4_units.keV
     source = sim.add_source("GANSource", "source")
@@ -563,7 +619,7 @@ def add_gaga_source(sim,
     source.time_key = None
     source.backward_force = True  # because we don't care about timing
     source.batch_size = gaga_batch_size
-    source.verbose_generator = True  # FIXME
+    source.verbose_generator = False  # FIXME
     source.gpu_mode = "auto"
 
     # activity
@@ -582,25 +638,25 @@ def add_gaga_source(sim,
     # (because it is build from phsp Event Position)
     # so the vox sampling should transform the source image points in G4 world
     # This is done by translating from centers of CT and source images
-    tr = gate.image.get_translation_between_images_center(
-        ct_image, activity_image
-    )
+    tr = gate.image.get_translation_between_images_center(ct_image, activity_image)
     print(f"Translation from source coord system to G4 world {tr=} (rotation not done)")
     cond_gen.translation = tr
 
     return source
 
 
-def test_check_results(simu, stats, ref_simu_folder, simu_name, tols, scaling=1, tol_stat=0.025):
+def test_check_results(
+    simu, stats, ref_simu_folder, simu_name, tols, scaling=1, tol_stat=0.025
+):
     ref_simu_folder = Path(ref_simu_folder)
     if stats is not None:
         stats_ref = ref_simu_folder / f"{simu_name}_stats.txt"
         stats_ref = utility.read_stat_file(stats_ref)
-        stats.counts.event_count *= scaling
-        stats.counts.track_count *= scaling
-        stats.counts.step_count *= scaling
+        stats.counts.events *= scaling
+        stats.counts.tracks *= scaling
+        stats.counts.steps *= scaling
         # do not check run counts
-        stats.counts.run_count = stats_ref.counts.run_count
+        stats.counts.runs = stats_ref.counts.runs
         is_ok = utility.assert_stats(stats, stats_ref, tol_stat)
     else:
         is_ok = True
@@ -610,18 +666,20 @@ def test_check_results(simu, stats, ref_simu_folder, simu_name, tols, scaling=1,
         rname = f"{simu_name}_proj_{i}"
         name = f"{simu.name}_proj_{i}"
         is_ok = (
-                utility.assert_images(
-                    ref_simu_folder / f'{rname}.mhd',
-                    simu.output_folder / f'{name}.mhd',
-                    stats,
-                    tolerance=tols[0],
-                    ignore_value=0,
-                    axis="y",
-                    sum_tolerance=tols[1],
-                    fig_name=simu.output_folder / f'{name}_{i}.png',
-                    scaleImageValuesFactor=scaling
-                )
-                and is_ok
+            utility.assert_images(
+                ref_simu_folder / f"{rname}.mhd",
+                simu.output_folder / f"{name}.mhd",
+                stats,
+                tolerance=tols[0],
+                ignore_value_data1=0,
+                ignore_value_data2=0,
+                axis="y",
+                sum_tolerance=tols[1],
+                fig_name=simu.output_folder / f"{name}_{i}.png",
+                scaleImageValuesFactor=scaling,
+                sad_profile_tolerance=10,
+            )
+            and is_ok
         )
 
     return is_ok
@@ -645,4 +703,3 @@ def get_profile_slice(img, slice_id, point1, point2, num_points):
     img_profile = create_1d_profile(img_slice, point1, point2, num_points)
 
     return img_profile
-

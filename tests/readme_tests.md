@@ -32,4 +32,4 @@ Timing (07/2024)   linux (nvidia)        osx (mps)
 - main2 8 threads  1.2min PPS=69,885      37sec PPS=215,687
 - main3 1 thread    43sec PPS=138,160     24sec PPS=243,391
 - main4 1 thread    22sec PPS=233,992     23sec PPS=226,310
-- main5 1 thread     6sec PPS=994,562     WRONG mps???
+- main5 1 thread     6sec PPS=994,562     24sec PPS=219,338 (<-updated 20/08/2024)
