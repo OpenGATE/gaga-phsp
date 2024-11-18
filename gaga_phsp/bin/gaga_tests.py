@@ -31,6 +31,7 @@ def go(test_id, random_tests):
         "test004_main3_gaga.py",
         "test004_main4_standalone_numpy.py",
         "test004_main5_standalone_torch.py",
+        "test006_pos_enc.py",
     ]
 
     onlyfiles = [
