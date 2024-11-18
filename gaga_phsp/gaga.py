@@ -73,7 +73,7 @@ class Gan(object):
             except:
                 self.params["start_epoch"] = start_optim["current_epoch"][-1]
         else:
-            self.G, self.D = create_G_and_D_model(p)
+            self.G, self.D = create_g_and_d_model(p)
             self.params["start_epoch"] = 0
 
         self.z_rand = init_z_rand(self.params)
@@ -619,7 +619,7 @@ class Gan(object):
             # D
             for p in self.D.parameters():
                 p.requires_grad = True
-            cont_epoch, condx = self.update_D(data_iter, loader)
+            cont_epoch, condx = self.update_d(data_iter, loader)
             if not cont_epoch:
                 epoch += 1
                 pbar.set_postfix(
@@ -643,7 +643,7 @@ class Gan(object):
             # G
             for p in self.D.parameters():
                 p.requires_grad = False
-            self.update_G(condx)
+            self.update_g(condx)
 
             # housekeeping (to not accumulate gradient)
             # zero_grad clears old gradients from the last step
@@ -717,7 +717,7 @@ class Gan(object):
         self.optim["g_model_state"].append(state)
         self.optim["current_epoch"].append(epoch)
 
-    def update_D(self, data_iter, loader):
+    def update_d(self, data_iter, loader):
         cont_epoch = True
         batch_size = self.params.batch_size
         z_dim = self.params["z_dim"]
@@ -779,7 +779,7 @@ class Gan(object):
 
         return cont_epoch, condx
 
-    def update_G(self, condx):
+    def update_g(self, condx):
         batch_size = self.params.batch_size
         z_dim = self.params["z_dim"]
 

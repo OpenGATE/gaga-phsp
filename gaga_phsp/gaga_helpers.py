@@ -108,6 +108,8 @@ def check_input_params(params, fatal_on_unknown_keys=True):
         "cond_keys",
         "current_gpu_mode",
         "current_gpu_device",
+        "positional_encoding",
+        "positional_encoding_options",
     ]
 
     # forced
@@ -156,6 +158,16 @@ def check_input_params(params, fatal_on_unknown_keys=True):
         params["z_rand_type"] = "randn"
     if "epoch_dump" not in params:
         params["epoch_dump"] = -1
+
+    # default values for positional_encoding_options
+    if "positional_encoding" not in params:
+        params["positional_encoding"] = {}
+    if "positional_encoding_options" not in params:
+        params["positional_encoding_options"] = {
+            "num_encoding_functions": 3,
+            "include_input": False,
+            "log_sampling": True,
+        }
 
     # check required
     for req in required:  # + automated
@@ -311,13 +323,20 @@ def print_info_short(params, optim):
     print(s)
 
 
-def create_G_and_D_model(params):
+def create_g_and_d_model(params):
     G = None
     D = None
+
     if params["model"] == "v3":
         G = gaga.Generator(params)
         D = gaga.Discriminator(params)
         return G, D
+
+    if params["model"] == "v4":
+        G = gaga.GeneratorPosEncoding(params)
+        D = gaga.DiscriminatorPosEncoding(params)
+        return G, D
+
     if not D or not G:
         print("Error in create G and D model, unknown model version?")
         print(params["model"])
@@ -369,7 +388,7 @@ def load(filename, gpu_mode="auto", epoch=-1, fatal_on_unknown_keys=True):
         G_state = optim["g_model_state"][index]
 
     # create the Generator and the Discriminator (Critic)
-    G, D = create_G_and_D_model(params)
+    G, D = create_g_and_d_model(params)
 
     G.to(current_gpu_device)
     D.to(current_gpu_device)
@@ -485,14 +504,14 @@ def init_z_rand(params):
 
 
 def generate_samples_non_cond(
-        params,
-        G,
-        n,
-        batch_size=-1,
-        normalize=False,
-        to_numpy=False,
-        z=None,
-        silence=False,
+    params,
+    G,
+    n,
+    batch_size=-1,
+    normalize=False,
+    to_numpy=False,
+    z=None,
+    silence=False,
 ):
     # batch size -> if n is lower, batch size is n
     batch_size = int(batch_size)
@@ -573,12 +592,12 @@ def generate_samples3(params, G, n, cond, to_numpy=True):
     cn = len(params["cond_keys"])
 
     # mean and std for cond only
-    xmeanc = xmean[xn - cn: xn]
-    xstdc = xstd[xn - cn: xn]
+    xmeanc = xmean[xn - cn : xn]
+    xstdc = xstd[xn - cn : xn]
 
     # mean and std for non cond
-    xmeannc = xmean[0: xn - cn]
-    xstdnc = xstd[0: xn - cn]
+    xmeannc = xmean[0 : xn - cn]
+    xstdnc = xstd[0 : xn - cn]
 
     # normalize the condition
     cond = (cond - xmeanc) / xstdc
@@ -722,10 +741,10 @@ def project_on_plane(x, plane, image_plane_size_mm):
     """
 
     # n is the normal plane, duplicated n times
-    n = plane["plane_normal"][0: len(x)]
+    n = plane["plane_normal"][0 : len(x)]
 
     # c0 is the center of the plane, duplicated n times
-    c0 = plane["plane_center"][0: len(x)]
+    c0 = plane["plane_center"][0 : len(x)]
 
     # r is the rotation matrix of the plane, according to the current rotation angle (around Y)
     r = plane["rotation"]  # [0: len(x)]
@@ -771,7 +790,7 @@ def project_on_plane(x, plane, image_plane_size_mm):
     psi = psi + c0[: len(psi)]
 
     # apply the inverse of the rotation
-    psip = r.apply(psi)
+    psip = r.apply_pos_encoding_to_some_dim(psi)
 
     # remove out of plane (needed ??)
     sizex = image_plane_size_mm[0] / 2.0
@@ -793,7 +812,7 @@ def project_on_plane(x, plane, image_plane_size_mm):
     y = np.concatenate((pu, pv), axis=1)
 
     # rotate direction according to the plane
-    mup = r.apply(mu)
+    mup = r.apply_pos_encoding_to_some_dim(mu)
     norm = np.linalg.norm(mup, axis=1, keepdims=True)
     mup = mup / norm
     dx = mup[:, 0]
@@ -918,4 +937,3 @@ def from_ideal_pos_to_exit_pos(x, params):
 
     # end
     return x, keys_out
-

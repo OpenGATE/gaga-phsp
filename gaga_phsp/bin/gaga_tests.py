@@ -24,8 +24,6 @@ CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 def go(test_id, random_tests):
     mypath = get_tests_folder()
     print(f"Looking for tests in: {mypath}")
-    os.system("pwd")
-    os.system("ls")
 
     ignored_tests = [
         "test004_main1_ref.py",
