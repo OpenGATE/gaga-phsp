@@ -555,7 +555,7 @@ def add_vox_gamma_source(
     source = sim.add_source("VoxelsSource", "vox_source")
     w, e = gate.sources.generic.get_rad_gamma_energy_spectrum(radionuclide)
     if ct is not None:
-        source.mother = ct.name
+        source.attached_to = ct.name
     source.particle = "gamma"
     source.energy.type = "spectrum_lines"
     source.energy.spectrum_weight = w
