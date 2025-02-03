@@ -67,9 +67,9 @@ def gaga_info(pth_filename, plot, add_energy, sfig, short):
         f = pth_filename[0]
         params["Ekine"] = add_energy
         if params["current_gpu"]:
-            nn = torch.load(f)
+            nn = torch.load(f, weights_only=False)
         else:
-            nn = torch.load(f, map_location=lambda storage, loc: storage)
+            nn = torch.load(f, weights_only=False, map_location=lambda storage, loc: storage)
         nn["params"] = params
         copyfile(f, f + ".save")
         torch.save(nn, f)

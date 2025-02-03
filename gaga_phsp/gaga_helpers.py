@@ -363,7 +363,7 @@ def load(filename, gpu_mode="auto", epoch=-1, fatal_on_unknown_keys=True):
     """
 
     current_gpu_mode, current_gpu_device = get_gpu_device(gpu_mode)
-    nn = torch.load(filename, map_location=current_gpu_device)
+    nn = torch.load(filename, weights_only=False, map_location=current_gpu_device)
 
     # get elements
     params = nn["params"]
