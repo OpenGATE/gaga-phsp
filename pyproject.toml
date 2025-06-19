@@ -33,7 +33,7 @@ dependencies = [
         "colorama",
         "click",
         "scipy",
-        "garf>=2.8",
+        "garf>=2.10",
         "matplotlib",
         "gatetools",
         "pathlib"
