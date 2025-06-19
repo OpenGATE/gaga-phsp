@@ -87,7 +87,7 @@ jobs:
           sudo fc-cache -f -v
           pip install dist/gaga_phsp-*-py3-none-any.whl
           cd tests
-          cp -r data json mac output log /opt/hostedtoolcache/Python/3.11.11/x64/lib/python3.11/site-packages/tests/
+          cp -r data json mac output log /opt/hostedtoolcache/Python/3.11.13/x64/lib/python3.11/site-packages/tests/
           python ../gaga_phsp/bin/gaga_tests.py || exit -1
 
   publish_wheel:
