@@ -17,7 +17,7 @@ find = {}  # Scanning implicit namespaces is active by default
 
 [project]
 name = "gaga-phsp"
-version = "0.7.5"
+version = "0.7.6"
 dynamic = ["readme"]
 authors = [{ name = "David Sarrut", email = "david.sarrut@creatis.insa-lyon.fr" }]
 description = "Python tools for GATE GAN simulations"
